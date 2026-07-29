@@ -1,0 +1,6 @@
+{
+  "name": "BrainQuizAI",
+  "description": "BrainQuizAI - Challenge your Mind. Premium quiz and trivia app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
