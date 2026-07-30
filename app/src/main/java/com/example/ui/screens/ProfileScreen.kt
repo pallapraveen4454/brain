@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -128,18 +129,32 @@ fun ProfileScreen(
     onEditUsername: () -> Unit = {},
     onChangeAvatar: () -> Unit = {},
     onResetAccount: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showResetConfirmDialog by remember { mutableStateOf(false) }
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState())
-            .testTag("profile_screen"),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    var showSettingsScreen by remember { mutableStateOf(false) }
+
+    if (showSettingsScreen) {
+        SettingsScreen(
+            playerName = playerName,
+            playerEmail = playerEmail,
+            onResetAccount = {
+                showSettingsScreen = false
+                onResetAccount()
+            },
+            onBackClick = { showSettingsScreen = false },
+            modifier = modifier
+        )
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState())
+                .testTag("profile_screen"),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Avatar Header with Edit Overlay
@@ -429,15 +444,25 @@ fun ProfileScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             OutlinedButton(
-                onClick = { showResetConfirmDialog = true },
+                onClick = {
+                    onOpenSettings()
+                    showSettingsScreen = true
+                },
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
-                    .testTag("reset_account_button"),
+                    .testTag("settings_button"),
                 shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFEF5350).copy(alpha = 0.5f))
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.5f))
             ) {
-                Text("Reset Account", color = androidx.compose.ui.graphics.Color(0xFFEF5350), fontSize = 13.sp)
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = PrimaryPurpleLight,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Settings", color = TextWhite, fontSize = 13.sp)
             }
 
             OutlinedButton(
@@ -460,46 +485,9 @@ fun ProfileScreen(
             }
         }
 
-        if (showResetConfirmDialog) {
-            AlertDialog(
-                onDismissRequest = { showResetConfirmDialog = false },
-                containerColor = DarkBackground,
-                title = {
-                    Text(
-                        text = "Reset Account? ⚠️",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = TextWhite
-                    )
-                },
-                text = {
-                    Text(
-                        text = "Are you sure you want to reset your Guest Account? This will clear all local progress and generate a brand new Guest ID.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showResetConfirmDialog = false
-                            onResetAccount()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFD32F2F)),
-                        modifier = Modifier.testTag("confirm_reset_account_button")
-                    ) {
-                        Text("Yes, Reset", color = TextWhite)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showResetConfirmDialog = false }) {
-                        Text("Cancel", color = TextSecondary)
-                    }
-                }
-            )
-        }
-
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
 }
 
 @Composable

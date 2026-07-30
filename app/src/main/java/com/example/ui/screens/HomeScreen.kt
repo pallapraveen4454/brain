@@ -75,6 +75,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -603,18 +605,25 @@ fun HomeBottomNavigationBar(
             NavigationBarItem(
                 selected = isSelected,
                 onClick = { onTabSelect(item.tab) },
+                alwaysShowLabel = true,
                 icon = {
                     Icon(
                         imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                        contentDescription = item.label
+                        contentDescription = item.label,
+                        modifier = Modifier.size(24.dp)
                     )
                 },
                 label = {
                     Text(
                         text = item.label,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 10.sp
+                        ),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

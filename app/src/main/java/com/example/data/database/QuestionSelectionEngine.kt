@@ -2,6 +2,7 @@ package com.example.data.database
 
 import android.content.Context
 import android.util.Log
+import com.example.BrainQuizApplication
 import com.example.data.model.QuizQuestion
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -13,10 +14,43 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     private val dbManager = CategoryDatabaseManager(context)
 
     companion object {
-        // Fallback in-memory persistence when context is null or for current process lifetime
+        private var inMemoryInstallDate: String? = null
         private val inMemoryAssignedIds = ConcurrentHashMap<String, String>()
         private val inMemoryLastDate = ConcurrentHashMap<String, String>()
         private val inMemoryDayIndex = ConcurrentHashMap<String, Int>()
+    }
+
+    private fun getAppContext(): Context? {
+        return context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+    }
+
+    /**
+     * Permanent Install Date management.
+     * Saved permanently on first launch and used as Day 1 reference.
+     */
+    fun getOrInitInstallDate(todayDateOverride: String? = null): String {
+        val todayDate = todayDateOverride ?: getCurrentDateString()
+        val prefs = getPrefs()
+        var installDate = prefs?.getString("app_install_date", null) ?: inMemoryInstallDate
+        if (installDate.isNullOrBlank()) {
+            installDate = todayDate
+            if (prefs != null) {
+                prefs.edit().putString("app_install_date", installDate).apply()
+            }
+            inMemoryInstallDate = installDate
+            Log.d("QuestionSelectionEngine", "Saved permanent install date as $installDate (Day 1)")
+        }
+        return installDate
+    }
+
+    /**
+     * Calculates current Day Number: (Today's Date - Install Date) + 1
+     */
+    fun getCalculatedDayNumber(todayDateOverride: String? = null): Int {
+        val todayDate = todayDateOverride ?: getCurrentDateString()
+        val installDate = getOrInitInstallDate(todayDate)
+        val diffDays = maxOf(0, calculateDaysBetween(installDate, todayDate))
+        return diffDays + 1
     }
 
     /**
@@ -41,23 +75,28 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     }
 
     /**
-     * Daily Fixed Question System:
-     * Assigns 10 questions per category per day in sequence (e.g., Day 1 -> 1..10, Day 2 -> 11..20).
-     * On the same calendar date, opening the app multiple times always returns the exact same 10 assigned questions.
-     * Automatically advances to the next 10 questions when the calendar date changes.
-     * Wraps around sequentially once all questions in the category have been served.
+     * Daily Fixed Question System (Install Date Based):
+     * Day 1  = Install Date -> Questions 001-010
+     * Day 2  = Install Date + 1 -> Questions 011-020
+     * ...
+     * Day 30 = Install Date + 29 -> Questions 291-300
+     * Day 31 = Install Date + 30 -> Restarts from Day 1 (Questions 001-010)
      */
-    suspend fun getQuestionsForCategory(categoryId: String, requestedCount: Int = 10): List<QuizQuestion> {
+    suspend fun getQuestionsForCategory(
+        categoryId: String,
+        requestedCount: Int = 10,
+        dateOverride: String? = null
+    ): List<QuizQuestion> {
         val normKey = dbManager.normalizeCategoryKey(categoryId)
-        val todayDate = getCurrentDateString()
+        val todayDate = dateOverride ?: getCurrentDateString()
 
-        // 1. Check if questions are already assigned for today
+        // 1. Check if questions are already assigned/cached for today
         val savedIds = getSavedQuestionIds(normKey, todayDate)
         if (savedIds.isNotEmpty()) {
             val allEntitiesMap = loadAllEntitiesForCategory(normKey).associateBy { it.id }
             val savedQuestions = savedIds.mapNotNull { allEntitiesMap[it] }
             if (savedQuestions.isNotEmpty()) {
-                Log.d("QuestionSelectionEngine", "Loaded ${savedQuestions.size} daily fixed questions for category '$normKey' on $todayDate from cache")
+                Log.d("QuestionSelectionEngine", "Loaded ${savedQuestions.size} daily fixed questions for '$normKey' on $todayDate from cache")
                 return savedQuestions.map { it.toQuizQuestion() }
             }
         }
@@ -71,15 +110,11 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             return emptyList()
         }
 
-        // 3. Determine Day Index
-        val lastDate = getLastDate(normKey)
-        var dayIndex = getDayIndex(normKey)
+        // 3. Calculate Day Number based on Install Date
+        val dayNumber = getCalculatedDayNumber(todayDate)
+        val dayIndex = (dayNumber - 1) % 30  // 0-based day cycle index (0..29)
 
-        if (lastDate != null && lastDate != todayDate) {
-            dayIndex += 1
-        }
-
-        // 4. Calculate batch selection (sequence of requestedCount questions)
+        // 4. Calculate batch selection offset
         val totalCount = allEntities.size
         val countToSelect = minOf(requestedCount, totalCount)
         val startIndex = (dayIndex * countToSelect) % totalCount
@@ -94,14 +129,18 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         val assignedIds = selectedEntities.map { it.id }
         saveAssignedState(normKey, todayDate, dayIndex, assignedIds)
 
-        Log.d("QuestionSelectionEngine", "Assigned ${selectedEntities.size} new daily fixed questions for '$normKey' on $todayDate (Day index: $dayIndex, start idx: $startIndex)")
+        Log.d("QuestionSelectionEngine", "Assigned ${selectedEntities.size} questions for '$normKey' on $todayDate (Day $dayNumber, cycle index: $dayIndex, start idx: $startIndex)")
         return selectedEntities.map { it.toQuizQuestion() }
     }
 
-    fun getQuestionsForCategorySync(categoryId: String, requestedCount: Int = 10): List<QuizQuestion> {
+    fun getQuestionsForCategorySync(
+        categoryId: String,
+        requestedCount: Int = 10,
+        dateOverride: String? = null
+    ): List<QuizQuestion> {
         return try {
             kotlinx.coroutines.runBlocking {
-                getQuestionsForCategory(categoryId, requestedCount)
+                getQuestionsForCategory(categoryId, requestedCount, dateOverride)
             }
         } catch (e: Exception) {
             Log.e("QuestionSelectionEngine", "Error fetching questions sync for $categoryId", e)
@@ -160,7 +199,24 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     }
 
-    private fun getPrefs() = context?.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE)
+    private fun calculateDaysBetween(startDateStr: String, endDateStr: String): Int {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return try {
+            val start = sdf.parse(startDateStr)
+            val end = sdf.parse(endDateStr)
+            if (start != null && end != null) {
+                val diffMs = end.time - start.time
+                val days = Math.round(diffMs.toDouble() / (1000.0 * 60.0 * 60.0 * 24.0)).toInt()
+                if (days >= 0) days else 0
+            } else {
+                0
+            }
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    private fun getPrefs() = getAppContext()?.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE)
 
     private fun getSavedQuestionIds(normKey: String, todayDate: String): List<String> {
         val prefs = getPrefs()
@@ -209,3 +265,4 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         inMemoryDayIndex[indexKey] = dayIndex
     }
 }
+
