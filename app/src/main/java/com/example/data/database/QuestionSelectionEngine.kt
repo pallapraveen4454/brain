@@ -24,44 +24,196 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         return context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
     }
 
+    data class InstallDateDetails(
+        val previousInstallDate: String,
+        val currentInstallDate: String,
+        val calculatedDayNumber: Int
+    )
+
+    private fun subtractDaysFromDate(dateStr: String, days: Int): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return try {
+            val date = sdf.parse(dateStr)
+            if (date != null) {
+                val cal = java.util.Calendar.getInstance()
+                cal.time = date
+                cal.add(java.util.Calendar.DAY_OF_YEAR, -days)
+                sdf.format(cal.time)
+            } else {
+                dateStr
+            }
+        } catch (e: Exception) {
+            dateStr
+        }
+    }
+
+    private fun formatTimestampToDate(timestamp: Long): String {
+        if (timestamp <= 0) return ""
+        return try {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(timestamp))
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
     /**
-     * Permanent Install Date management.
-     * Saved permanently on first launch and used as Day 1 reference.
+     * Permanent Install Date details and recovery logic.
+     * Saved permanently on first launch and preserved across APK updates.
      */
-    fun getOrInitInstallDate(todayDateOverride: String? = null): String {
+    fun getInstallDateDetails(todayDateOverride: String? = null): InstallDateDetails {
         val todayDate = todayDateOverride ?: getCurrentDateString()
         val ctx = getAppContext()
         val prefs = getPrefs()
-        var installDate = prefs?.getString("app_install_date", null) ?: inMemoryInstallDate
 
-        if (installDate.isNullOrBlank() && ctx != null) {
+        var savedInstallDate = prefs?.getString("app_install_date", null) ?: inMemoryInstallDate
+
+        if (savedInstallDate.isNullOrBlank() && ctx != null) {
             val authPrefs = ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
             val quizPrefs = ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE)
+            val profilePrefs = ctx.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
 
             val candidates = listOfNotNull(
                 authPrefs.getString("app_install_date", null),
                 quizPrefs.getString("app_install_date", null),
+                profilePrefs.getString("app_install_date", null),
                 authPrefs.getString("user_created_date", null)
             ).filter { it.isNotBlank() }
 
             if (candidates.isNotEmpty()) {
-                installDate = candidates.first()
+                savedInstallDate = candidates.first()
             }
         }
 
-        if (installDate.isNullOrBlank()) {
-            installDate = todayDate
-            Log.d("QuestionSelectionEngine", "Saved initial permanent install date as $installDate (Day 1)")
+        if (savedInstallDate.isNullOrBlank() && ctx != null) {
+            try {
+                val profilePrefs = ctx.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+                val jsonStr = profilePrefs.getString("persistent_user_profile", "") ?: ""
+                if (jsonStr.isNotBlank()) {
+                    val jsonObj = org.json.JSONObject(jsonStr)
+                    val jsonInstallDate = jsonObj.optString("installDate", "")
+                    if (jsonInstallDate.isNotBlank()) {
+                        savedInstallDate = jsonInstallDate
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("QuestionSelectionEngine", "Error reading installDate from profile json", e)
+            }
+        }
+
+        // Check if there is an earlier user activity date from profile/streak
+        var derivedEarliestDate: String? = null
+        if (ctx != null) {
+            try {
+                val profileStore = com.example.data.UserProfileStore(ctx)
+                if (profileStore.hasSavedProfile()) {
+                    val profile = profileStore.getProfile()
+                    val activityDates = mutableListOf<String>()
+
+                    // 1. Streak derived date
+                    if (profile.streak > 0) {
+                        val refDate = if (profile.lastActiveDate.isNotBlank()) profile.lastActiveDate else todayDate
+                        val streakDaysToSubtract = maxOf(0, profile.streak - 1)
+                        val streakDate = subtractDaysFromDate(refDate, streakDaysToSubtract)
+                        if (streakDate <= todayDate) {
+                            activityDates.add(streakDate)
+                        }
+                    }
+
+                    // 2. CreatedAt date
+                    if (profile.createdAt > 0 && profile.createdAt <= System.currentTimeMillis()) {
+                        val createdDate = formatTimestampToDate(profile.createdAt)
+                        if (createdDate.isNotBlank() && createdDate <= todayDate) {
+                            activityDates.add(createdDate)
+                        }
+                    }
+
+                    // 3. Earliest quiz history date
+                    if (profile.quizHistory.isNotEmpty()) {
+                        profile.quizHistory.forEach { res ->
+                            val d = if (res.dateFormatted.isNotBlank()) res.dateFormatted else formatTimestampToDate(res.timestamp)
+                            if (d.isNotBlank() && d <= todayDate) {
+                                activityDates.add(d)
+                            }
+                        }
+                    }
+
+                    // 4. Last quiz date / Last active date
+                    if (profile.lastQuizDate.isNotBlank() && profile.lastQuizDate <= todayDate) {
+                        activityDates.add(profile.lastQuizDate)
+                    }
+                    if (profile.lastActiveDate.isNotBlank() && profile.lastActiveDate <= todayDate) {
+                        activityDates.add(profile.lastActiveDate)
+                    }
+
+                    if (activityDates.isNotEmpty()) {
+                        derivedEarliestDate = activityDates.minOrNull()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("QuestionSelectionEngine", "Error deriving earliest activity date", e)
+            }
+        }
+
+        var previousInstallDate = prefs?.getString("previous_install_date", null) ?: savedInstallDate ?: todayDate
+        var finalInstallDate: String
+
+        if (savedInstallDate.isNullOrBlank()) {
+            finalInstallDate = derivedEarliestDate ?: todayDate
+            previousInstallDate = todayDate
+        } else if (savedInstallDate == todayDate && derivedEarliestDate != null && derivedEarliestDate < todayDate) {
+            // Defaulted/overwritten to today previously, recover to earliest activity date permanently
+            previousInstallDate = savedInstallDate
+            finalInstallDate = derivedEarliestDate
+        } else {
+            finalInstallDate = savedInstallDate
         }
 
         if (ctx != null) {
-            prefs?.edit()?.putString("app_install_date", installDate)?.commit()
-            ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit().putString("app_install_date", installDate).commit()
-            ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE).edit().putString("app_install_date", installDate).commit()
-        }
-        inMemoryInstallDate = installDate
+            prefs?.edit()
+                ?.putString("app_install_date", finalInstallDate)
+                ?.putString("previous_install_date", previousInstallDate)
+                ?.commit()
 
-        return installDate
+            ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit()
+                .putString("app_install_date", finalInstallDate)
+                .putString("previous_install_date", previousInstallDate)
+                .commit()
+
+            ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE).edit()
+                .putString("app_install_date", finalInstallDate)
+                .putString("previous_install_date", previousInstallDate)
+                .commit()
+
+            ctx.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE).edit()
+                .putString("app_install_date", finalInstallDate)
+                .putString("previous_install_date", previousInstallDate)
+                .commit()
+
+            try {
+                val profileStore = com.example.data.UserProfileStore(ctx)
+                val profile = profileStore.getProfile()
+                if (profile.installDate != finalInstallDate) {
+                    profileStore.saveProfile(profile.copy(installDate = finalInstallDate))
+                }
+            } catch (e: Exception) {
+                Log.e("QuestionSelectionEngine", "Error updating profile json installDate", e)
+            }
+        }
+
+        inMemoryInstallDate = finalInstallDate
+
+        val diffDays = maxOf(0, calculateDaysBetween(finalInstallDate, todayDate))
+        val dayNumber = diffDays + 1
+
+        return InstallDateDetails(
+            previousInstallDate = previousInstallDate,
+            currentInstallDate = finalInstallDate,
+            calculatedDayNumber = dayNumber
+        )
+    }
+
+    fun getOrInitInstallDate(todayDateOverride: String? = null): String {
+        return getInstallDateDetails(todayDateOverride).currentInstallDate
     }
 
     /**

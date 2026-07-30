@@ -45,10 +45,12 @@ data class QuizUiState(
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
     val isQuizComplete: Boolean = false,
     val isLoading: Boolean = true,
+    val debugPreviousInstallDate: String = "",
     val debugInstallDate: String = "",
     val debugTodayDate: String = "",
     val debugCalculatedDayNumber: Int = 0,
-    val debugAssignedQuestionIds: List<String> = emptyList()
+    val debugAssignedQuestionIds: List<String> = emptyList(),
+    val debugConfirmationMessage: String = "Future APK updates will never reset Daily Rotation."
 )
 
 class QuizViewModel(
@@ -141,8 +143,7 @@ class QuizViewModel(
 
         val selectionEngine = com.example.data.database.QuestionSelectionEngine()
         val todayDate = selectionEngine.getCurrentDateString()
-        val installDate = selectionEngine.getOrInitInstallDate(todayDate)
-        val dayNumber = selectionEngine.getCalculatedDayNumber(todayDate)
+        val details = selectionEngine.getInstallDateDetails(todayDate)
         val assignedIds = validatedQuestions.map { it.id }
 
         _uiState.update {
@@ -165,10 +166,12 @@ class QuizViewModel(
                 totalXp = currentLocalXp,
                 isQuizComplete = false,
                 isLoading = false,
-                debugInstallDate = installDate,
+                debugPreviousInstallDate = details.previousInstallDate,
+                debugInstallDate = details.currentInstallDate,
                 debugTodayDate = todayDate,
-                debugCalculatedDayNumber = dayNumber,
-                debugAssignedQuestionIds = assignedIds
+                debugCalculatedDayNumber = details.calculatedDayNumber,
+                debugAssignedQuestionIds = assignedIds,
+                debugConfirmationMessage = "Future APK updates will never reset Daily Rotation."
             )
         }
 

@@ -233,6 +233,7 @@ class UserProfileStore(
             val lastScore = if (profile.lastQuizScore > 0) profile.lastQuizScore else (current?.lastQuizScore ?: 0)
             val lastXp = if (profile.lastQuizXpEarned > 0) profile.lastQuizXpEarned else (current?.lastQuizXpEarned ?: 0)
             val lastDate = profile.lastQuizDate.ifBlank { current?.lastQuizDate ?: "" }
+            val mergedInstallDate = profile.installDate.ifBlank { current?.installDate ?: "" }
 
             val updated = profile.copy(
                 uid = mergedUid,
@@ -255,7 +256,8 @@ class UserProfileStore(
                 totalQuestionsAnswered = mergedQuestionsAnswered,
                 totalCorrectAnswers = mergedCorrectAnswers,
                 bestScore = mergedBestScore,
-                longestStreak = mergedLongestStreak
+                longestStreak = mergedLongestStreak,
+                installDate = mergedInstallDate
             )
 
             val jsonObj = profileToJson(updated)
@@ -352,6 +354,7 @@ class UserProfileStore(
         json.put("streak", profile.streak)
         json.put("lastActiveDate", profile.lastActiveDate)
         json.put("createdAt", profile.createdAt)
+        json.put("installDate", profile.installDate)
         json.put("rank", profile.rank)
         json.put("lastQuizCategory", profile.lastQuizCategory)
         json.put("lastQuizScore", profile.lastQuizScore)
@@ -441,6 +444,7 @@ class UserProfileStore(
             streak = json.optInt("streak", 0),
             lastActiveDate = json.optString("lastActiveDate", ""),
             createdAt = json.optLong("createdAt", System.currentTimeMillis()),
+            installDate = json.optString("installDate", ""),
             rank = json.optString("rank", RankUtils.getRankForXp(xp)),
             unlockedAchievements = unlockedSet,
             claimedRewards = claimedSet,

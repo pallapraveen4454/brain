@@ -34,7 +34,8 @@ data class UserProfile(
     val totalQuestionsAnswered: Int = 0,
     val totalCorrectAnswers: Int = 0,
     val bestScore: Int = 0,
-    val longestStreak: Int = 0
+    val longestStreak: Int = 0,
+    val installDate: String = ""
 )
 
 class AuthRepository(
