@@ -44,7 +44,11 @@ data class QuizUiState(
     val savedQuizResult: QuizResult? = null,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
     val isQuizComplete: Boolean = false,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val debugInstallDate: String = "",
+    val debugTodayDate: String = "",
+    val debugCalculatedDayNumber: Int = 0,
+    val debugAssignedQuestionIds: List<String> = emptyList()
 )
 
 class QuizViewModel(
@@ -133,6 +137,14 @@ class QuizViewModel(
         val title = quizRepository.getCategoryTitle(categoryId)
         val currentLocalXp = quizResultRepository.getLocalProgress().totalXp
 
+        Log.d("DEBUG_DAILY_QUIZ", "4. Question IDs actually displayed on the Quiz screen (loaded in ViewModel): ${validatedQuestions.map { it.id }}")
+
+        val selectionEngine = com.example.data.database.QuestionSelectionEngine()
+        val todayDate = selectionEngine.getCurrentDateString()
+        val installDate = selectionEngine.getOrInitInstallDate(todayDate)
+        val dayNumber = selectionEngine.getCalculatedDayNumber(todayDate)
+        val assignedIds = validatedQuestions.map { it.id }
+
         _uiState.update {
             QuizUiState(
                 categoryId = categoryId,
@@ -152,7 +164,11 @@ class QuizViewModel(
                 coinsEarned = 0,
                 totalXp = currentLocalXp,
                 isQuizComplete = false,
-                isLoading = false
+                isLoading = false,
+                debugInstallDate = installDate,
+                debugTodayDate = todayDate,
+                debugCalculatedDayNumber = dayNumber,
+                debugAssignedQuestionIds = assignedIds
             )
         }
 

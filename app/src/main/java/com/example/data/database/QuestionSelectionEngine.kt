@@ -30,16 +30,37 @@ class QuestionSelectionEngine(private val context: Context? = null) {
      */
     fun getOrInitInstallDate(todayDateOverride: String? = null): String {
         val todayDate = todayDateOverride ?: getCurrentDateString()
+        val ctx = getAppContext()
         val prefs = getPrefs()
         var installDate = prefs?.getString("app_install_date", null) ?: inMemoryInstallDate
+
+        if (installDate.isNullOrBlank() && ctx != null) {
+            val authPrefs = ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
+            val quizPrefs = ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE)
+
+            val candidates = listOfNotNull(
+                authPrefs.getString("app_install_date", null),
+                quizPrefs.getString("app_install_date", null),
+                authPrefs.getString("user_created_date", null)
+            ).filter { it.isNotBlank() }
+
+            if (candidates.isNotEmpty()) {
+                installDate = candidates.first()
+            }
+        }
+
         if (installDate.isNullOrBlank()) {
             installDate = todayDate
-            if (prefs != null) {
-                prefs.edit().putString("app_install_date", installDate).apply()
-            }
-            inMemoryInstallDate = installDate
-            Log.d("QuestionSelectionEngine", "Saved permanent install date as $installDate (Day 1)")
+            Log.d("QuestionSelectionEngine", "Saved initial permanent install date as $installDate (Day 1)")
         }
+
+        if (ctx != null) {
+            prefs?.edit()?.putString("app_install_date", installDate)?.commit()
+            ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit().putString("app_install_date", installDate).commit()
+            ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE).edit().putString("app_install_date", installDate).commit()
+        }
+        inMemoryInstallDate = installDate
+
         return installDate
     }
 
@@ -96,6 +117,10 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             val allEntitiesMap = loadAllEntitiesForCategory(normKey).associateBy { it.id }
             val savedQuestions = savedIds.mapNotNull { allEntitiesMap[it] }
             if (savedQuestions.isNotEmpty()) {
+                val calcDay = getCalculatedDayNumber(todayDate)
+                Log.d("DEBUG_DAILY_QUIZ", "1. Calculated Day Number: $calcDay")
+                Log.d("DEBUG_DAILY_QUIZ", "2. assigned_ids received: $savedIds")
+                Log.d("DEBUG_DAILY_QUIZ", "3. Question IDs returned from database: ${savedQuestions.map { it.id }}")
                 Log.d("QuestionSelectionEngine", "Loaded ${savedQuestions.size} daily fixed questions for '$normKey' on $todayDate from cache")
                 return savedQuestions.map { it.toQuizQuestion() }
             }
@@ -128,6 +153,10 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         // 5. Permanently save assigned question IDs, last date, and day index
         val assignedIds = selectedEntities.map { it.id }
         saveAssignedState(normKey, todayDate, dayIndex, assignedIds)
+
+        Log.d("DEBUG_DAILY_QUIZ", "1. Calculated Day Number: $dayNumber")
+        Log.d("DEBUG_DAILY_QUIZ", "2. assigned_ids received: $assignedIds")
+        Log.d("DEBUG_DAILY_QUIZ", "3. Question IDs returned from database: ${selectedEntities.map { it.id }}")
 
         Log.d("QuestionSelectionEngine", "Assigned ${selectedEntities.size} questions for '$normKey' on $todayDate (Day $dayNumber, cycle index: $dayIndex, start idx: $startIndex)")
         return selectedEntities.map { it.toQuizQuestion() }
@@ -195,7 +224,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         }
     }
 
-    private fun getCurrentDateString(): String {
+    fun getCurrentDateString(): String {
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     }
 
@@ -219,6 +248,13 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     private fun getPrefs() = getAppContext()?.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE)
 
     private fun getSavedQuestionIds(normKey: String, todayDate: String): List<String> {
+        val lastDate = getLastDate(normKey)
+        if (lastDate != null && lastDate != todayDate) {
+            // Invalidate stale cache from previous date
+            invalidateOldCache(normKey, lastDate)
+            return emptyList()
+        }
+
         val prefs = getPrefs()
         val key = "assigned_ids_${normKey}_${todayDate}"
         val saved = if (prefs != null) {
@@ -231,6 +267,14 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         } else {
             emptyList()
         }
+    }
+
+    private fun invalidateOldCache(normKey: String, oldDate: String) {
+        val prefs = getPrefs()
+        val oldIdsKey = "assigned_ids_${normKey}_${oldDate}"
+        prefs?.edit()?.remove(oldIdsKey)?.apply()
+        inMemoryAssignedIds.remove(oldIdsKey)
+        Log.d("QuestionSelectionEngine", "Invalidated stale daily cache for '$normKey' from $oldDate")
     }
 
     private fun getLastDate(normKey: String): String? {

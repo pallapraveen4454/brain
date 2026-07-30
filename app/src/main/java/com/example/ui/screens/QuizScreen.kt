@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,6 +36,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -217,6 +220,34 @@ fun QuizActiveView(
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .verticalScroll(scrollState)
     ) {
+        // Debug Mode Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .testTag("quiz_debug_card"),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E293B)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF38BDF8))
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Text(
+                    text = "🛠️ DEBUG MODE",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF38BDF8)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = "Install Date: ${uiState.debugInstallDate}", style = MaterialTheme.typography.bodySmall, color = Color.White)
+                Text(text = "Today's Date: ${uiState.debugTodayDate}", style = MaterialTheme.typography.bodySmall, color = Color.White)
+                Text(text = "Calculated Day Number: Day ${uiState.debugCalculatedDayNumber}", style = MaterialTheme.typography.bodySmall, color = Color.White)
+                Text(text = "Current Question ID: ${currentQuestion?.id ?: "N/A"}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4ADE80), fontWeight = FontWeight.Bold)
+                Text(text = "Assigned Question IDs (all 10): ${uiState.debugAssignedQuestionIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+            }
+        }
+
         // Top Header Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
