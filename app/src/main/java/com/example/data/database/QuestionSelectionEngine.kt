@@ -258,17 +258,17 @@ class QuestionSelectionEngine(private val context: Context? = null) {
 
     fun getOffsetDetailsForCategory(categoryId: String, requestedCount: Int = 10, dateOverride: String? = null): OffsetDetails {
         val normKey = dbManager.normalizeCategoryKey(categoryId)
-        lastOffsetDetails[normKey]?.let { return it }
 
         val todayDate = dateOverride ?: getCurrentDateString()
         val dayNumber = getCalculatedDayNumber(todayDate)
-        val dayIndex = (dayNumber - 1) % 30
         val rawEntities = loadAllEntitiesForCategorySync(normKey)
         val allEntities = sortQuestionsDeterministically(rawEntities)
         val totalCount = allEntities.size
         if (totalCount == 0) return OffsetDetails()
 
         val countToSelect = minOf(requestedCount, totalCount)
+        val totalDaysInCycle = maxOf(1, totalCount / countToSelect)
+        val dayIndex = (dayNumber - 1) % totalDaysInCycle
         val startIndex = (dayIndex * countToSelect) % totalCount
         val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
         val offsetValue = dayIndex * countToSelect
@@ -276,12 +276,14 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             allEntities[(startIndex + i) % totalCount].id
         }
 
-        return OffsetDetails(
+        val offsetDetails = OffsetDetails(
             offsetValue = offsetValue,
             startIndex = startIndex,
             endIndex = endIndex,
             generatedIds = generatedIds
         )
+        lastOffsetDetails[normKey] = offsetDetails
+        return offsetDetails
     }
 
     private fun loadAllEntitiesForCategorySync(normKey: String): List<QuestionEntity> {
@@ -310,16 +312,27 @@ class QuestionSelectionEngine(private val context: Context? = null) {
 
         // 1. Calculate Day Number based on Install Date
         val dayNumber = getCalculatedDayNumber(todayDate)
-        val dayIndex = (dayNumber - 1) % 30  // 0-based day cycle index (0..29)
+
+        // 3. Load and deterministically sort all available questions for this category
+        val rawEntities = loadAllEntitiesForCategory(normKey)
+        val allEntities = sortQuestionsDeterministically(rawEntities)
+
+        if (allEntities.isEmpty()) {
+            Log.w("QuestionSelectionEngine", "No questions available for category '$normKey'")
+            return emptyList()
+        }
+
+        val totalCount = allEntities.size
+        val countToSelect = minOf(requestedCount, totalCount)
+        val totalDaysInCycle = maxOf(1, totalCount / countToSelect)
+        val dayIndex = (dayNumber - 1) % totalDaysInCycle
 
         // 2. Check if questions are already assigned/cached for today AND dayIndex matches
         val savedIds = getSavedQuestionIds(normKey, todayDate, expectedDayIndex = dayIndex)
         if (savedIds.isNotEmpty()) {
-            val allEntitiesMap = loadAllEntitiesForCategory(normKey).associateBy { it.id }
+            val allEntitiesMap = allEntities.associateBy { it.id }
             val savedQuestions = savedIds.mapNotNull { allEntitiesMap[it] }
             if (savedQuestions.isNotEmpty()) {
-                val totalCount = allEntitiesMap.size
-                val countToSelect = minOf(requestedCount, totalCount)
                 val startIndex = (dayIndex * countToSelect) % totalCount
                 val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
                 val offsetValue = dayIndex * countToSelect
@@ -340,18 +353,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             }
         }
 
-        // 3. Load and deterministically sort all available questions for this category
-        val rawEntities = loadAllEntitiesForCategory(normKey)
-        val allEntities = sortQuestionsDeterministically(rawEntities)
-
-        if (allEntities.isEmpty()) {
-            Log.w("QuestionSelectionEngine", "No questions available for category '$normKey'")
-            return emptyList()
-        }
-
         // 4. Calculate batch selection offset
-        val totalCount = allEntities.size
-        val countToSelect = minOf(requestedCount, totalCount)
         val startIndex = (dayIndex * countToSelect) % totalCount
         val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
         val offsetValue = dayIndex * countToSelect
@@ -443,7 +445,8 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             val prefix2 = id2.filter { it.isLetter() }
 
             if (prefix1.equals(prefix2, ignoreCase = true) && num1 != null && num2 != null) {
-                num1.compareTo(num2)
+                val cmp = num1.compareTo(num2)
+                if (cmp != 0) cmp else id1.compareTo(id2, ignoreCase = true)
             } else {
                 id1.compareTo(id2, ignoreCase = true)
             }
@@ -507,8 +510,16 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     private fun invalidateOldCache(normKey: String, oldDate: String) {
         val prefs = getPrefs()
         val oldIdsKey = "assigned_ids_${normKey}_${oldDate}"
-        prefs?.edit()?.remove(oldIdsKey)?.apply()
+        val oldDateKey = "last_date_${normKey}"
+        val oldIndexKey = "day_index_${normKey}"
+        prefs?.edit()
+            ?.remove(oldIdsKey)
+            ?.remove(oldDateKey)
+            ?.remove(oldIndexKey)
+            ?.apply()
         inMemoryAssignedIds.remove(oldIdsKey)
+        inMemoryLastDate.remove(oldDateKey)
+        inMemoryDayIndex.remove(oldIndexKey)
         Log.d("QuestionSelectionEngine", "Invalidated stale daily cache for '$normKey' from $oldDate")
     }
 

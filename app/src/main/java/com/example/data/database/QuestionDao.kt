@@ -17,7 +17,7 @@ interface QuestionDao {
     @Query("SELECT * FROM category_questions ORDER BY RANDOM()")
     suspend fun getAllQuestionsRandomized(): List<QuestionEntity>
 
-    @Query("SELECT * FROM category_questions")
+    @Query("SELECT * FROM category_questions ORDER BY id ASC")
     suspend fun getAllQuestions(): List<QuestionEntity>
 
     @Query("SELECT * FROM category_questions WHERE difficulty = :difficulty ORDER BY RANDOM()")

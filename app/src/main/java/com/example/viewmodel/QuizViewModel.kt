@@ -44,17 +44,7 @@ data class QuizUiState(
     val savedQuizResult: QuizResult? = null,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
     val isQuizComplete: Boolean = false,
-    val isLoading: Boolean = true,
-    val debugPreviousInstallDate: String = "",
-    val debugInstallDate: String = "",
-    val debugTodayDate: String = "",
-    val debugCalculatedDayNumber: Int = 0,
-    val debugAssignedQuestionIds: List<String> = emptyList(),
-    val debugOffsetValue: Int = 0,
-    val debugStartIndex: Int = 0,
-    val debugEndIndex: Int = 0,
-    val debugGeneratedIds: List<String> = emptyList(),
-    val debugConfirmationMessage: String = "Future APK updates will never reset Daily Rotation."
+    val isLoading: Boolean = true
 )
 
 class QuizViewModel(
@@ -143,14 +133,6 @@ class QuizViewModel(
         val title = quizRepository.getCategoryTitle(categoryId)
         val currentLocalXp = quizResultRepository.getLocalProgress().totalXp
 
-        Log.d("DEBUG_DAILY_QUIZ", "4. Question IDs actually displayed on the Quiz screen (loaded in ViewModel): ${validatedQuestions.map { it.id }}")
-
-        val selectionEngine = com.example.data.database.QuestionSelectionEngine()
-        val todayDate = selectionEngine.getCurrentDateString()
-        val details = selectionEngine.getInstallDateDetails(todayDate)
-        val offsetDetails = selectionEngine.getOffsetDetailsForCategory(categoryId)
-        val assignedIds = validatedQuestions.map { it.id }
-
         _uiState.update {
             QuizUiState(
                 categoryId = categoryId,
@@ -170,17 +152,7 @@ class QuizViewModel(
                 coinsEarned = 0,
                 totalXp = currentLocalXp,
                 isQuizComplete = false,
-                isLoading = false,
-                debugPreviousInstallDate = details.previousInstallDate,
-                debugInstallDate = details.currentInstallDate,
-                debugTodayDate = todayDate,
-                debugCalculatedDayNumber = details.calculatedDayNumber,
-                debugAssignedQuestionIds = assignedIds,
-                debugOffsetValue = offsetDetails.offsetValue,
-                debugStartIndex = offsetDetails.startIndex,
-                debugEndIndex = offsetDetails.endIndex,
-                debugGeneratedIds = offsetDetails.generatedIds,
-                debugConfirmationMessage = "Future APK updates will never reset Daily Rotation."
+                isLoading = false
             )
         }
 

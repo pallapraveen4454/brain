@@ -220,41 +220,6 @@ fun QuizActiveView(
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .verticalScroll(scrollState)
     ) {
-        // Debug Mode Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
-                .testTag("quiz_debug_card"),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1E293B)
-            ),
-            border = BorderStroke(1.dp, Color(0xFF38BDF8))
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Text(
-                    text = "🛠️ DEBUG MODE",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = Color(0xFF38BDF8)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Previous Install Date: ${uiState.debugPreviousInstallDate}", style = MaterialTheme.typography.bodySmall, color = Color.White)
-                Text(text = "Current Install Date: ${uiState.debugInstallDate}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
-                Text(text = "Today's Date: ${uiState.debugTodayDate}", style = MaterialTheme.typography.bodySmall, color = Color.White)
-                Text(text = "Calculated Day Number: Day ${uiState.debugCalculatedDayNumber}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4ADE80), fontWeight = FontWeight.Bold)
-                Text(text = "Calculated Offset Value: ${uiState.debugOffsetValue}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFACC15))
-                Text(text = "Start Index: ${uiState.debugStartIndex}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFACC15))
-                Text(text = "End Index: ${uiState.debugEndIndex}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFACC15))
-                Text(text = "Generated IDs Before DB Query: ${uiState.debugGeneratedIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = Color.Yellow)
-                Text(text = "Current Question ID: ${currentQuestion?.id ?: "N/A"}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4ADE80), fontWeight = FontWeight.Bold)
-                Text(text = "Assigned Question IDs (all 10): ${uiState.debugAssignedQuestionIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "✅ ${uiState.debugConfirmationMessage}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF22C55E), fontWeight = FontWeight.SemiBold)
-            }
-        }
-
         // Top Header Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
