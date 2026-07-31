@@ -59,6 +59,7 @@ data class HomeUiState(
     val playerName: String = "Player",
     val playerEmail: String = "",
     val avatarId: String = "brain",
+    val unlockedAvatars: Set<String> = setOf("student_boy", "student_girl", "brain"),
     val totalQuizzesPlayed: Int = 0,
     val totalQuestionsAnswered: Int = 0,
     val totalCorrectAnswers: Int = 0,
@@ -67,7 +68,6 @@ data class HomeUiState(
     val longestStreak: Int = 0,
     val quizHistory: List<QuizResult> = emptyList(),
     val showEditUsernameDialog: Boolean = false,
-    val showChangeAvatarDialog: Boolean = false,
     val showFirstTimeNameSetup: Boolean = false,
     val lastQuizCategory: String = "",
     val lastQuizScore: Int = 0,
@@ -176,6 +176,7 @@ class HomeViewModel(
                     rank = computedRank,
                     playerName = profile.name.ifBlank { "Player" },
                     avatarId = profile.avatarId.ifBlank { "brain" },
+                    unlockedAvatars = if (profile.unlockedAvatars.isNotEmpty()) profile.unlockedAvatars + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
                     totalQuizzesPlayed = quizzesPlayed,
                     totalQuestionsAnswered = questionsAnswered,
                     totalCorrectAnswers = correctAnswers,
@@ -275,7 +276,7 @@ class HomeViewModel(
 
     fun updateAvatar(newAvatarId: String) {
         authRepository.saveAvatarId(newAvatarId)
-        _uiState.update { it.copy(avatarId = newAvatarId, showChangeAvatarDialog = false) }
+        _uiState.update { it.copy(avatarId = newAvatarId) }
         viewModelScope.launch {
             val user = authRepository.currentUser
             val uid = user?.uid ?: authRepository.getPersistentGuestProfile().uid
@@ -284,12 +285,41 @@ class HomeViewModel(
         }
     }
 
-    fun setShowEditUsernameDialog(show: Boolean) {
-        _uiState.update { it.copy(showEditUsernameDialog = show) }
+    fun buyAvatar(avatarId: String, price: Int): Boolean {
+        val current = _uiState.value
+        if (current.coins < price) return false
+        if (current.unlockedAvatars.contains(avatarId)) return false
+
+        val newCoins = current.coins - price
+        val newUnlockedAvatars = current.unlockedAvatars + avatarId
+        val profile = authRepository.getPersistentGuestProfile()
+        val updatedProfile = profile.copy(
+            coins = newCoins,
+            unlockedAvatars = newUnlockedAvatars
+        )
+
+        _uiState.update {
+            it.copy(
+                coins = newCoins,
+                unlockedAvatars = newUnlockedAvatars
+            )
+        }
+
+        viewModelScope.launch {
+            val user = authRepository.currentUser
+            val uid = user?.uid ?: profile.uid
+            authRepository.saveUserProfileToFirestore(updatedProfile)
+            loadLeaderboard()
+        }
+        return true
     }
 
-    fun setShowChangeAvatarDialog(show: Boolean) {
-        _uiState.update { it.copy(showChangeAvatarDialog = show) }
+    fun equipAvatar(newAvatarId: String) {
+        updateAvatar(newAvatarId)
+    }
+
+    fun setShowEditUsernameDialog(show: Boolean) {
+        _uiState.update { it.copy(showEditUsernameDialog = show) }
     }
 
     fun setShowFirstTimeNameSetup(show: Boolean) {

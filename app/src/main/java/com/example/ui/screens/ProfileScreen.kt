@@ -22,19 +22,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CropSquare
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -83,30 +89,6 @@ import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
 
-data class AvatarOption(
-    val id: String,
-    val name: String,
-    val emoji: String,
-    val description: String
-)
-
-object AvatarUtils {
-    val AVATARS = listOf(
-        AvatarOption("brain", "Brainiac", "🧠", "Genius Thinker"),
-        AvatarOption("robot", "RoboMind", "🤖", "AI Powered"),
-        AvatarOption("wizard", "Quiz Wizard", "🧙", "Master of Trivia"),
-        AvatarOption("ninja", "Speed Ninja", "🥷", "Lightning Fast"),
-        AvatarOption("scientist", "Scientist", "🔬", "Analytical Mind"),
-        AvatarOption("astronaut", "Astro Scholar", "👨‍🚀", "Reaching for Stars"),
-        AvatarOption("champion", "Trophy Champ", "🏆", "Victorious Scholar"),
-        AvatarOption("scholar", "Academic", "🎓", "Knowledge Seeker")
-    )
-
-    fun getEmoji(avatarId: String): String {
-        return AVATARS.find { it.id == avatarId }?.emoji ?: "🧠"
-    }
-}
-
 @Composable
 fun ProfileScreen(
     playerName: String,
@@ -127,13 +109,16 @@ fun ProfileScreen(
     longestStreak: Int = 0,
     quizHistory: List<QuizResult> = emptyList(),
     onEditUsername: () -> Unit = {},
-    onChangeAvatar: () -> Unit = {},
+    onOpenAvatarShop: () -> Unit = {},
     onResetAccount: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showSettingsScreen by remember { mutableStateOf(false) }
+    var showHelpDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var futureFeatureNotice by remember { mutableStateOf<String?>(null) }
 
     if (showSettingsScreen) {
         SettingsScreen(
@@ -155,339 +140,413 @@ fun ProfileScreen(
                 .testTag("profile_screen"),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // Avatar Header with Edit Overlay
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(PrimaryPurple, PrimaryPurpleLight)
-                    )
+            // Profile Header Title
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Profile 👤",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
+                    ),
+                    color = TextWhite,
+                    modifier = Modifier.testTag("profile_title")
                 )
-                .border(2.dp, GlassBorder, CircleShape)
-                .clickable { onChangeAvatar() }
-                .testTag("profile_avatar_box"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = AvatarUtils.getEmoji(avatarId),
-                fontSize = 46.sp
-            )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 🖼 Current Avatar Section
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(PrimaryPurple.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.BottomEnd
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                        )
+                    )
+                    .border(2.dp, GlassBorder, CircleShape)
+                    .testTag("profile_avatar_box"),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
+                Text(
+                    text = AvatarUtils.getEmoji(avatarId),
+                    fontSize = 46.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Username and Edit Icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = playerName,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    ),
+                    color = TextWhite,
+                    modifier = Modifier.testTag("profile_player_name")
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = onEditUsername,
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryPurpleLight)
-                        .padding(4.dp),
-                    contentAlignment = Alignment.Center
+                        .size(30.dp)
+                        .testTag("edit_username_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Change Avatar",
-                        tint = TextWhite,
-                        modifier = Modifier.size(14.dp)
+                        contentDescription = "Edit Username",
+                        tint = PrimaryPurpleLight,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Username and Edit Icon
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
             Text(
-                text = playerName,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
-                ),
-                color = TextWhite,
-                modifier = Modifier.testTag("profile_player_name")
+                text = playerEmail.ifBlank { "guest@brainquiz.ai" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                modifier = Modifier.testTag("profile_player_email")
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            IconButton(
-                onClick = onEditUsername,
-                modifier = Modifier
-                    .size(32.dp)
-                    .testTag("edit_username_button")
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Rank Chip
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = PrimaryPurple.copy(alpha = 0.25f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Username",
-                    tint = PrimaryPurpleLight,
-                    modifier = Modifier.size(18.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = "Rank",
+                        tint = AccentCoins,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = rank,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        ),
+                        color = TextWhite
+                    )
+                }
             }
-        }
 
-        Text(
-            text = playerEmail.ifBlank { "guest@brainquiz.ai" },
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
-            modifier = Modifier.testTag("profile_player_email")
-        )
+            Spacer(modifier = Modifier.height(20.dp))
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Rank Chip
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = PrimaryPurple.copy(alpha = 0.25f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.EmojiEvents,
-                    contentDescription = "Rank",
-                    tint = AccentCoins,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = rank,
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    ),
-                    color = TextWhite
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Progress Overview Row (4 metrics)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            MiniMetricCard("XP", "$xp", Icons.Default.Bolt, AccentXP, Modifier.weight(1f))
-            MiniMetricCard("Level", "$level", Icons.Default.MilitaryTech, AccentLevel, Modifier.weight(1f))
-            MiniMetricCard("Coins", "$coins", Icons.Default.MonetizationOn, AccentCoins, Modifier.weight(1f))
-            MiniMetricCard("Streak", "$streakDays🔥", Icons.Default.LocalFireDepartment, AccentStreak, Modifier.weight(1f))
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Detailed Statistics Section
-        Text(
-            text = "Performance Statistics 📊",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            ),
-            color = TextWhite,
-            modifier = Modifier.align(Alignment.Start)
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+            // ⭐ XP | 🪙 Coins | 🔥 Streak | 🏅 Rank Mini Metrics
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                DetailStatTile("Quizzes Played", "$totalQuizzesPlayed", Icons.Default.Quiz, Modifier.weight(1f), "stat_quizzes_played")
-                DetailStatTile("Questions", "$totalQuestionsAnswered", Icons.Default.Psychology, Modifier.weight(1f), "stat_questions_answered")
+                MiniMetricCard("XP", "$xp", Icons.Default.Bolt, AccentXP, Modifier.weight(1f))
+                MiniMetricCard("Level", "$level", Icons.Default.MilitaryTech, AccentLevel, Modifier.weight(1f))
+                MiniMetricCard("Coins", "$coins", Icons.Default.MonetizationOn, AccentCoins, Modifier.weight(1f))
+                MiniMetricCard("Streak", "$streakDays🔥", Icons.Default.LocalFireDepartment, AccentStreak, Modifier.weight(1f))
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                DetailStatTile("Correct Answers", "$totalCorrectAnswers", Icons.Default.CheckCircle, Modifier.weight(1f), "stat_correct_answers")
-                DetailStatTile("Accuracy", "$accuracyPercentage%", Icons.Default.Percent, Modifier.weight(1f), "stat_accuracy")
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                DetailStatTile("Best Score", "$bestScore/10", Icons.Default.Star, Modifier.weight(1f), "stat_best_score")
-                DetailStatTile("Longest Streak", "$longestStreak Days", Icons.Default.LocalFireDepartment, Modifier.weight(1f), "stat_longest_streak")
-            }
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // Quiz History Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            // 🎨 Customization Section
             Text(
-                text = "Quiz History 📜",
+                text = "Customization 🎨",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 ),
-                color = TextWhite
+                color = TextWhite,
+                modifier = Modifier.align(Alignment.Start)
             )
-            if (quizHistory.isNotEmpty()) {
-                Text(
-                    text = "${quizHistory.size} Quizzes",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
-                )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        if (quizHistory.isEmpty()) {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
+            // 🛒 Avatar Shop Card
+            GlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenAvatarShop() }
+                    .testTag("customization_avatar_shop_card"),
+                shape = RoundedCornerShape(16.dp),
+                backgroundColor = DarkCardSurface,
+                borderColor = PrimaryPurpleLight
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCart,
+                            contentDescription = "Avatar Shop",
+                            tint = TextWhite,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Avatar Shop 🛒",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = TextWhite
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Change your avatar using earned coins",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
                     Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(36.dp)
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Go",
+                        tint = PrimaryPurpleLight,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Performance Statistics Section
+            Text(
+                text = "Performance Statistics 📊",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                ),
+                color = TextWhite,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DetailStatTile("Quizzes Played", "$totalQuizzesPlayed", Icons.Default.Quiz, Modifier.weight(1f), "stat_quizzes_played")
+                    DetailStatTile("Questions", "$totalQuestionsAnswered", Icons.Default.Psychology, Modifier.weight(1f), "stat_questions_answered")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DetailStatTile("Correct Answers", "$totalCorrectAnswers", Icons.Default.CheckCircle, Modifier.weight(1f), "stat_correct_answers")
+                    DetailStatTile("Accuracy", "$accuracyPercentage%", Icons.Default.Percent, Modifier.weight(1f), "stat_accuracy")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DetailStatTile("Best Score", "$bestScore/10", Icons.Default.Star, Modifier.weight(1f), "stat_best_score")
+                    DetailStatTile("Longest Streak", "$longestStreak Days", Icons.Default.LocalFireDepartment, Modifier.weight(1f), "stat_longest_streak")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Quiz History Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Quiz History 📜",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    ),
+                    color = TextWhite
+                )
+                if (quizHistory.isNotEmpty()) {
                     Text(
-                        text = "No quiz history yet",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                        color = TextWhite
-                    )
-                    Text(
-                        text = "Complete your first quiz to track scores and history!",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "${quizHistory.size} Quizzes",
+                        style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary
                     )
                 }
             }
-        } else {
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (quizHistory.isEmpty()) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No quiz history yet",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                            color = TextWhite
+                        )
+                        Text(
+                            text = "Complete your first quiz to track scores and history!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    quizHistory.take(10).forEachIndexed { index, result ->
+                        HistoryItemCard(result, index)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Account & App Settings Section
+            Text(
+                text = "Account & Settings ⚙️",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                ),
+                color = TextWhite,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                quizHistory.take(10).forEachIndexed { index, result ->
-                    HistoryItemCard(result, index)
-                }
+                ProfileOptionRow(
+                    icon = Icons.Default.Settings,
+                    title = "Settings",
+                    subtitle = "Audio, notifications & account data",
+                    onClick = {
+                        onOpenSettings()
+                        showSettingsScreen = true
+                    },
+                    testTag = "settings_option_row"
+                )
+
+                ProfileOptionRow(
+                    icon = Icons.Default.HelpOutline,
+                    title = "Help & Support 📞",
+                    subtitle = "FAQs, game rules & support contact",
+                    onClick = { showHelpDialog = true },
+                    testTag = "help_support_option_row"
+                )
+
+                ProfileOptionRow(
+                    icon = Icons.Default.Lock,
+                    title = "Privacy Policy 🔒",
+                    subtitle = "Data security & terms of service",
+                    onClick = { showPrivacyDialog = true },
+                    testTag = "privacy_policy_option_row"
+                )
+
+                ProfileOptionRow(
+                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                    title = "Logout 🚪",
+                    subtitle = "Sign out of your BrainQuizAI account",
+                    iconColor = androidx.compose.ui.graphics.Color(0xFFF43F5E),
+                    onClick = onSignOut,
+                    testTag = "sign_out_option_row"
+                )
             }
+
+            Spacer(modifier = Modifier.height(40.dp))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Profile Settings Buttons
-        Text(
-            text = "Profile Settings ⚙️",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            ),
-            color = TextWhite,
-            modifier = Modifier.align(Alignment.Start)
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = onEditUsername,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .testTag("edit_username_action_button"),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.5f))
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = null, tint = PrimaryPurpleLight, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Edit Name", color = TextWhite, fontSize = 13.sp)
-            }
-
-            OutlinedButton(
-                onClick = onChangeAvatar,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .testTag("change_avatar_action_button"),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.5f))
-            ) {
-                Text(AvatarUtils.getEmoji(avatarId), fontSize = 16.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Change Avatar", color = TextWhite, fontSize = 13.sp)
-            }
+        // Help & Support Dialog
+        if (showHelpDialog) {
+            HelpSupportDialog(onDismiss = { showHelpDialog = false })
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Privacy Policy Dialog
+        if (showPrivacyDialog) {
+            PrivacyPolicyDialog(onDismiss = { showPrivacyDialog = false })
+        }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    onOpenSettings()
-                    showSettingsScreen = true
+        // Future Feature Notice Dialog
+        futureFeatureNotice?.let { notice ->
+            AlertDialog(
+                onDismissRequest = { futureFeatureNotice = null },
+                containerColor = DarkBackground,
+                title = {
+                    Text(
+                        text = "Feature Preview 🚀",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = TextWhite
+                    )
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .testTag("settings_button"),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.5f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = PrimaryPurpleLight,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Settings", color = TextWhite, fontSize = 13.sp)
-            }
-
-            OutlinedButton(
-                onClick = onSignOut,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .testTag("sign_out_button"),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.5f))
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Sign Out",
-                    tint = PrimaryPurpleLight,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Sign Out", color = TextWhite, fontSize = 13.sp)
-            }
+                text = {
+                    Text(
+                        text = notice,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { futureFeatureNotice = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurpleLight)
+                    ) {
+                        Text("Awesome", color = TextWhite)
+                    }
+                }
+            )
         }
-
-        Spacer(modifier = Modifier.height(40.dp))
     }
-}
 }
 
 @Composable
@@ -678,80 +737,147 @@ fun EditUsernameDialog(
 }
 
 @Composable
-fun ChangeAvatarDialog(
-    currentAvatarId: String,
-    onSelectAvatar: (String) -> Unit,
-    onDismiss: () -> Unit
+private fun ProfileOptionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    iconColor: androidx.compose.ui.graphics.Color = PrimaryPurpleLight,
+    onClick: () -> Unit,
+    testTag: String = ""
 ) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag(testTag),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DarkCardBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    ),
+                    color = TextWhite
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun HelpSupportDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkBackground,
         title = {
             Text(
-                text = "Choose Profile Avatar 🎭",
+                text = "Help & Support 📞",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = TextWhite
             )
         },
         text = {
-            Column(modifier = Modifier.height(320.dp)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Select an avatar persona to represent you in BrainQuizAI:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
+                    text = "Welcome to BrainQuizAI Support!",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = PrimaryPurpleLight
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(AvatarUtils.AVATARS) { avatar ->
-                        val isSelected = avatar.id == currentAvatarId
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectAvatar(avatar.id) }
-                                .testTag("avatar_option_${avatar.id}"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) PrimaryPurple.copy(alpha = 0.5f) else DarkCardSurface
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isSelected) PrimaryPurpleLight else DarkCardBorder
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(avatar.emoji, fontSize = 28.sp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = avatar.name,
-                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                        color = TextWhite,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        text = avatar.description,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextSecondary,
-                                        fontSize = 10.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• How to earn coins: Complete daily quizzes, practice mode, or AI custom quizzes.\n" +
+                           "• How to unlock avatars: Visit the Avatar Shop from your Profile tab.\n" +
+                           "• Need assistance? Contact our team at support@brainquiz.ai",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 18.sp
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Done", color = TextWhite)
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurpleLight)
+            ) {
+                Text("Got It", color = TextWhite)
+            }
+        }
+    )
+}
+
+@Composable
+fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkBackground,
+        title = {
+            Text(
+                text = "Privacy Policy 🔒",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = TextWhite
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Your Privacy Matters",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = PrimaryPurpleLight
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "BrainQuizAI stores your quiz progress, scores, and avatar preferences locally and securely on your device.\n\n" +
+                           "We do not sell or share personal data with third parties. Gemini AI custom quiz generation uses anonymous topic prompts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurpleLight)
+            ) {
+                Text("Close", color = TextWhite)
             }
         }
     )

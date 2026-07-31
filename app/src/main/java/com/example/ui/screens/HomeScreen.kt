@@ -114,6 +114,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToQuiz: (String) -> Unit = {},
     onNavigateToAiGenerator: () -> Unit = {},
+    onNavigateToAvatarShop: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -131,14 +132,6 @@ fun HomeScreen(
             currentName = uiState.playerName,
             onConfirm = { viewModel.updateUsername(it) },
             onDismiss = { viewModel.setShowEditUsernameDialog(false) }
-        )
-    }
-
-    if (uiState.showChangeAvatarDialog) {
-        ChangeAvatarDialog(
-            currentAvatarId = uiState.avatarId,
-            onSelectAvatar = { viewModel.updateAvatar(it) },
-            onDismiss = { viewModel.setShowChangeAvatarDialog(false) }
         )
     }
 
@@ -220,7 +213,7 @@ fun HomeScreen(
                         longestStreak = uiState.longestStreak,
                         quizHistory = uiState.quizHistory,
                         onEditUsername = { viewModel.setShowEditUsernameDialog(true) },
-                        onChangeAvatar = { viewModel.setShowChangeAvatarDialog(true) },
+                        onOpenAvatarShop = onNavigateToAvatarShop,
                         onResetAccount = { viewModel.resetGuestAccount() },
                         onSignOut = {
                             viewModel.signOut()

@@ -247,6 +247,51 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         }
     }
 
+    data class OffsetDetails(
+        val offsetValue: Int = 0,
+        val startIndex: Int = 0,
+        val endIndex: Int = 0,
+        val generatedIds: List<String> = emptyList()
+    )
+
+    private val lastOffsetDetails = java.util.concurrent.ConcurrentHashMap<String, OffsetDetails>()
+
+    fun getOffsetDetailsForCategory(categoryId: String, requestedCount: Int = 10, dateOverride: String? = null): OffsetDetails {
+        val normKey = dbManager.normalizeCategoryKey(categoryId)
+        lastOffsetDetails[normKey]?.let { return it }
+
+        val todayDate = dateOverride ?: getCurrentDateString()
+        val dayNumber = getCalculatedDayNumber(todayDate)
+        val dayIndex = (dayNumber - 1) % 30
+        val rawEntities = loadAllEntitiesForCategorySync(normKey)
+        val allEntities = sortQuestionsDeterministically(rawEntities)
+        val totalCount = allEntities.size
+        if (totalCount == 0) return OffsetDetails()
+
+        val countToSelect = minOf(requestedCount, totalCount)
+        val startIndex = (dayIndex * countToSelect) % totalCount
+        val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
+        val offsetValue = dayIndex * countToSelect
+        val generatedIds = (0 until countToSelect).map { i ->
+            allEntities[(startIndex + i) % totalCount].id
+        }
+
+        return OffsetDetails(
+            offsetValue = offsetValue,
+            startIndex = startIndex,
+            endIndex = endIndex,
+            generatedIds = generatedIds
+        )
+    }
+
+    private fun loadAllEntitiesForCategorySync(normKey: String): List<QuestionEntity> {
+        return try {
+            kotlinx.coroutines.runBlocking { loadAllEntitiesForCategory(normKey) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     /**
      * Daily Fixed Question System (Install Date Based):
      * Day 1  = Install Date -> Questions 001-010
@@ -263,14 +308,31 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         val normKey = dbManager.normalizeCategoryKey(categoryId)
         val todayDate = dateOverride ?: getCurrentDateString()
 
-        // 1. Check if questions are already assigned/cached for today
-        val savedIds = getSavedQuestionIds(normKey, todayDate)
+        // 1. Calculate Day Number based on Install Date
+        val dayNumber = getCalculatedDayNumber(todayDate)
+        val dayIndex = (dayNumber - 1) % 30  // 0-based day cycle index (0..29)
+
+        // 2. Check if questions are already assigned/cached for today AND dayIndex matches
+        val savedIds = getSavedQuestionIds(normKey, todayDate, expectedDayIndex = dayIndex)
         if (savedIds.isNotEmpty()) {
             val allEntitiesMap = loadAllEntitiesForCategory(normKey).associateBy { it.id }
             val savedQuestions = savedIds.mapNotNull { allEntitiesMap[it] }
             if (savedQuestions.isNotEmpty()) {
-                val calcDay = getCalculatedDayNumber(todayDate)
-                Log.d("DEBUG_DAILY_QUIZ", "1. Calculated Day Number: $calcDay")
+                val totalCount = allEntitiesMap.size
+                val countToSelect = minOf(requestedCount, totalCount)
+                val startIndex = (dayIndex * countToSelect) % totalCount
+                val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
+                val offsetValue = dayIndex * countToSelect
+
+                val offsetDetails = OffsetDetails(
+                    offsetValue = offsetValue,
+                    startIndex = startIndex,
+                    endIndex = endIndex,
+                    generatedIds = savedQuestions.map { it.id }
+                )
+                lastOffsetDetails[normKey] = offsetDetails
+
+                Log.d("DEBUG_DAILY_QUIZ", "1. Calculated Day Number: $dayNumber")
                 Log.d("DEBUG_DAILY_QUIZ", "2. assigned_ids received: $savedIds")
                 Log.d("DEBUG_DAILY_QUIZ", "3. Question IDs returned from database: ${savedQuestions.map { it.id }}")
                 Log.d("QuestionSelectionEngine", "Loaded ${savedQuestions.size} daily fixed questions for '$normKey' on $todayDate from cache")
@@ -278,7 +340,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             }
         }
 
-        // 2. Load and deterministically sort all available questions for this category
+        // 3. Load and deterministically sort all available questions for this category
         val rawEntities = loadAllEntitiesForCategory(normKey)
         val allEntities = sortQuestionsDeterministically(rawEntities)
 
@@ -287,14 +349,12 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             return emptyList()
         }
 
-        // 3. Calculate Day Number based on Install Date
-        val dayNumber = getCalculatedDayNumber(todayDate)
-        val dayIndex = (dayNumber - 1) % 30  // 0-based day cycle index (0..29)
-
         // 4. Calculate batch selection offset
         val totalCount = allEntities.size
         val countToSelect = minOf(requestedCount, totalCount)
         val startIndex = (dayIndex * countToSelect) % totalCount
+        val endIndex = if (countToSelect > 0) (startIndex + countToSelect - 1) else 0
+        val offsetValue = dayIndex * countToSelect
 
         val selectedEntities = mutableListOf<QuestionEntity>()
         for (i in 0 until countToSelect) {
@@ -302,9 +362,23 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             selectedEntities.add(allEntities[idx])
         }
 
-        // 5. Permanently save assigned question IDs, last date, and day index
         val assignedIds = selectedEntities.map { it.id }
+
+        val offsetDetails = OffsetDetails(
+            offsetValue = offsetValue,
+            startIndex = startIndex,
+            endIndex = endIndex,
+            generatedIds = assignedIds
+        )
+        lastOffsetDetails[normKey] = offsetDetails
+
+        // 5. Permanently save assigned question IDs, last date, and day index
         saveAssignedState(normKey, todayDate, dayIndex, assignedIds)
+
+        Log.d("DEBUG_OFFSET", "1. Calculated offset value: $offsetValue (dayIndex: $dayIndex)")
+        Log.d("DEBUG_OFFSET", "2. Start index: $startIndex")
+        Log.d("DEBUG_OFFSET", "3. End index: $endIndex")
+        Log.d("DEBUG_OFFSET", "4. Exact list of IDs generated before querying database: $assignedIds")
 
         Log.d("DEBUG_DAILY_QUIZ", "1. Calculated Day Number: $dayNumber")
         Log.d("DEBUG_DAILY_QUIZ", "2. assigned_ids received: $assignedIds")
@@ -399,12 +473,21 @@ class QuestionSelectionEngine(private val context: Context? = null) {
 
     private fun getPrefs() = getAppContext()?.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE)
 
-    private fun getSavedQuestionIds(normKey: String, todayDate: String): List<String> {
+    private fun getSavedQuestionIds(normKey: String, todayDate: String, expectedDayIndex: Int? = null): List<String> {
         val lastDate = getLastDate(normKey)
         if (lastDate != null && lastDate != todayDate) {
             // Invalidate stale cache from previous date
             invalidateOldCache(normKey, lastDate)
             return emptyList()
+        }
+
+        if (expectedDayIndex != null) {
+            val savedIndex = getDayIndex(normKey)
+            if (savedIndex != expectedDayIndex) {
+                if (lastDate != null) invalidateOldCache(normKey, lastDate)
+                Log.d("QuestionSelectionEngine", "Invalidated stale cache due to day index mismatch (saved: $savedIndex, expected: $expectedDayIndex)")
+                return emptyList()
+            }
         }
 
         val prefs = getPrefs()

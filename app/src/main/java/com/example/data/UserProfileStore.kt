@@ -217,6 +217,7 @@ class UserProfileStore(
 
             val mergedUnlocked = (current?.unlockedAchievements ?: emptySet()) + profile.unlockedAchievements
             val mergedClaimed = (current?.claimedRewards ?: emptySet()) + profile.claimedRewards
+            val mergedUnlockedAvatars = (current?.unlockedAvatars ?: setOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars
 
             // Combine and deduplicate history
             val rawHistory = (profile.quizHistory + (current?.quizHistory ?: emptyList()))
@@ -247,6 +248,7 @@ class UserProfileStore(
                 rank = mergedRank,
                 unlockedAchievements = mergedUnlocked,
                 claimedRewards = mergedClaimed,
+                unlockedAvatars = mergedUnlockedAvatars,
                 quizHistory = combinedHistory,
                 lastQuizCategory = lastCategory,
                 lastQuizScore = lastScore,
@@ -374,6 +376,10 @@ class UserProfileStore(
         profile.claimedRewards.forEach { claimedArr.put(it) }
         json.put("claimedRewards", claimedArr)
 
+        val unlockedAvatarsArr = JSONArray()
+        profile.unlockedAvatars.forEach { unlockedAvatarsArr.put(it) }
+        json.put("unlockedAvatars", unlockedAvatarsArr)
+
         val historyArr = JSONArray()
         profile.quizHistory.forEach { res ->
             val obj = JSONObject().apply {
@@ -407,6 +413,14 @@ class UserProfileStore(
         if (claimedArr != null) {
             for (i in 0 until claimedArr.length()) {
                 claimedSet.add(claimedArr.getString(i))
+            }
+        }
+
+        val unlockedAvatarsSet = mutableSetOf<String>("student_boy", "student_girl", "brain")
+        val unlockedAvatarsArr = json.optJSONArray("unlockedAvatars")
+        if (unlockedAvatarsArr != null) {
+            for (i in 0 until unlockedAvatarsArr.length()) {
+                unlockedAvatarsSet.add(unlockedAvatarsArr.getString(i))
             }
         }
 
@@ -448,6 +462,7 @@ class UserProfileStore(
             rank = json.optString("rank", RankUtils.getRankForXp(xp)),
             unlockedAchievements = unlockedSet,
             claimedRewards = claimedSet,
+            unlockedAvatars = unlockedAvatarsSet,
             quizHistory = historyList,
             lastQuizCategory = json.optString("lastQuizCategory", ""),
             lastQuizScore = json.optInt("lastQuizScore", 0),

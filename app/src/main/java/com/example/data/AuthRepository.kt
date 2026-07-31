@@ -25,6 +25,7 @@ data class UserProfile(
     val rank: String = "Beginner",
     val unlockedAchievements: Set<String> = emptySet(),
     val claimedRewards: Set<String> = emptySet(),
+    val unlockedAvatars: Set<String> = setOf("student_boy", "student_girl", "brain"),
     val quizHistory: List<QuizResult> = emptyList(),
     val lastQuizCategory: String = "",
     val lastQuizScore: Int = 0,

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -13,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.ui.screens.AiQuizGeneratorScreen
+import com.example.ui.screens.AvatarShopScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.QuizScreen
@@ -102,10 +104,50 @@ fun BrainQuizNavGraph(
                 onNavigateToAiGenerator = {
                     navController.navigate(ScreenRoute.AiQuizGenerator.route)
                 },
+                onNavigateToAvatarShop = {
+                    navController.navigate(ScreenRoute.AvatarShop.route)
+                },
                 onNavigateToLogin = {
                     navController.navigate(ScreenRoute.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(
+            route = ScreenRoute.AvatarShop.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(400)
+                ) + fadeIn(animationSpec = tween(400))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(400)
+                ) + fadeOut(animationSpec = tween(400))
+            }
+        ) {
+            val uiState = homeViewModel.uiState.collectAsState().value
+            AvatarShopScreen(
+                userCoins = uiState.coins,
+                equippedAvatarId = uiState.avatarId,
+                unlockedAvatars = uiState.unlockedAvatars,
+                onBuyAvatar = { avatarId, price ->
+                    homeViewModel.buyAvatar(avatarId, price)
+                },
+                onEquipAvatar = { avatarId ->
+                    homeViewModel.equipAvatar(avatarId)
+                },
+                onNavigateToQuiz = {
+                    navController.navigate(ScreenRoute.Home.route) {
+                        popUpTo(ScreenRoute.Home.route) { inclusive = true }
+                    }
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
