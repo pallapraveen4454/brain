@@ -345,7 +345,7 @@ class QuizViewModel(
 
                 val currentTotalXp = maxOf(currentProfile.xp, existingLocalProfile.xp)
                 val newTotalXp = currentTotalXp + xpEarned
-                val currentCoins = maxOf(currentProfile.coins, existingLocalProfile.coins)
+                val currentCoins = existingLocalProfile.coins
                 val newCoins = currentCoins + coinsGained
                 val newLevel = (newTotalXp / 500) + 1
 

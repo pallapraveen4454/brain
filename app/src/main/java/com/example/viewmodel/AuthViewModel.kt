@@ -66,8 +66,9 @@ class AuthViewModel(
                                     uid = user.uid,
                                     email = user.email ?: fetched.email,
                                     xp = maxOf(fetched.xp, savedProfile.xp),
-                                    coins = maxOf(fetched.coins, savedProfile.coins),
-                                    streak = maxOf(fetched.streak, savedProfile.streak)
+                                    coins = savedProfile.coins,
+                                    streak = maxOf(fetched.streak, savedProfile.streak),
+                                    unlockedAvatars = savedProfile.unlockedAvatars + fetched.unlockedAvatars
                                 )
                                 authRepository.saveUserProfileToFirestore(merged)
                                 merged
@@ -159,20 +160,17 @@ class AuthViewModel(
                 val local = quizResultRepository.getLocalProgress()
                 result.fold(
                     onSuccess = { user ->
-                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                            uid = user.uid,
-                            name = state.nameInput.ifBlank { email.substringBefore("@") },
-                            email = email,
-                            xp = local.totalXp,
-                            level = maxOf(1, local.level),
-                            coins = local.coins,
-                            streak = local.streak,
-                            lastActiveDate = local.lastActiveDate,
-                            lastQuizCategory = local.lastCategoryName,
-                            lastQuizScore = local.lastScoreOutOfTen,
-                            lastQuizXpEarned = local.lastXpEarned,
-                            lastQuizDate = local.lastQuizDate
-                        )
+                        val uid = user?.uid ?: ("user_" + kotlin.math.abs(email.hashCode()))
+                        val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
+                            ?: authRepository.getPersistentGuestProfile().let { current ->
+                                val updated = current.copy(
+                                    uid = uid,
+                                    email = email,
+                                    name = state.nameInput.ifBlank { current.name.ifBlank { email.substringBefore("@") } }
+                                )
+                                authRepository.saveUserProfileToFirestore(updated)
+                                updated
+                            }
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -197,20 +195,17 @@ class AuthViewModel(
                 val local = quizResultRepository.getLocalProgress()
                 result.fold(
                     onSuccess = { user ->
-                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                            uid = user.uid,
-                            name = user.displayName ?: email.substringBefore("@"),
-                            email = email,
-                            xp = local.totalXp,
-                            level = maxOf(1, local.level),
-                            coins = local.coins,
-                            streak = local.streak,
-                            lastActiveDate = local.lastActiveDate,
-                            lastQuizCategory = local.lastCategoryName,
-                            lastQuizScore = local.lastScoreOutOfTen,
-                            lastQuizXpEarned = local.lastXpEarned,
-                            lastQuizDate = local.lastQuizDate
-                        )
+                        val uid = user?.uid ?: ("user_" + kotlin.math.abs(email.hashCode()))
+                        val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
+                            ?: authRepository.getPersistentGuestProfile().let { current ->
+                                val updated = current.copy(
+                                    uid = uid,
+                                    email = email,
+                                    name = user?.displayName ?: current.name.ifBlank { email.substringBefore("@") }
+                                )
+                                authRepository.saveUserProfileToFirestore(updated)
+                                updated
+                            }
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -286,20 +281,17 @@ class AuthViewModel(
                     val local = quizResultRepository.getLocalProgress()
                     firebaseResult.fold(
                         onSuccess = { user ->
-                            val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                                uid = user.uid,
-                                name = user.displayName ?: "Google User",
-                                email = user.email ?: "",
-                                xp = local.totalXp,
-                                level = maxOf(1, local.level),
-                                coins = local.coins,
-                                streak = local.streak,
-                                lastActiveDate = local.lastActiveDate,
-                                lastQuizCategory = local.lastCategoryName,
-                                lastQuizScore = local.lastScoreOutOfTen,
-                                lastQuizXpEarned = local.lastXpEarned,
-                                lastQuizDate = local.lastQuizDate
-                            )
+                            val uid = user?.uid ?: ("google_user_" + kotlin.math.abs(idToken.hashCode()))
+                            val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
+                                ?: authRepository.getPersistentGuestProfile().let { current ->
+                                    val updated = current.copy(
+                                        uid = uid,
+                                        email = user?.email ?: current.email,
+                                        name = user?.displayName ?: "Google Player"
+                                    )
+                                    authRepository.saveUserProfileToFirestore(updated)
+                                    updated
+                                }
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,

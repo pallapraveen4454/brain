@@ -235,7 +235,7 @@ class HomeViewModel(
                         val remoteProfile = authRepository.fetchUserProfile(user.uid)
                         if (remoteProfile != null) {
                             val mergedXp = maxOf(remoteProfile.xp, profile.xp)
-                            val mergedCoins = maxOf(remoteProfile.coins, updatedCoins)
+                            val mergedCoins = updatedCoins
                             val mergedStreak = maxOf(remoteProfile.streak, localStreak)
                             val mergedRank = RankUtils.getRankForXp(mergedXp)
 

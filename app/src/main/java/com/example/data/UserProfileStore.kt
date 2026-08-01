@@ -209,7 +209,7 @@ class UserProfileStore(
             val mergedEmail = profile.email.ifBlank { current?.email ?: "guest@brainquiz.ai" }
 
             val mergedXp = maxOf(profile.xp, current?.xp ?: 0)
-            val mergedCoins = maxOf(profile.coins, current?.coins ?: 0)
+            val mergedCoins = profile.coins
             val mergedStreak = maxOf(profile.streak, current?.streak ?: 0)
             val mergedLongestStreak = maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak)
             val mergedLevel = maxOf(1, (mergedXp / 500) + 1)
