@@ -157,20 +157,13 @@ class AuthViewModel(
             if (state.isSignUpMode) {
                 // Sign Up Flow
                 val result = authRepository.signUpWithEmail(email, password, state.nameInput)
-                val local = quizResultRepository.getLocalProgress()
                 result.fold(
                     onSuccess = { user ->
-                        val uid = user?.uid ?: ("user_" + kotlin.math.abs(email.hashCode()))
-                        val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
-                            ?: authRepository.getPersistentGuestProfile().let { current ->
-                                val updated = current.copy(
-                                    uid = uid,
-                                    email = email,
-                                    name = state.nameInput.ifBlank { current.name.ifBlank { email.substringBefore("@") } }
-                                )
-                                authRepository.saveUserProfileToFirestore(updated)
-                                updated
-                            }
+                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                            uid = user.uid,
+                            name = state.nameInput.ifBlank { user.displayName ?: email.substringBefore("@") },
+                            email = user.email ?: email
+                        )
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -192,20 +185,13 @@ class AuthViewModel(
             } else {
                 // Login Flow
                 val result = authRepository.signInWithEmail(email, password)
-                val local = quizResultRepository.getLocalProgress()
                 result.fold(
                     onSuccess = { user ->
-                        val uid = user?.uid ?: ("user_" + kotlin.math.abs(email.hashCode()))
-                        val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
-                            ?: authRepository.getPersistentGuestProfile().let { current ->
-                                val updated = current.copy(
-                                    uid = uid,
-                                    email = email,
-                                    name = user?.displayName ?: current.name.ifBlank { email.substringBefore("@") }
-                                )
-                                authRepository.saveUserProfileToFirestore(updated)
-                                updated
-                            }
+                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                            uid = user.uid,
+                            name = user.displayName ?: email.substringBefore("@"),
+                            email = user.email ?: email
+                        )
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -278,20 +264,13 @@ class AuthViewModel(
 
                 if (idToken != null) {
                     val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
-                    val local = quizResultRepository.getLocalProgress()
                     firebaseResult.fold(
                         onSuccess = { user ->
-                            val uid = user?.uid ?: ("google_user_" + kotlin.math.abs(idToken.hashCode()))
-                            val profile = (if (user?.uid != null) authRepository.fetchUserProfile(user.uid) else null)
-                                ?: authRepository.getPersistentGuestProfile().let { current ->
-                                    val updated = current.copy(
-                                        uid = uid,
-                                        email = user?.email ?: current.email,
-                                        name = user?.displayName ?: "Google Player"
-                                    )
-                                    authRepository.saveUserProfileToFirestore(updated)
-                                    updated
-                                }
+                            val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                                uid = user.uid,
+                                name = user.displayName ?: "Google User",
+                                email = user.email ?: ""
+                            )
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -368,8 +347,8 @@ class AuthViewModel(
                 "Network connection error. Please verify your internet connection and try again."
             else -> {
                 val msg = throwable.localizedMessage ?: "An error occurred during authentication."
-                if (msg.contains("API key", ignoreCase = true) || msg.contains("google-services", ignoreCase = true)) {
-                    "Firebase service configuration notice: " + msg
+                if (msg.contains("badly formatted", ignoreCase = true) || msg.contains("invalid email", ignoreCase = true)) {
+                    "Invalid email format. Please enter a valid email address."
                 } else {
                     msg
                 }
