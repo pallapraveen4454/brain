@@ -250,6 +250,8 @@ class QuizViewModel(
             val newXpEarned = currentState.xpEarned + addedXp
             val newMaxStreak = maxOf(currentState.maxStreak, newStreak)
 
+            Log.d("XP_TRACE", "[QuizViewModel] submitAnswer: questionIndex=${currentState.currentQuestionIndex}, isCorrect=$isCorrect, addedXp=$addedXp, quizXpEarned=$newXpEarned")
+
             currentState.copy(
                 selectedOptionIndex = optionIndex,
                 isAnswerSubmitted = true,
@@ -297,12 +299,17 @@ class QuizViewModel(
         timerJob?.cancel()
         advanceJob?.cancel()
         val state = _uiState.value
+        if (state.isQuizComplete) return
+
         val scoreOutOfTen = state.correctCount
         // Formula: 10 XP per correct answer
         val finalXpEarned = scoreOutOfTen * 10
-        val coinsGained = (scoreOutOfTen * 10) + (if (scoreOutOfTen >= 8) 50 else 20)
+        // Formula: Exactly 10 coins per correct answer
+        val coinsGained = scoreOutOfTen * 10
         val timestamp = System.currentTimeMillis()
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
+
+        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained")
 
         _uiState.update {
             it.copy(
@@ -343,14 +350,16 @@ class QuizViewModel(
                     authRepository.fetchUserProfile(user.uid) ?: existingLocalProfile
                 } else existingLocalProfile
 
-                val currentTotalXp = maxOf(currentProfile.xp, existingLocalProfile.xp)
-                val newTotalXp = currentTotalXp + xpEarned
-                val currentCoins = existingLocalProfile.coins
-                val newCoins = currentCoins + coinsGained
+                val startXp = _uiState.value.totalXp.takeIf { it > 0 } ?: existingLocalProfile.xp
+                val newTotalXp = startXp + xpEarned
+                Log.d("XP_TRACE", "[QuizViewModel] saveQuizResultData: startXp=$startXp, xpEarned=$xpEarned, newTotalXp=$newTotalXp")
+
+                val startCoins = existingLocalProfile.coins
+                val newCoins = startCoins + coinsGained
                 val newLevel = (newTotalXp / 500) + 1
 
                 val currentStreak = maxOf(currentProfile.streak, existingLocalProfile.streak)
-                val activeDate = existingLocalProfile.lastActiveDate.ifBlank { currentProfile.lastActiveDate }
+                val activeDate = if (existingLocalProfile.lastActiveDate.isNotBlank()) existingLocalProfile.lastActiveDate else currentProfile.lastActiveDate
 
                 // Record stats for achievement tracking
                 val questionsCount = _uiState.value.questions.size.ifZero(10)
@@ -369,9 +378,8 @@ class QuizViewModel(
                 )
 
                 val finalCoins = newCoins + achResult.extraCoinsEarned
-                val totalCoinsGainedThisQuiz = coinsGained + achResult.extraCoinsEarned
 
-                // Save quiz result to history
+                // Save quiz result to history with strictly scoreOutOfTen * 10 coinsEarned
                 val quizResult = quizResultRepository.saveQuizResult(
                     userId = userId,
                     categoryName = categoryName,
@@ -379,7 +387,7 @@ class QuizViewModel(
                     xpEarned = xpEarned,
                     totalXp = newTotalXp,
                     coins = finalCoins,
-                    coinsEarned = totalCoinsGainedThisQuiz,
+                    coinsEarned = coinsGained,
                     streak = currentStreak,
                     lastActiveDate = activeDate,
                     timestamp = timestamp
@@ -388,7 +396,7 @@ class QuizViewModel(
                 _uiState.update {
                     it.copy(
                         totalXp = newTotalXp,
-                        coinsEarned = totalCoinsGainedThisQuiz,
+                        coinsEarned = coinsGained,
                         savedQuizResult = quizResult,
                         newlyUnlockedAchievements = achResult.newlyUnlocked
                     )

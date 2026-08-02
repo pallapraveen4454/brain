@@ -44,7 +44,7 @@ class GuestAccountTest {
             totalQuestionsAnswered = 20,
             totalCorrectAnswers = 18,
             bestScore = 9,
-            unlockedAchievements = setOf("ach_1", "ach_2"),
+            unlockedAchievements = listOf("ach_1", "ach_2"),
             quizHistory = listOf(
                 QuizResult(
                     id = "1",

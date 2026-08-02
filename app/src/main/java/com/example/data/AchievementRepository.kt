@@ -138,8 +138,8 @@ class AchievementRepository(
         userProfileStore.saveProfile(
             profile.copy(
                 coins = profile.coins + extraCoins,
-                unlockedAchievements = unlockedSet,
-                claimedRewards = claimedSet
+                unlockedAchievements = unlockedSet.toList(),
+                claimedRewards = claimedSet.toList()
             )
         )
 

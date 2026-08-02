@@ -49,12 +49,12 @@ fun StatCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(horizontal = 10.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .background(
                         brush = Brush.linearGradient(
@@ -70,11 +70,11 @@ fun StatCard(
                     imageVector = icon,
                     contentDescription = title,
                     tint = accentColors.first(),
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -87,11 +87,16 @@ fun StatCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(2.dp))
+                val valueFontSize = when {
+                    value.length > 11 -> 12.sp
+                    value.length > 8 -> 13.sp
+                    else -> 15.sp
+                }
                 Text(
                     text = value,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp
+                        fontSize = valueFontSize
                     ),
                     color = TextWhite,
                     maxLines = 1,

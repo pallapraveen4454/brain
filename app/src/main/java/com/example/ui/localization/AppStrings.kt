@@ -1,0 +1,205 @@
+package com.example.ui.localization
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+
+data class AppStrings(
+    // Common / Buttons
+    val appName: String = "BrainQuizAI",
+    val home: String = "Home",
+    val leaderboard: String = "Leaderboard",
+    val profile: String = "Profile",
+    val shop: String = "Shop",
+    val achievements: String = "Achievements",
+    val settings: String = "Settings",
+    val back: String = "Back",
+    val cancel: String = "Cancel",
+    val save: String = "Save",
+    val saveChanges: String = "Save Changes",
+    val ok: String = "OK",
+    val close: String = "Close",
+    val submit: String = "Submit",
+    val continueText: String = "Continue",
+    val retry: String = "Retry",
+    val startQuiz: String = "Start Quiz",
+    val confirm: String = "Confirm",
+    val search: String = "Search...",
+    val loading: String = "Loading...",
+
+    // Navigation & Tabs
+    val navHome: String = "Home",
+    val navLeaderboard: String = "Leaderboard",
+    val navAchievements: String = "Badges",
+    val navProfile: String = "Profile",
+
+    // Home Screen
+    val welcomeBack: String = "Welcome back,",
+    val brainLevel: String = "Brain Level",
+    val totalXp: String = "Total XP",
+    val streakDays: String = "Day Streak",
+    val coins: String = "Coins",
+    val dailyChallenge: String = "Daily Challenge",
+    val dailyChallengeSubtitle: String = "Earn 2x Coins & XP today",
+    val dailyChallengeDesc: String = "Complete today's challenge for 2x XP and 50 bonus coins!",
+    val quickPlay: String = "Quick Play",
+    val quickPlaySubtitle: String = "10 random questions",
+    val quickPlayDesc: String = "Random 10-question mixed quiz across all topics",
+    val aiQuizGen: String = "AI Quiz Generator",
+    val aiQuizGenSubtitle: String = "Generate custom topic quizzes with Gemini",
+    val aiQuizGenDesc: String = "Generate custom quizzes on any topic using Gemini AI",
+    val quizCategories: String = "Quiz Categories",
+    val seeAll: String = "See All",
+    val recentActivity: String = "Recent Activity",
+    val noRecentActivity: String = "No quizzes completed yet. Start playing now!",
+    val score: String = "Score",
+    val accuracy: String = "Accuracy",
+    val popular: String = "POPULAR",
+    val doubleRewards: String = "2X REWARDS",
+    val casual: String = "CASUAL",
+    val geminiAi: String = "GEMINI AI",
+
+    // Categories
+    val catGk: String = "General Knowledge",
+    val catScience: String = "Science",
+    val catHistory: String = "History",
+    val catSports: String = "Sports",
+    val catMovies: String = "Movies",
+    val catTech: String = "Technology",
+    val catGeo: String = "Geography",
+    val catMath: String = "Mathematics",
+    val dailyQuizCount: String = "Daily Quiz\n10 Questions",
+
+    // Profile Screen
+    val userProfile: String = "User Profile",
+    val level: String = "Level",
+    val rank: String = "Rank",
+    val quizzesPlayed: String = "Quizzes Played",
+    val correctAnswers: String = "Correct Answers",
+    val longestStreak: String = "Longest Streak",
+    val editProfile: String = "Edit Profile",
+    val avatarShop: String = "Avatar Shop",
+    val myBadges: String = "My Badges & Achievements",
+    val quizHistory: String = "Quiz History",
+    val guestUser: String = "Guest User",
+    val enterUsername: String = "Enter username",
+    val username: String = "Username:",
+
+    // Leaderboard Screen
+    val globalLeaderboard: String = "Global Leaderboard 🏆",
+    val global: String = "Global",
+    val weekly: String = "Weekly",
+    val monthly: String = "Monthly",
+    val topPlayers: String = "Top Quiz Masters",
+    val yourRank: String = "Your Rank",
+    val xp: String = "XP",
+
+    // Achievements Screen
+    val achievementsAndBadges: String = "Achievements & Badges 🎖️",
+    val unlocked: String = "Unlocked",
+    val locked: String = "Locked",
+    val reward: String = "Reward:",
+    val claimReward: String = "Claim Reward",
+    val claimed: String = "Claimed",
+    val totalBadges: String = "Total Badges",
+
+    // Settings Screen
+    val settingsHeader: String = "Settings ⚙️",
+    val accountSection: String = "Account",
+    val editProfileSubtitle: String = "Manage account details",
+    val logout: String = "Logout",
+    val logoutSubtitle: String = "Sign out of your Brain Quiz account",
+    val soundSection: String = "Sound & Haptics",
+    val soundEffects: String = "Sound Effects",
+    val soundEffectsSubtitle: String = "Play audio on correct/incorrect answers",
+    val vibration: String = "Vibration",
+    val vibrationSubtitle: String = "Haptic feedback on answer selections",
+    val bgMusic: String = "Background Music",
+    val bgMusicSubtitle: String = "Ambient music during quiz sessions",
+    val notificationSection: String = "Notifications",
+    val dailyReminder: String = "Daily Challenge Reminder",
+    val dailyReminderSubtitle: String = "Receive daily alert for 2x XP quizzes",
+    val streakReminder: String = "Streak Reminder",
+    val streakReminderSubtitle: String = "Get notified before your streak expires",
+    val achievementNotifs: String = "Achievement Notifications",
+    val achievementNotifsSubtitle: String = "Alerts when you unlock new badges",
+    val dataSection: String = "Data & Sync",
+    val syncProgress: String = "Sync Progress",
+    val syncSubtitle: String = "Sync quiz progress with cloud",
+    val lastSynced: String = "Last synced:",
+    val backupData: String = "Backup Data",
+    val backupSubtitle: String = "Create a local & cloud snapshot backup",
+    val lastBackup: String = "Last backup:",
+    val restoreData: String = "Restore Data",
+    val restoreSubtitle: String = "Restore profile & history from backup snapshot",
+    val privacySection: String = "Privacy & Security",
+    val changePassword: String = "Change Password",
+    val changePasswordSubtitle: String = "Update your account password",
+    val privacyPolicy: String = "Privacy Policy",
+    val termsConditions: String = "Terms & Conditions",
+    val aboutSection: String = "About App",
+    val appVersion: String = "App Version",
+    val rateApp: String = "Rate App",
+    val shareApp: String = "Share App",
+    val contactSupport: String = "Contact Support",
+    val dangerZone: String = "Danger Zone",
+    val resetAccount: String = "Reset Account Progress",
+    val resetSubtitle: String = "Clear local XP, coins, and restart guest profile",
+
+    // Quiz & AI Screen
+    val question: String = "Question",
+    val ofText: String = "of",
+    val nextQuestion: String = "Next Question",
+    val finishQuiz: String = "Finish Quiz",
+    val quizCompleted: String = "Quiz Completed! 🎉",
+    val xpEarned: String = "XP Earned",
+    val coinsGained: String = "Coins Gained",
+    val playAgain: String = "Play Again",
+    val backToHome: String = "Back to Home",
+    val aiQuizGenTitle: String = "AI Quiz Generator ✨",
+    val aiTopicPlaceholder: String = "Enter any topic (e.g., Quantum Physics, Indian History)...",
+    val generateQuiz: String = "Generate Quiz with AI",
+    val generatingQuiz: String = "Generating AI questions...",
+    val selectDifficulty: String = "Select Difficulty:",
+    val easy: String = "Easy",
+    val medium: String = "Medium",
+    val hard: String = "Hard",
+
+    // Avatar Shop
+    val avatarShopTitle: String = "Avatar Shop 🛒",
+    val equip: String = "Equip",
+    val equipped: String = "Equipped",
+    val buyFor: String = "Buy for",
+    val insufficientCoins: String = "Insufficient coins!",
+
+    // Login & Auth
+    val loginTitle: String = "Brain Quiz AI 🧠",
+    val loginSubtitle: String = "Test your knowledge & level up",
+    val continueAsGuest: String = "Continue as Guest",
+    val email: String = "Email",
+    val password: String = "Password",
+    val signIn: String = "Sign In",
+    val signUp: String = "Sign Up",
+
+    // Dialogs & Toasts
+    val confirmResetTitle: String = "Reset Account Progress",
+    val confirmResetDesc: String = "Are you sure you want to reset your account? All local XP, coins, and history will be erased.",
+    val confirmLogoutTitle: String = "Confirm Logout",
+    val confirmLogoutDesc: String = "Are you sure you want to log out of your account?",
+    val syncSuccess: String = "Quiz data synced with cloud successfully!",
+    val backupSuccess: String = "Backup created successfully!",
+    val restoreSuccess: String = "Data restored successfully from snapshot!",
+    val profileUpdated: String = "Profile updated successfully!",
+    val enterValidTopic: String = "Please enter a valid topic for AI quiz generation.",
+    val notificationsTitle: String = "Notifications 🔔",
+    val noNotifications: String = "No new notifications",
+    val unlockAchievementTitle: String = "Achievement Unlocked! 🎉"
+)
+
+val EnglishStrings = AppStrings()
+
+val LocalAppStrings = staticCompositionLocalOf { EnglishStrings }
+
+fun getAppStrings(languageCode: String = "en"): AppStrings {
+    return EnglishStrings
+}

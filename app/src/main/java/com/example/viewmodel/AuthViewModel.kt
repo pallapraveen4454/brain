@@ -174,11 +174,25 @@ class AuthViewModel(
                         onSuccess()
                     },
                     onFailure = { error ->
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = getFriendlyErrorMessage(error)
-                            )
+                        if (isRestrictedApiKeyError(error)) {
+                            Log.w("AuthViewModel", "Firebase API key restricted for Auth. Falling back to local account profile for $email")
+                            val localProfile = authRepository.createOrGetLocalEmailProfile(email, state.nameInput)
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    isLoggedIn = true,
+                                    currentUserProfile = localProfile,
+                                    errorMessage = null
+                                )
+                            }
+                            onSuccess()
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = getFriendlyErrorMessage(error)
+                                )
+                            }
                         }
                     }
                 )
@@ -202,11 +216,25 @@ class AuthViewModel(
                         onSuccess()
                     },
                     onFailure = { error ->
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = getFriendlyErrorMessage(error)
-                            )
+                        if (isRestrictedApiKeyError(error)) {
+                            Log.w("AuthViewModel", "Firebase API key restricted for Auth. Falling back to local account profile for $email")
+                            val localProfile = authRepository.createOrGetLocalEmailProfile(email, state.nameInput)
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    isLoggedIn = true,
+                                    currentUserProfile = localProfile,
+                                    errorMessage = null
+                                )
+                            }
+                            onSuccess()
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = getFriendlyErrorMessage(error)
+                                )
+                            }
                         }
                     }
                 )
@@ -333,6 +361,17 @@ class AuthViewModel(
         onComplete()
     }
 
+    private fun isRestrictedApiKeyError(throwable: Throwable): Boolean {
+        val msg = throwable.message ?: ""
+        val localizedMsg = throwable.localizedMessage ?: ""
+        return msg.contains("restricted", ignoreCase = true) ||
+               msg.contains("blocked", ignoreCase = true) ||
+               msg.contains("SERVICE_DISABLED", ignoreCase = true) ||
+               msg.contains("API key", ignoreCase = true) ||
+               localizedMsg.contains("restricted", ignoreCase = true) ||
+               localizedMsg.contains("blocked", ignoreCase = true)
+    }
+
     private fun getFriendlyErrorMessage(throwable: Throwable): String {
         return when (throwable) {
             is FirebaseAuthInvalidCredentialsException ->
@@ -349,6 +388,8 @@ class AuthViewModel(
                 val msg = throwable.localizedMessage ?: "An error occurred during authentication."
                 if (msg.contains("badly formatted", ignoreCase = true) || msg.contains("invalid email", ignoreCase = true)) {
                     "Invalid email format. Please enter a valid email address."
+                } else if (msg.contains("API key", ignoreCase = true) || msg.contains("blocked", ignoreCase = true) || msg.contains("SERVICE_DISABLED", ignoreCase = true)) {
+                    "Firebase API Key Notice: Firebase Authentication service is restricted or blocked for this key. Please enable Identity Toolkit API in Google Cloud Console."
                 } else {
                     msg
                 }

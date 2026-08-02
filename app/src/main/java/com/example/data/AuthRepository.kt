@@ -23,9 +23,9 @@ data class UserProfile(
     val lastActiveDate: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val rank: String = "Beginner",
-    val unlockedAchievements: Set<String> = emptySet(),
-    val claimedRewards: Set<String> = emptySet(),
-    val unlockedAvatars: Set<String> = setOf("student_boy", "student_girl", "brain"),
+    val unlockedAchievements: List<String> = emptyList(),
+    val claimedRewards: List<String> = emptyList(),
+    val unlockedAvatars: List<String> = listOf("student_boy", "student_girl", "brain"),
     val quizHistory: List<QuizResult> = emptyList(),
     val lastQuizCategory: String = "",
     val lastQuizScore: Int = 0,
@@ -139,6 +139,27 @@ class AuthRepository(
 
     fun getPersistentGuestProfile(): UserProfile {
         return userProfileStore.getProfile()
+    }
+
+    fun createOrGetLocalEmailProfile(email: String, name: String): UserProfile {
+        val existing = userProfileStore.getProfile()
+        val displayName = name.ifBlank {
+            if (existing.name.isNotBlank() && existing.name != "Player" && existing.name != "Guest Player") {
+                existing.name
+            } else {
+                email.substringBefore("@").replaceFirstChar { it.uppercase() }
+            }
+        }
+        val localUid = if (existing.uid.isNotBlank()) existing.uid else "local_${Math.abs(email.hashCode())}"
+        val profile = existing.copy(
+            uid = localUid,
+            email = email,
+            name = displayName
+        )
+        userProfileStore.saveProfile(profile)
+        userProfileStore.setLoggedIn(true)
+        setGuestSessionActive(false)
+        return profile
     }
 
     fun resetGuestAccount(): UserProfile {
@@ -270,6 +291,7 @@ class AuthRepository(
     }
 
     suspend fun saveUserProfileToFirestore(profile: UserProfile): Boolean {
+        Log.d("XP_TRACE", "[AuthRepository] saveUserProfileToFirestore: profile.xp=${profile.xp}")
         userProfileStore.saveProfile(profile)
         return try {
             val firestore = getFirestore() ?: return true
@@ -314,6 +336,7 @@ class AuthRepository(
                 val existing = doc.toObject(UserProfile::class.java)
                 if (existing != null) {
                     val mergedXp = maxOf(existing.xp, local.totalXp)
+                    Log.d("XP_TRACE", "[AuthRepository] ensureUserProfileExists: localXp=${local.totalXp}, existingRemoteXp=${existing.xp}, mergedXp=$mergedXp")
                     val mergedCoins = local.coins
                     val mergedStreak = maxOf(existing.streak, local.streak)
                     val mergedActiveDate = if (local.lastActiveDate.isNotBlank()) local.lastActiveDate else existing.lastActiveDate

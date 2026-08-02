@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
+import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
 import com.example.ui.theme.DarkCardSurface
 import com.example.ui.theme.GlassBorder
@@ -99,6 +100,8 @@ fun LeaderboardScreen(
         LeaderboardUser(10, "10", "Lucas Meyer", "fox", 600, 2, "Bronze", 6, 2, 720)
     ).sortedByDescending { it.xp }.mapIndexed { index, user -> user.copy(rank = index + 1) }
 
+    val strings = LocalAppStrings.current
+
     val currentUserEntry = leaderboardData?.currentUserEntry ?: players.find { it.isCurrentUser } ?: LeaderboardUser(
         rank = players.size + 1,
         id = "current",
@@ -126,7 +129,7 @@ fun LeaderboardScreen(
         ) {
             Column {
                 Text(
-                    text = "Leaderboard 🏆",
+                    text = strings.globalLeaderboard,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 24.sp
@@ -134,7 +137,7 @@ fun LeaderboardScreen(
                     color = TextWhite
                 )
                 Text(
-                    text = "Compete with Quiz Masters Worldwide",
+                    text = strings.topPlayers,
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
@@ -217,6 +220,7 @@ private fun PeriodTabSelector(
     selectedPeriod: LeaderboardPeriod,
     onPeriodSelected: (LeaderboardPeriod) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -251,8 +255,8 @@ private fun PeriodTabSelector(
                 ) {
                     Text(
                         text = when (period) {
-                            LeaderboardPeriod.GLOBAL -> "Global"
-                            LeaderboardPeriod.WEEKLY -> "Weekly"
+                            LeaderboardPeriod.GLOBAL -> strings.global
+                            LeaderboardPeriod.WEEKLY -> strings.weekly
                             LeaderboardPeriod.FRIENDS -> "Friends"
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(

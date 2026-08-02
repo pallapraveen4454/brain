@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.QuizResult
@@ -86,6 +87,7 @@ import com.example.ui.theme.DarkCardSurface
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.PrimaryPurple
 import com.example.ui.theme.PrimaryPurpleLight
+import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
 
@@ -124,6 +126,8 @@ fun ProfileScreen(
         SettingsScreen(
             playerName = playerName,
             playerEmail = playerEmail,
+            onEditUsername = { _ -> onEditUsername() },
+            onSignOut = onSignOut,
             onResetAccount = {
                 showSettingsScreen = false
                 onResetAccount()
@@ -142,6 +146,7 @@ fun ProfileScreen(
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
+            val strings = LocalAppStrings.current
             // Profile Header Title
             Row(
                 modifier = Modifier
@@ -151,7 +156,7 @@ fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Profile 👤",
+                    text = strings.userProfile,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 22.sp
@@ -247,7 +252,10 @@ fun ProfileScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         ),
-                        color = TextWhite
+                        color = TextWhite,
+                        maxLines = 1,
+                        softWrap = false,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -823,7 +831,7 @@ fun HelpSupportDialog(onDismiss: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "• How to earn coins: Complete daily quizzes, practice mode, or AI custom quizzes.\n" +
+                    text = "• How to earn coins: Complete daily quizzes, quick quizzes, or AI custom quizzes.\n" +
                            "• How to unlock avatars: Visit the Avatar Shop from your Profile tab.\n" +
                            "• Need assistance? Contact our team at support@brainquiz.ai",
                     style = MaterialTheme.typography.bodySmall,

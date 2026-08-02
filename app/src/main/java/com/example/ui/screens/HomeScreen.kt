@@ -64,6 +64,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.example.ui.localization.LocalAppStrings
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -249,24 +250,32 @@ private fun MainHomeContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
                         text = "Hello ${uiState.playerName} 👋",
                         style = MaterialTheme.typography.displayMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
+                            fontSize = 22.sp
                         ),
                         color = TextWhite,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("greeting_text")
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Ready to challenge your brain?",
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("greeting_subtext")
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Rank Badge
                 Box(
@@ -281,7 +290,10 @@ private fun MainHomeContent(
                         .testTag("rank_badge"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
                         Icon(
                             imageVector = Icons.Default.EmojiEvents,
                             contentDescription = "Rank",
@@ -295,7 +307,10 @@ private fun MainHomeContent(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             ),
-                            color = TextWhite
+                            color = TextWhite,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -402,14 +417,12 @@ private fun MainHomeContent(
                         val icon = when (option.id) {
                             "quick" -> Icons.Default.PlayArrow
                             "daily" -> Icons.Default.AutoAwesome
-                            "practice" -> Icons.Default.Timer
                             "ai_custom" -> Icons.Default.AutoAwesome
                             else -> Icons.Default.Psychology
                         }
                         val colors = when (option.id) {
                             "quick" -> listOf(PrimaryPurple, PrimaryPurpleLight)
                             "daily" -> listOf(AccentCoins, AccentCoinsGradientEnd)
-                            "practice" -> listOf(AccentLevel, AccentLevelGradientEnd)
                             "ai_custom" -> listOf(PrimaryPurple, PrimaryPurpleLight)
                             else -> listOf(DarkCardBorder, TextMuted)
                         }
@@ -579,6 +592,7 @@ fun HomeBottomNavigationBar(
     selectedTab: BottomNavTab,
     onTabSelect: (BottomNavTab) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     NavigationBar(
         modifier = Modifier
             .navigationBarsPadding()
@@ -587,10 +601,10 @@ fun HomeBottomNavigationBar(
         tonalElevation = 12.dp
     ) {
         val items = listOf(
-            NavTabItem(BottomNavTab.Home, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-            NavTabItem(BottomNavTab.Leaderboard, "Leaderboard", Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents),
-            NavTabItem(BottomNavTab.Achievements, "Achievements", Icons.Filled.MilitaryTech, Icons.Outlined.MilitaryTech),
-            NavTabItem(BottomNavTab.Profile, "Profile", Icons.Filled.Person, Icons.Outlined.Person)
+            NavTabItem(BottomNavTab.Home, strings.navHome, Icons.Filled.Home, Icons.Outlined.Home),
+            NavTabItem(BottomNavTab.Leaderboard, strings.navLeaderboard, Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents),
+            NavTabItem(BottomNavTab.Achievements, strings.navAchievements, Icons.Filled.MilitaryTech, Icons.Outlined.MilitaryTech),
+            NavTabItem(BottomNavTab.Profile, strings.navProfile, Icons.Filled.Person, Icons.Outlined.Person)
         )
 
         items.forEach { item ->

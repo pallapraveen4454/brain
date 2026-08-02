@@ -66,6 +66,7 @@ class QuizResultRepository(
         lastQuizTimestamp: Long = System.currentTimeMillis()
     ) {
         val current = userProfileStore.getProfile()
+        Log.d("XP_TRACE", "[QuizResultRepository] saveLocalProgress: currentXp=${current.xp}, newTotalXp=$totalXp")
         val dateFormatted = if (lastQuizDate.isNotBlank()) lastQuizDate else SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(lastQuizTimestamp))
         val updated = current.copy(
             xp = totalXp,
@@ -127,10 +128,11 @@ class QuizResultRepository(
 
     fun saveLocalQuizResult(quizResult: QuizResult) {
         val current = userProfileStore.getProfile()
+        Log.d("XP_TRACE", "[QuizResultRepository] saveLocalQuizResult: currentXp=${current.xp}, resultTotalXp=${quizResult.totalXp}")
         val history = (listOf(quizResult) + current.quizHistory)
             .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
             .sortedByDescending { it.timestamp }
-        userProfileStore.saveProfile(current.copy(quizHistory = history))
+        userProfileStore.saveProfile(current.copy(xp = maxOf(current.xp, quizResult.totalXp), quizHistory = history))
     }
 
     fun getLocalQuizResultsList(): List<QuizResult> {
@@ -149,9 +151,10 @@ class QuizResultRepository(
         lastActiveDate: String = "",
         timestamp: Long = System.currentTimeMillis()
     ): QuizResult {
+        Log.d("XP_TRACE", "[QuizResultRepository] saveQuizResult: userId=$userId, scoreOutOfTen=$scoreOutOfTen, xpEarned=$xpEarned, totalXp=$totalXp")
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
         val resultId = "result_${timestamp}_${(1000..9999).random()}"
-        val finalCoinsEarned = if (coinsEarned > 0) coinsEarned else (scoreOutOfTen * 2)
+        val finalCoinsEarned = if (coinsEarned >= 0) coinsEarned else (scoreOutOfTen * 10)
 
         val quizResult = QuizResult(
             id = resultId,

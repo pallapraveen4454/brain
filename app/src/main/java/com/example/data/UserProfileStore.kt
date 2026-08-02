@@ -209,15 +209,16 @@ class UserProfileStore(
             val mergedEmail = profile.email.ifBlank { current?.email ?: "guest@brainquiz.ai" }
 
             val mergedXp = maxOf(profile.xp, current?.xp ?: 0)
+            Log.d("XP_TRACE", "[UserProfileStore] saveProfile: currentXp=${current?.xp}, incomingXp=${profile.xp}, mergedXp=$mergedXp")
             val mergedCoins = profile.coins
             val mergedStreak = maxOf(profile.streak, current?.streak ?: 0)
             val mergedLongestStreak = maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak)
             val mergedLevel = maxOf(1, (mergedXp / 500) + 1)
             val mergedRank = RankUtils.getRankForXp(mergedXp)
 
-            val mergedUnlocked = (current?.unlockedAchievements ?: emptySet()) + profile.unlockedAchievements
-            val mergedClaimed = (current?.claimedRewards ?: emptySet()) + profile.claimedRewards
-            val mergedUnlockedAvatars = (current?.unlockedAvatars ?: setOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars
+            val mergedUnlocked = ((current?.unlockedAchievements ?: emptyList()) + profile.unlockedAchievements).distinct()
+            val mergedClaimed = ((current?.claimedRewards ?: emptyList()) + profile.claimedRewards).distinct()
+            val mergedUnlockedAvatars = ((current?.unlockedAvatars ?: listOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars).distinct()
 
             // Combine and deduplicate history
             val rawHistory = (profile.quizHistory + (current?.quizHistory ?: emptyList()))
@@ -460,9 +461,9 @@ class UserProfileStore(
             createdAt = json.optLong("createdAt", System.currentTimeMillis()),
             installDate = json.optString("installDate", ""),
             rank = json.optString("rank", RankUtils.getRankForXp(xp)),
-            unlockedAchievements = unlockedSet,
-            claimedRewards = claimedSet,
-            unlockedAvatars = unlockedAvatarsSet,
+            unlockedAchievements = unlockedSet.toList(),
+            claimedRewards = claimedSet.toList(),
+            unlockedAvatars = unlockedAvatarsSet.toList(),
             quizHistory = historyList,
             lastQuizCategory = json.optString("lastQuizCategory", ""),
             lastQuizScore = json.optInt("lastQuizScore", 0),

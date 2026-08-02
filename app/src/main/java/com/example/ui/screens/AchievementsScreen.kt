@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.AchievementRepository
 import com.example.data.model.Achievement
 import com.example.ui.components.GlassCard
+import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
 import com.example.ui.theme.DarkCardBorder
 import com.example.ui.theme.DarkCardSurface
@@ -75,6 +76,8 @@ fun AchievementsScreen(
     val unlockedList = listToDisplay.filter { it.isUnlocked }
     val lockedList = listToDisplay.filter { !it.isUnlocked }
 
+    val strings = LocalAppStrings.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -84,7 +87,7 @@ fun AchievementsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Trophies & Badges 🎖️",
+            text = strings.achievementsAndBadges,
             style = MaterialTheme.typography.titleLarge.copy(
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp

@@ -234,7 +234,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         val normKey = dbManager.normalizeCategoryKey(categoryId)
 
         return when (normKey) {
-            "quick", "daily", "practice", "all" -> {
+            "quick", "daily", "all" -> {
                 dbManager.getAllCategoryKeys().sumOf { cat ->
                     val db = dbManager.getDatabaseForCategory(cat)
                     db?.questionDao()?.getQuestionCountSync() ?: 0

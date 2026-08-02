@@ -96,7 +96,6 @@ data class HomeUiState(
     val quickPlayOptions: List<QuickPlayOption> = listOf(
         QuickPlayOption("quick", "Quick Play", "10 random questions", "POPULAR"),
         QuickPlayOption("daily", "Daily Challenge", "Earn 2x Coins & XP today", "2X REWARDS"),
-        QuickPlayOption("practice", "Practice Mode", "No timer, infinite retries", "CASUAL"),
         QuickPlayOption("ai_custom", "AI Quiz Generator", "Generate custom topic quizzes with Gemini", "GEMINI AI", isComingSoon = false)
     )
 )
@@ -176,7 +175,7 @@ class HomeViewModel(
                     rank = computedRank,
                     playerName = profile.name.ifBlank { "Player" },
                     avatarId = profile.avatarId.ifBlank { "brain" },
-                    unlockedAvatars = if (profile.unlockedAvatars.isNotEmpty()) profile.unlockedAvatars + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
+                    unlockedAvatars = if (profile.unlockedAvatars.isNotEmpty()) profile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
                     totalQuizzesPlayed = quizzesPlayed,
                     totalQuestionsAnswered = questionsAnswered,
                     totalCorrectAnswers = correctAnswers,
@@ -235,6 +234,7 @@ class HomeViewModel(
                         val remoteProfile = authRepository.fetchUserProfile(user.uid)
                         if (remoteProfile != null) {
                             val mergedXp = maxOf(remoteProfile.xp, profile.xp)
+                            Log.d("XP_TRACE", "[HomeViewModel] loadUserProfile: localXp=${profile.xp}, remoteXp=${remoteProfile.xp}, mergedXp=$mergedXp")
                             val mergedCoins = updatedCoins
                             val mergedStreak = maxOf(remoteProfile.streak, localStreak)
                             val mergedRank = RankUtils.getRankForXp(mergedXp)
@@ -295,7 +295,7 @@ class HomeViewModel(
         val profile = authRepository.getPersistentGuestProfile()
         val updatedProfile = profile.copy(
             coins = newCoins,
-            unlockedAvatars = newUnlockedAvatars
+            unlockedAvatars = newUnlockedAvatars.toList()
         )
 
         _uiState.update {
