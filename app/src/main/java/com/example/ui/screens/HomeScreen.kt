@@ -284,7 +284,7 @@ private fun MainHomeContent(
                                 modifier = Modifier.weight(1f, fill = false)
                             ) {
                                 Text(
-                                    text = "Hello ${uiState.playerName} 👋",
+                                    text = "Hello, ${uiState.playerName} 👋",
                                     style = MaterialTheme.typography.displayMedium.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 23.sp
@@ -357,7 +357,7 @@ private fun MainHomeContent(
             val levelProgress = ((uiState.xp % 100) / 100f).coerceIn(0.05f, 1f)
             val animatedProgress by animateFloatAsState(
                 targetValue = levelProgress,
-                animationSpec = tween(durationMillis = 800),
+                animationSpec = tween(durationMillis = 300),
                 label = "xp_level_progress"
             )
 

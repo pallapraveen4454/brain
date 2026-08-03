@@ -1,6 +1,21 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,37 +27,74 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
+import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
+import com.example.ui.theme.AccentCoinsGradientEnd
+import com.example.ui.theme.AccentLevel
+import com.example.ui.theme.AccentStreak
+import com.example.ui.theme.AccentXP
+import com.example.ui.theme.AccentXPGradientEnd
+import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.DarkCardBorder
 import com.example.ui.theme.DarkCardSurface
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.PrimaryPurple
@@ -51,6 +103,10 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
 import com.example.utils.RankUtils
+import com.example.utils.SoundEffects
+import com.example.utils.bounceClick
+import com.example.utils.shimmerEffect
+import kotlin.random.Random
 
 data class LeaderboardUser(
     val rank: Int,
@@ -63,6 +119,8 @@ data class LeaderboardUser(
     val quizzesPlayed: Int = 0,
     val achievementsCount: Int = 0,
     val score: Int = 0,
+    val countryFlag: String = "🇺🇸",
+    val rankChange: Int = 0, // >0: up, <0: down, 0: same
     val isCurrentUser: Boolean = false
 )
 
@@ -77,12 +135,17 @@ fun LeaderboardScreen(
     onPeriodSelected: (LeaderboardPeriod) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // Determine player list and user entry
-    val players = leaderboardData?.topPlayers ?: listOf(
-        LeaderboardUser(1, "1", "Sophia Chen", "wizard", 3850, 8, "Legend", 42, 12, 4500),
-        LeaderboardUser(2, "2", "Alex Vance", "rocket", 3120, 7, "Grandmaster", 35, 10, 3700),
-        LeaderboardUser(3, "3", "Elena Rostova", "crown", 2650, 6, "Master", 28, 8, 3100),
-        LeaderboardUser(4, "4", "Marcus Brody", "star", 2100, 5, "Diamond", 22, 7, 2500),
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Default mock data with flags & rank change dynamics if not provided
+    val defaultPlayers = listOf(
+        LeaderboardUser(1, "1", "Sophia Chen", "wizard", 3850, 8, "Legend", 42, 12, 4500, "🇺🇸", 2),
+        LeaderboardUser(2, "2", "Alex Vance", "rocket", 3120, 7, "Grandmaster", 35, 10, 3700, "🇨🇦", -1),
+        LeaderboardUser(3, "3", "Elena Rostova", "crown", 2650, 6, "Master", 28, 8, 3100, "🇩🇪", 1),
+        LeaderboardUser(4, "4", "Marcus Brody", "star", 2100, 5, "Diamond", 22, 7, 2500, "🇬🇧", 0),
         LeaderboardUser(
             rank = 5,
             id = "current",
@@ -91,16 +154,30 @@ fun LeaderboardScreen(
             xp = currentUserXp,
             level = maxOf(1, currentUserLevel),
             rankBadge = RankUtils.getRankForXp(currentUserXp),
+            countryFlag = "🌟",
+            rankChange = 2,
             isCurrentUser = true
         ),
-        LeaderboardUser(6, "6", "David Kim", "brain", 1680, 4, "Gold", 18, 5, 2000),
-        LeaderboardUser(7, "7", "Sarah Connor", "fire", 1350, 3, "Gold", 14, 4, 1600),
-        LeaderboardUser(8, "8", "Liam Neeson", "ninja", 1050, 3, "Silver", 11, 3, 1250),
-        LeaderboardUser(9, "9", "Priya Sharma", "cat", 820, 2, "Silver", 8, 2, 950),
-        LeaderboardUser(10, "10", "Lucas Meyer", "fox", 600, 2, "Bronze", 6, 2, 720)
-    ).sortedByDescending { it.xp }.mapIndexed { index, user -> user.copy(rank = index + 1) }
+        LeaderboardUser(6, "6", "David Kim", "brain", 1680, 4, "Gold", 18, 5, 2000, "🇰🇷", -2),
+        LeaderboardUser(7, "7", "Sarah Connor", "fire", 1350, 3, "Gold", 14, 4, 1600, "🇦🇺", 1),
+        LeaderboardUser(8, "8", "Liam Neeson", "ninja", 1050, 3, "Silver", 11, 3, 1250, "🇮🇪", 0),
+        LeaderboardUser(9, "9", "Priya Sharma", "cat", 820, 2, "Silver", 8, 2, 950, "🇮🇳", 3),
+        LeaderboardUser(10, "10", "Lucas Meyer", "fox", 600, 2, "Bronze", 6, 2, 720, "🇫🇷", -1)
+    )
 
-    val strings = LocalAppStrings.current
+    val players = (leaderboardData?.topPlayers ?: defaultPlayers)
+        .sortedByDescending { it.xp }
+        .mapIndexed { index, user -> user.copy(rank = index + 1) }
+
+    val filteredPlayers = if (searchQuery.isBlank()) {
+        players
+    } else {
+        players.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.rank.toString() == searchQuery ||
+                    it.rankBadge.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     val currentUserEntry = leaderboardData?.currentUserEntry ?: players.find { it.isCurrentUser } ?: LeaderboardUser(
         rank = players.size + 1,
@@ -110,113 +187,199 @@ fun LeaderboardScreen(
         xp = currentUserXp,
         level = maxOf(1, currentUserLevel),
         rankBadge = RankUtils.getRankForXp(currentUserXp),
+        countryFlag = "🌟",
+        rankChange = 1,
         isCurrentUser = true
     )
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .testTag("leaderboard_screen")
+            .background(DarkBackground)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        // High Performance Floating Gold & Purple Particles Canvas
+        LeaderboardAmbientParticlesCanvas()
 
-        // Title Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp)
+                .testTag("leaderboard_screen")
         ) {
-            Column {
-                Text(
-                    text = strings.globalLeaderboard,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
-                    ),
-                    color = TextWhite
-                )
-                Text(
-                    text = strings.topPlayers,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ------------------------------------------------
+            // 1. HERO HEADER WITH SHINY TROPHY & TITLE
+            // ------------------------------------------------
+            LeaderboardHeroHeader()
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ------------------------------------------------
+            // 2. PERIOD FILTER TABS (Global / Weekly / Friends)
+            // ------------------------------------------------
+            LeaderboardPeriodTabs(
+                selectedPeriod = selectedPeriod,
+                onPeriodSelected = { period ->
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    SoundEffects.playCoinSound()
+                    onPeriodSelected(period)
+                }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ------------------------------------------------
+            // 3. USER POSITION BANNER (Glow Card)
+            // ------------------------------------------------
+            CurrentUserRankBanner(user = currentUserEntry)
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ------------------------------------------------
+            // 4. SEARCH BAR FOR COMPETITORS
+            // ------------------------------------------------
+            LeaderboardSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ------------------------------------------------
+            // 5. TOP 3 PODIUM (Gold, Silver, Bronze Columns)
+            // ------------------------------------------------
+            val top3 = filteredPlayers.take(3)
+            if (top3.isNotEmpty() && searchQuery.isBlank()) {
+                PodiumSection(top3 = top3)
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            // ------------------------------------------------
+            // 6. ACHIEVEMENT HIGHLIGHTS STRIP
+            // ------------------------------------------------
+            LeaderboardAchievementStrip()
 
-        // Period Filter Tabs (Global / Weekly / Friends)
-        PeriodTabSelector(
-            selectedPeriod = selectedPeriod,
-            onPeriodSelected = onPeriodSelected
-        )
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // User Position Card (Highlighted Banner)
-        CurrentUserRankBanner(user = currentUserEntry)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Top 3 Podium
-        val top3 = players.take(3)
-        if (top3.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Bottom
+            // ------------------------------------------------
+            // 7. MAIN RANKINGS LIST
+            // ------------------------------------------------
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (top3.size >= 2) {
-                    // Rank 2 (Silver - Left)
-                    PodiumCard(
-                        user = top3[1],
-                        modifier = Modifier.weight(1f),
-                        badgeColor = Color(0xFFC0C0C0),
-                        medalIcon = "🥈",
-                        heightDp = 135
-                    )
+                val listItems = if (searchQuery.isBlank() && filteredPlayers.size > 3) {
+                    filteredPlayers.drop(3)
+                } else {
+                    filteredPlayers
                 }
-                if (top3.isNotEmpty()) {
-                    // Rank 1 (Gold - Center)
-                    PodiumCard(
-                        user = top3[0],
-                        modifier = Modifier.weight(1.15f),
-                        badgeColor = AccentCoins,
-                        medalIcon = "🥇",
-                        heightDp = 155
-                    )
-                }
-                if (top3.size >= 3) {
-                    // Rank 3 (Bronze - Right)
-                    PodiumCard(
-                        user = top3[2],
-                        modifier = Modifier.weight(1f),
-                        badgeColor = Color(0xFFCD7F32),
-                        medalIcon = "🥉",
-                        heightDp = 120
-                    )
-                }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                if (listItems.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No competitors found matching \"$searchQuery\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    itemsIndexed(listItems, key = { _, user -> user.id.ifBlank { user.name + user.rank } }) { _, user ->
+                        LeaderboardRowCard(user = user)
+                    }
+                }
 
-        // Rankings List
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(players) { user ->
-                LeaderboardRowItem(user = user)
+                item { Spacer(modifier = Modifier.height(30.dp)) }
             }
-            item { Spacer(modifier = Modifier.height(30.dp)) }
         }
     }
 }
 
 @Composable
-private fun PeriodTabSelector(
+private fun LeaderboardHeroHeader() {
+    val strings = LocalAppStrings.current
+    val infiniteTransition = rememberInfiniteTransition(label = "heroTrophyFloat")
+    val trophyOffsetY by infiniteTransition.animateFloat(
+        initialValue = -4f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "trophyFloat"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = strings.globalLeaderboard,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = TextWhite,
+                    modifier = Modifier.testTag("leaderboard_title")
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = AccentCoins,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = "Compete with top players worldwide & claim the crown 👑",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
+        }
+
+        // Floating Animated Trophy Badge
+        Box(
+            modifier = Modifier
+                .offset(y = trophyOffsetY.dp)
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(AccentCoins.copy(alpha = 0.4f), Color.Transparent)
+                    )
+                )
+                .border(1.5.dp, AccentCoins, CircleShape)
+                .shadow(8.dp, CircleShape, ambientColor = AccentCoins, spotColor = AccentCoinsGradientEnd),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.EmojiEvents,
+                contentDescription = "Leaderboard Trophy",
+                tint = AccentCoins,
+                modifier = Modifier.size(26.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardPeriodTabs(
     selectedPeriod: LeaderboardPeriod,
     onPeriodSelected: (LeaderboardPeriod) -> Unit
 ) {
@@ -224,9 +387,9 @@ private fun PeriodTabSelector(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .border(1.dp, GlassBorder, RoundedCornerShape(22.dp)),
+            .height(46.dp)
+            .clip(RoundedCornerShape(23.dp))
+            .border(1.dp, GlassBorder, RoundedCornerShape(23.dp)),
         color = DarkCardSurface
     ) {
         Row(
@@ -236,10 +399,17 @@ private fun PeriodTabSelector(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LeaderboardPeriod.entries.forEach { period ->
+            val periods = listOf(
+                LeaderboardPeriod.GLOBAL to strings.global,
+                LeaderboardPeriod.WEEKLY to strings.weekly,
+                LeaderboardPeriod.FRIENDS to "Friends"
+            )
+
+            periods.forEach { (period, label) ->
                 val isSelected = period == selectedPeriod
                 val bgColor by animateColorAsState(
                     targetValue = if (isSelected) PrimaryPurple else Color.Transparent,
+                    animationSpec = tween(250),
                     label = "tab_bg"
                 )
                 val textColor = if (isSelected) TextWhite else TextSecondary
@@ -247,20 +417,17 @@ private fun PeriodTabSelector(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(bgColor)
                         .clickable { onPeriodSelected(period) }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 8.dp)
+                        .testTag("period_tab_${period.name.lowercase()}"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = when (period) {
-                            LeaderboardPeriod.GLOBAL -> strings.global
-                            LeaderboardPeriod.WEEKLY -> strings.weekly
-                            LeaderboardPeriod.FRIENDS -> "Friends"
-                        },
+                        text = label,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                             fontSize = 13.sp
                         ),
                         color = textColor
@@ -273,44 +440,46 @@ private fun PeriodTabSelector(
 
 @Composable
 private fun CurrentUserRankBanner(user: LeaderboardUser) {
-    Surface(
+    val animatedXp by animateIntAsState(
+        targetValue = user.xp,
+        animationSpec = tween(1000, easing = FastOutSlowInEasing),
+        label = "userBannerXp"
+    )
+
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .border(
-                width = 2.dp,
-                brush = Brush.horizontalGradient(
-                    colors = listOf(PrimaryPurpleLight, AccentCoins)
-                ),
-                shape = RoundedCornerShape(18.dp)
-            )
             .testTag("current_user_rank_banner"),
-        color = PrimaryPurple.copy(alpha = 0.25f)
+        shape = RoundedCornerShape(22.dp),
+        backgroundColor = PrimaryPurple.copy(alpha = 0.28f),
+        borderColor = PrimaryPurpleLight.copy(alpha = 0.8f),
+        elevation = 8.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Rank Number Box
+                // Shiny Rank Circle Badge
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(PrimaryPurple, PrimaryPurpleLight)
                             )
-                        ),
+                        )
+                        .border(2.dp, AccentCoins, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "#${user.rank}",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 16.sp
                         ),
                         color = TextWhite
@@ -322,22 +491,18 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Your Rank",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = PrimaryPurpleLight,
-                            fontWeight = FontWeight.Bold
+                            text = "Your Position",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = PrimaryPurpleLight
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "(${user.rankBadge})",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
-                        )
+                        RankMovementIndicator(user.rankChange)
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = user.name,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 16.sp
                         ),
                         color = TextWhite
@@ -345,7 +510,7 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                 }
             }
 
-            // XP and Level Indicator
+            // XP and Level Status Pill
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -356,20 +521,128 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "${user.xp} XP",
+                        text = "$animatedXp XP",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 16.sp
                         ),
                         color = AccentCoins
                     )
                 }
-                Text(
-                    text = "Level ${user.level}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
-                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = DarkBackground.copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryPurpleLight.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = "LVL ${user.level} • ${user.rankBadge}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        ),
+                        color = TextWhite,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .testTag("leaderboard_search_bar"),
+        placeholder = {
+            Text(
+                text = "Search player name or rank...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                fontSize = 13.sp
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = PrimaryPurpleLight,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Clear",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        shape = RoundedCornerShape(26.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = DarkCardSurface,
+            unfocusedContainerColor = DarkCardSurface,
+            disabledContainerColor = DarkCardSurface,
+            focusedBorderColor = PrimaryPurpleLight,
+            unfocusedBorderColor = DarkCardBorder,
+            focusedTextColor = TextWhite,
+            unfocusedTextColor = TextWhite
+        ),
+        singleLine = true
+    )
+}
+
+@Composable
+private fun PodiumSection(top3: List<LeaderboardUser>) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        if (top3.size >= 2) {
+            // Rank 2 (Silver - Left)
+            PodiumCard(
+                user = top3[1],
+                rankNumber = 2,
+                modifier = Modifier.weight(1f),
+                badgeColor = Color(0xFFC0C0C0),
+                medalEmoji = "🥈",
+                columnHeightDp = 145
+            )
+        }
+        if (top3.isNotEmpty()) {
+            // Rank 1 (Gold - Center - Taller & Glowing)
+            PodiumCard(
+                user = top3[0],
+                rankNumber = 1,
+                modifier = Modifier.weight(1.18f),
+                badgeColor = AccentCoins,
+                medalEmoji = "👑 🥇",
+                columnHeightDp = 172
+            )
+        }
+        if (top3.size >= 3) {
+            // Rank 3 (Bronze - Right)
+            PodiumCard(
+                user = top3[2],
+                rankNumber = 3,
+                modifier = Modifier.weight(1f),
+                badgeColor = Color(0xFFCD7F32),
+                medalEmoji = "🥉",
+                columnHeightDp = 130
+            )
         }
     }
 }
@@ -377,87 +650,156 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
 @Composable
 private fun PodiumCard(
     user: LeaderboardUser,
+    rankNumber: Int,
     badgeColor: Color,
-    medalIcon: String,
-    heightDp: Int,
+    medalEmoji: String,
+    columnHeightDp: Int,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    val haptic = LocalHapticFeedback.current
+
+    GlassCard(
         modifier = modifier
-            .height(heightDp.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .border(
-                width = if (user.isCurrentUser) 2.dp else 1.dp,
-                color = if (user.isCurrentUser) PrimaryPurpleLight else GlassBorder,
-                shape = RoundedCornerShape(18.dp)
-            ),
-        color = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.3f) else DarkCardSurface
+            .height(columnHeightDp.dp)
+            .bounceClick(scaleDown = 0.95f) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                SoundEffects.playCoinSound()
+            }
+            .testTag("podium_card_$rankNumber"),
+        shape = RoundedCornerShape(22.dp),
+        backgroundColor = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.4f) else DarkCardSurface,
+        borderColor = if (rankNumber == 1) AccentCoins else badgeColor.copy(alpha = 0.6f),
+        elevation = if (rankNumber == 1) 12.dp else 6.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Rank Badge with Medal
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(badgeColor.copy(alpha = 0.2f))
-                    .border(1.dp, badgeColor, CircleShape),
-                contentAlignment = Alignment.Center
+            // Rank Badge Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = medalIcon,
-                    fontSize = 14.sp
+                    text = medalEmoji,
+                    fontSize = if (rankNumber == 1) 16.sp else 14.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            // Player Avatar with Crown/Halo
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.padding(vertical = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(if (rankNumber == 1) 48.dp else 42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                            )
+                        )
+                        .border(2.dp, badgeColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = AvatarUtils.getEmoji(user.avatarId),
+                        fontSize = if (rankNumber == 1) 24.sp else 20.sp
+                    )
+                }
+            }
 
-            // Player Avatar Emoji
-            Text(
-                text = AvatarUtils.getEmoji(user.avatarId),
-                fontSize = 24.sp
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = user.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                ),
-                color = TextWhite,
-                maxLines = 1
-            )
-
-            Text(
-                text = "${user.xp} XP",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = PrimaryPurpleLight,
-                fontWeight = FontWeight.Bold
-            )
+            // Player Name & XP
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = user.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp
+                    ),
+                    color = TextWhite,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${user.xp} XP",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 11.sp
+                    ),
+                    color = badgeColor
+                )
+                Text(
+                    text = "LVL ${user.level}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    fontSize = 9.sp
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LeaderboardRowItem(user: LeaderboardUser) {
-    Surface(
+private fun LeaderboardAchievementStrip() {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(
-                width = if (user.isCurrentUser) 1.5.dp else 1.dp,
-                color = if (user.isCurrentUser) PrimaryPurpleLight else GlassBorder,
-                shape = RoundedCornerShape(16.dp)
-            )
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AchievementPill("👑 Champion League", AccentCoins, Modifier.weight(1f))
+        AchievementPill("🔥 Top Performer", AccentStreak, Modifier.weight(1f))
+        AchievementPill("⚡ Speed Demon", AccentXP, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun AchievementPill(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.15f))
+            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .padding(vertical = 6.dp, horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            ),
+            color = color,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun LeaderboardRowCard(user: LeaderboardUser) {
+    val haptic = LocalHapticFeedback.current
+
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClick(scaleDown = 0.97f) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
             .testTag("leaderboard_row_${user.rank}"),
-        color = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.22f) else DarkCardSurface
+        shape = RoundedCornerShape(18.dp),
+        backgroundColor = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.26f) else DarkCardSurface,
+        borderColor = if (user.isCurrentUser) PrimaryPurpleLight else GlassBorder,
+        elevation = if (user.isCurrentUser) 6.dp else 2.dp
     ) {
         Row(
             modifier = Modifier
@@ -470,8 +812,8 @@ private fun LeaderboardRowItem(user: LeaderboardUser) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Rank Number or Medal
-                val rankText = when (user.rank) {
+                // Rank Medal or Position Number
+                val rankDisplay = when (user.rank) {
                     1 -> "🥇"
                     2 -> "🥈"
                     3 -> "🥉"
@@ -479,27 +821,27 @@ private fun LeaderboardRowItem(user: LeaderboardUser) {
                 }
 
                 Text(
-                    text = rankText,
+                    text = rankDisplay,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = if (user.rank <= 3) 18.sp else 14.sp
                     ),
                     color = if (user.rank <= 3) AccentCoins else TextMuted,
                     modifier = Modifier.width(36.dp)
                 )
 
-                // Avatar Icon / Emoji
+                // Avatar Icon Container
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(PrimaryPurple.copy(alpha = 0.3f))
+                        .background(PrimaryPurple.copy(alpha = 0.35f))
                         .border(1.dp, GlassBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = AvatarUtils.getEmoji(user.avatarId),
-                        fontSize = 20.sp
+                        fontSize = 22.sp
                     )
                 }
 
@@ -510,50 +852,155 @@ private fun LeaderboardRowItem(user: LeaderboardUser) {
                         Text(
                             text = user.name + if (user.isCurrentUser) " (You)" else "",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp
                             ),
                             color = TextWhite,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = user.countryFlag,
+                            fontSize = 12.sp
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Level ${user.level}",
+                            text = "LVL ${user.level}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            fontSize = 11.sp
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        // Rank Badge Chip
                         Text(
                             text = "• ${user.rankBadge}",
                             style = MaterialTheme.typography.labelSmall,
                             color = PrimaryPurpleLight,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp
                         )
                     }
                 }
             }
 
-            // XP Display
+            // XP and Movement Indicator
+            Column(horizontalAlignment = Alignment.End) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = "XP",
+                        tint = PrimaryPurpleLight,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "${user.xp} XP",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = PrimaryPurpleLight
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                RankMovementIndicator(user.rankChange)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RankMovementIndicator(change: Int) {
+    when {
+        change > 0 -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.Bolt,
-                    contentDescription = "XP",
-                    tint = PrimaryPurpleLight,
-                    modifier = Modifier.size(16.dp)
+                    imageVector = Icons.Default.ArrowUpward,
+                    contentDescription = "Rank Up",
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(12.dp)
                 )
-                Spacer(modifier = Modifier.width(2.dp))
                 Text(
-                    text = "${user.xp} XP",
-                    style = MaterialTheme.typography.titleMedium.copy(
+                    text = "+$change",
+                    style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 10.sp
                     ),
-                    color = PrimaryPurpleLight
+                    color = Color(0xFF10B981)
                 )
             }
+        }
+        change < 0 -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ArrowDownward,
+                    contentDescription = "Rank Down",
+                    tint = Color(0xFFF43F5E),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = "$change",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    ),
+                    color = Color(0xFFF43F5E)
+                )
+            }
+        }
+        else -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Same Position",
+                    tint = TextMuted,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = "0",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextMuted
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardAmbientParticlesCanvas() {
+    val infiniteTransition = rememberInfiniteTransition(label = "particles")
+    val progress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(12000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress"
+    )
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+
+        val particlePositions = listOf(
+            Offset(width * 0.15f, height * ((0.2f + progress * 0.8f) % 1.0f)),
+            Offset(width * 0.85f, height * ((0.8f - progress * 0.7f + 1.0f) % 1.0f)),
+            Offset(width * 0.4f, height * ((0.5f + progress * 0.5f) % 1.0f)),
+            Offset(width * 0.7f, height * ((0.1f + progress * 0.9f) % 1.0f)),
+            Offset(width * 0.25f, height * ((0.9f - progress * 0.6f + 1.0f) % 1.0f))
+        )
+
+        particlePositions.forEachIndexed { i, pos ->
+            val color = if (i % 2 == 0) AccentCoins.copy(alpha = 0.25f) else PrimaryPurpleLight.copy(alpha = 0.2f)
+            val radius = if (i % 2 == 0) 3.5.dp.toPx() else 2.5.dp.toPx()
+            drawCircle(color = color, radius = radius, center = pos)
         }
     }
 }
