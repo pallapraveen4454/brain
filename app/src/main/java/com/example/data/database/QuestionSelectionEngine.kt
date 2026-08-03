@@ -415,7 +415,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     }
 
     private suspend fun loadAllEntitiesForCategory(normKey: String): List<QuestionEntity> {
-        return if (normKey in listOf("quick", "daily", "practice", "all")) {
+        return if (normKey in listOf("quick", "daily", "all")) {
             val combined = mutableListOf<QuestionEntity>()
             for (catKey in dbManager.getAllCategoryKeys()) {
                 val db = dbManager.getDatabaseForCategory(catKey)

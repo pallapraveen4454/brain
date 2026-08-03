@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -46,16 +49,21 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SportsSoccer
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MilitaryTech
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -241,83 +249,305 @@ private fun MainHomeContent(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Header Greeting
+        // 1. Premium Hero Welcome Header
         item(span = { GridItemSpan(2) }) {
-            Row(
+            GlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(24.dp),
+                backgroundColor = DarkCardSurface,
+                borderColor = PrimaryPurple.copy(alpha = 0.5f),
+                elevation = 8.dp
             ) {
-                Column(
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Text(
-                        text = "Hello ${uiState.playerName} 👋",
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        ),
-                        color = TextWhite,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("greeting_text")
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Ready to challenge your brain?",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("greeting_subtext")
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Rank Badge
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .fillMaxWidth()
                         .background(
                             brush = Brush.linearGradient(
-                                colors = listOf(AccentCoins, AccentCoinsGradientEnd)
+                                colors = listOf(
+                                    PrimaryPurple.copy(alpha = 0.35f),
+                                    DarkCardSurface,
+                                    PrimaryPurpleLight.copy(alpha = 0.15f)
+                                )
                             )
                         )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                        .testTag("rank_badge"),
-                    contentAlignment = Alignment.Center
+                        .padding(18.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Text(
+                                    text = "Hello ${uiState.playerName} 👋",
+                                    style = MaterialTheme.typography.displayMedium.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 23.sp
+                                    ),
+                                    color = TextWhite,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.testTag("greeting_text")
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Challenge Your Mind Every Day",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.testTag("greeting_subtext")
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Rank Badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(AccentCoins, AccentCoinsGradientEnd)
+                                        )
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                                    .testTag("rank_badge"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EmojiEvents,
+                                        contentDescription = "Rank",
+                                        tint = TextWhite,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = uiState.rank,
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        ),
+                                        color = TextWhite,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Animated XP & Level Progress Card
+        item(span = { GridItemSpan(2) }) {
+            val levelProgress = ((uiState.xp % 100) / 100f).coerceIn(0.05f, 1f)
+            val animatedProgress by animateFloatAsState(
+                targetValue = levelProgress,
+                animationSpec = tween(durationMillis = 800),
+                label = "xp_level_progress"
+            )
+
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                backgroundColor = DarkCardSurface,
+                borderColor = AccentXP.copy(alpha = 0.4f),
+                elevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.EmojiEvents,
-                            contentDescription = "Rank",
-                            tint = TextWhite,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentXP.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Level",
+                                    tint = AccentXP,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "LEVEL ${uiState.level}",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = TextWhite
+                            )
+                        }
+
                         Text(
-                            text = uiState.rank,
-                            style = MaterialTheme.typography.labelLarge.copy(
+                            text = "${100 - (uiState.xp % 100)} XP to Level ${uiState.level + 1}",
+                            style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             ),
-                            color = TextWhite,
-                            maxLines = 1,
-                            softWrap = false,
-                            textAlign = TextAlign.Center
+                            color = AccentXP
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Progress Bar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(DarkBackground)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedProgress)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(AccentXP, AccentXPGradientEnd)
+                                    )
+                                )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${uiState.xp} Total XP",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = "${(animatedProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = TextSecondary
                         )
                     }
                 }
             }
         }
 
-        // Statistics Grid (XP, Rank, Coins, Streak)
+        // 3. Featured Daily Challenge Card Banner
+        item(span = { GridItemSpan(2) }) {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                backgroundColor = DarkCardSurface,
+                borderColor = AccentCoins.copy(alpha = 0.5f),
+                elevation = 6.dp,
+                onClick = { onNavigateToQuiz("daily") }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    AccentCoins.copy(alpha = 0.2f),
+                                    DarkCardSurface,
+                                    AccentStreak.copy(alpha = 0.15f)
+                                )
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AccentCoins)
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "⚡ 2X REWARDS",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 10.sp
+                                        ),
+                                        color = DarkBackground
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Daily Challenge",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    ),
+                                    color = TextWhite
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Earn double Coins & XP today!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Button(
+                            onClick = { onNavigateToQuiz("daily") },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentCoins,
+                                contentColor = DarkBackground
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Start",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Statistics Grid (XP, Rank, Coins, Streak, Achievements)
         item(span = { GridItemSpan(2) }) {
             Column {
                 Row(
@@ -381,7 +611,7 @@ private fun MainHomeContent(
             }
         }
 
-        // Latest Quiz Result Card
+        // 5. Latest Quiz Result Card
         item(span = { GridItemSpan(2) }) {
             LatestQuizResultCard(
                 categoryName = uiState.lastQuizCategory,
@@ -393,7 +623,7 @@ private fun MainHomeContent(
             )
         }
 
-        // Horizontal Premium Cards (Quick Play Section)
+        // 6. Horizontal Premium Cards (Quick Play Section)
         item(span = { GridItemSpan(2) }) {
             Column(
                 modifier = Modifier.padding(top = 12.dp)
@@ -448,7 +678,7 @@ private fun MainHomeContent(
             }
         }
 
-        // Categories Section Title
+        // 7. Categories Section Title
         item(span = { GridItemSpan(2) }) {
             Text(
                 text = "Quiz Categories",
@@ -461,7 +691,7 @@ private fun MainHomeContent(
             )
         }
 
-        // Categories Grid (8 items)
+        // 8. Categories Grid (8 items)
         items(uiState.categories) { category ->
             val icon = getCategoryIcon(category.iconName)
             CategoryCard(

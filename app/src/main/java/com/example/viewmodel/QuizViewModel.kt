@@ -115,7 +115,7 @@ class QuizViewModel(
         advanceJob?.cancel()
         val rawQuestions = quizRepository.getQuestionsForCategory(categoryId)
         val normCategoryId = categoryId.lowercase()
-        val isRandomCategory = normCategoryId in listOf("quick", "daily", "practice")
+        val isRandomCategory = normCategoryId in listOf("quick", "daily")
 
         // Automated Category Validation: Ensure every question belongs strictly to the selected category
         val validatedQuestions = if (isRandomCategory) {
