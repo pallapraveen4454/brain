@@ -94,6 +94,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.QuizResult
@@ -715,10 +716,15 @@ fun ProfileScreen(
                         text = "Achievements Showcase 🏆",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp
+                            fontSize = 17.sp
                         ),
-                        color = TextWhite
+                        color = TextWhite,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Box(
                         modifier = Modifier
@@ -728,12 +734,15 @@ fun ProfileScreen(
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "$unlockedAchievementsCount / ${totalAchievementsCount.coerceAtLeast(6)} UNLOCKED",
+                            text = "$unlockedAchievementsCount/${totalAchievementsCount.coerceAtLeast(6)} Unlocked",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             ),
-                            color = AccentCoins
+                            color = AccentCoins,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

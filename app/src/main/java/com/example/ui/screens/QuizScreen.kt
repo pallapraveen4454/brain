@@ -112,6 +112,7 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
 import com.example.utils.RankUtils
 import com.example.utils.SoundEffects
+import com.example.utils.VibrationUtils
 import com.example.utils.bounceClick
 import com.example.viewmodel.QuizUiState
 import com.example.viewmodel.QuizViewModel
@@ -250,15 +251,17 @@ fun QuizActiveView(
     val scrollState = rememberScrollState()
     val haptic = LocalHapticFeedback.current
 
+    val context = LocalContext.current
+
     // Trigger audio & haptic feedback when an answer is submitted
     LaunchedEffect(uiState.isAnswerSubmitted) {
         if (uiState.isAnswerSubmitted) {
             if (uiState.isCorrect == true) {
-                SoundEffects.playCorrectSound()
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                SoundEffects.playCorrectSound(context)
+                VibrationUtils.vibrateCorrect(context)
             } else {
-                SoundEffects.playWrongSound()
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                SoundEffects.playWrongSound(context)
+                VibrationUtils.vibrateWrong(context)
             }
         }
     }
@@ -918,8 +921,8 @@ fun QuizCompleteView(
     val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(Unit) {
-        SoundEffects.playCompleteSound()
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        SoundEffects.playCompleteSound(context)
+        VibrationUtils.vibrateComplete(context)
     }
 
     // 1. Calculate accuracy & performance tier

@@ -112,9 +112,12 @@ import com.example.ui.theme.DarkCardSurface
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.PrimaryPurple
 import com.example.ui.theme.PrimaryPurpleLight
+import androidx.compose.ui.platform.LocalContext
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.SoundEffects
+import com.example.utils.VibrationUtils
 import com.example.viewmodel.BottomNavTab
 import com.example.viewmodel.HomeViewModel
 
@@ -128,6 +131,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     if (uiState.showNotificationsDialog) {
         NotificationsDialog(
@@ -160,8 +164,15 @@ fun HomeScreen(
             HomeTopAppBar(
                 playerName = uiState.playerName,
                 unreadNotifications = uiState.unreadNotificationsCount,
-                onNotificationClick = { viewModel.toggleNotificationsDialog(true) },
-                onProfileClick = { viewModel.selectNavTab(BottomNavTab.Profile) }
+                onNotificationClick = {
+                    VibrationUtils.vibrateClick(context)
+                    SoundEffects.playCoinSound(context)
+                    viewModel.toggleNotificationsDialog(true)
+                },
+                onProfileClick = {
+                    VibrationUtils.vibrateClick(context)
+                    viewModel.selectNavTab(BottomNavTab.Profile)
+                }
             )
         },
         bottomBar = {
@@ -254,7 +265,7 @@ private fun MainHomeContent(
             GlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 2.dp),
                 shape = RoundedCornerShape(24.dp),
                 backgroundColor = DarkCardSurface,
                 borderColor = PrimaryPurple.copy(alpha = 0.5f),
@@ -723,7 +734,7 @@ fun HomeTopAppBar(
             .fillMaxWidth()
             .statusBarsPadding()
             .background(DarkBackground)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

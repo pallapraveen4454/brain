@@ -172,6 +172,8 @@ fun SettingsScreen(
     fun updateSettings(newSettings: UserSettings) {
         userSettings = newSettings
         settingsStore.saveSettings(newSettings)
+        com.example.utils.BackgroundMusicPlayer.updateMusicState(context)
+        com.example.utils.NotificationHelper.syncReminders(context)
     }
 
     Box(

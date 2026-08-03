@@ -33,12 +33,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,19 +49,29 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.Achievement
 import com.example.ui.theme.AccentCoins
-import com.example.ui.theme.AccentCoinsGradientEnd
 import com.example.ui.theme.DarkCardBorder
 import com.example.ui.theme.DarkCardSurface
 import com.example.ui.theme.PrimaryPurple
 import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.NotificationHelper
+import com.example.utils.SoundEffects
+import com.example.utils.VibrationUtils
 
 @Composable
 fun AchievementUnlockedDialog(
     achievement: Achievement,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+
+    LaunchedEffect(achievement.id) {
+        SoundEffects.playAchievementSound(context)
+        VibrationUtils.vibrateAchievement(context)
+        NotificationHelper.showAchievementNotification(context, achievement.title, achievement.description)
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier

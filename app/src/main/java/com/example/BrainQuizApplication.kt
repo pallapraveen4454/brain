@@ -31,5 +31,12 @@ class BrainQuizApplication : Application() {
         } catch (e: Exception) {
             Log.e("BrainQuizApplication", "Failed to initialize FirebaseApp", e)
         }
+
+        try {
+            com.example.utils.NotificationHelper.createChannels(this)
+            com.example.utils.NotificationHelper.syncReminders(this)
+        } catch (e: Exception) {
+            Log.e("BrainQuizApplication", "Failed to initialize notifications", e)
+        }
     }
 }

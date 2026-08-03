@@ -104,6 +104,7 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
 import com.example.utils.RankUtils
 import com.example.utils.SoundEffects
+import com.example.utils.VibrationUtils
 import com.example.utils.bounceClick
 import com.example.utils.shimmerEffect
 import kotlin.random.Random
@@ -607,8 +608,10 @@ private fun LeaderboardSearchBar(
 @Composable
 private fun PodiumSection(top3: List<LeaderboardUser>) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         if (top3.size >= 2) {
@@ -617,20 +620,20 @@ private fun PodiumSection(top3: List<LeaderboardUser>) {
                 user = top3[1],
                 rankNumber = 2,
                 modifier = Modifier.weight(1f),
-                badgeColor = Color(0xFFC0C0C0),
+                badgeColor = Color(0xFFD0D0E0),
                 medalEmoji = "🥈",
-                columnHeightDp = 145
+                columnHeightDp = 185
             )
         }
         if (top3.isNotEmpty()) {
-            // Rank 1 (Gold - Center - Taller & Glowing)
+            // Rank 1 (Gold - Center - Taller & Eye-catching)
             PodiumCard(
                 user = top3[0],
                 rankNumber = 1,
-                modifier = Modifier.weight(1.18f),
+                modifier = Modifier.weight(1.22f),
                 badgeColor = AccentCoins,
                 medalEmoji = "👑 🥇",
-                columnHeightDp = 172
+                columnHeightDp = 220
             )
         }
         if (top3.size >= 3) {
@@ -639,9 +642,9 @@ private fun PodiumSection(top3: List<LeaderboardUser>) {
                 user = top3[2],
                 rankNumber = 3,
                 modifier = Modifier.weight(1f),
-                badgeColor = Color(0xFFCD7F32),
+                badgeColor = Color(0xFFE5A062),
                 medalEmoji = "🥉",
-                columnHeightDp = 130
+                columnHeightDp = 168
             )
         }
     }
@@ -657,89 +660,125 @@ private fun PodiumCard(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    val avatarSize = when (rankNumber) {
+        1 -> 64.dp
+        2 -> 54.dp
+        else -> 50.dp
+    }
+
+    val emojiFontSize = when (rankNumber) {
+        1 -> 34.sp
+        2 -> 28.sp
+        else -> 26.sp
+    }
 
     GlassCard(
         modifier = modifier
             .height(columnHeightDp.dp)
             .bounceClick(scaleDown = 0.95f) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                SoundEffects.playCoinSound()
+                VibrationUtils.vibrateClick(context)
+                SoundEffects.playCoinSound(context)
             }
             .testTag("podium_card_$rankNumber"),
-        shape = RoundedCornerShape(22.dp),
-        backgroundColor = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.4f) else DarkCardSurface,
-        borderColor = if (rankNumber == 1) AccentCoins else badgeColor.copy(alpha = 0.6f),
-        elevation = if (rankNumber == 1) 12.dp else 6.dp
+        shape = RoundedCornerShape(24.dp),
+        backgroundColor = if (user.isCurrentUser) PrimaryPurple.copy(alpha = 0.45f) else DarkCardSurface,
+        borderColor = if (rankNumber == 1) AccentCoins else badgeColor.copy(alpha = 0.7f),
+        elevation = if (rankNumber == 1) 14.dp else 7.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Rank Badge Header
+            // Rank Badge Header with Crown
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = medalEmoji,
-                    fontSize = if (rankNumber == 1) 16.sp else 14.sp
+                    fontSize = if (rankNumber == 1) 18.sp else 15.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
             // Player Avatar with Crown/Halo
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.padding(vertical = 2.dp)
+                modifier = Modifier.padding(vertical = 4.dp)
             ) {
+                if (rankNumber == 1) {
+                    Box(
+                        modifier = Modifier
+                            .size(avatarSize + 10.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(AccentCoins.copy(alpha = 0.6f), Color.Transparent)
+                                )
+                            )
+                    )
+                }
+
                 Box(
                     modifier = Modifier
-                        .size(if (rankNumber == 1) 48.dp else 42.dp)
+                        .size(avatarSize)
                         .clip(CircleShape)
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(PrimaryPurple, PrimaryPurpleLight)
                             )
                         )
-                        .border(2.dp, badgeColor, CircleShape),
+                        .border(3.dp, badgeColor, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = AvatarUtils.getEmoji(user.avatarId),
-                        fontSize = if (rankNumber == 1) 24.sp else 20.sp
+                        fontSize = emojiFontSize
                     )
                 }
             }
 
             // Player Name & XP
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = user.name,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 12.sp
+                        fontSize = if (rankNumber == 1) 14.sp else 13.sp
                     ),
                     color = TextWhite,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${user.xp} XP",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 11.sp
-                    ),
-                    color = badgeColor
-                )
-                Text(
-                    text = "LVL ${user.level}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
-                    fontSize = 9.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (rankNumber == 1) AccentCoins.copy(alpha = 0.25f) else DarkCardBorder
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${user.xp} XP",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        color = if (rankNumber == 1) AccentCoins else TextSecondary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
             }
         }
     }
