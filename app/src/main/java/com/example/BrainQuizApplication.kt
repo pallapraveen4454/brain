@@ -15,21 +15,30 @@ class BrainQuizApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        Log.d("BrainQuizApplication", "Application onCreate() - Initializing FirebaseApp...")
         try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
+            val existingApps = FirebaseApp.getApps(this)
+            Log.d("BrainQuizApplication", "FirebaseApp.getApps(this) count = ${existingApps.size}")
+            if (existingApps.isEmpty()) {
                 val app = FirebaseApp.initializeApp(this)
                 if (app != null) {
-                    Log.d("BrainQuizApplication", "FirebaseApp initialized automatically from google-services.json successfully: ${app.options.projectId}")
+                    Log.d("BrainQuizApplication", "FirebaseApp.initializeApp(this) SUCCESS -> name: ${app.name}, projectId: ${app.options.projectId}, applicationId: ${app.options.applicationId}, apiKey: ${app.options.apiKey.take(8)}...")
                 } else {
+                    Log.w("BrainQuizApplication", "FirebaseApp.initializeApp(this) returned null. Attempting FirebaseOptions.fromResource(this)...")
                     val optionsFromRes = FirebaseOptions.fromResource(this)
                     if (optionsFromRes != null) {
-                        FirebaseApp.initializeApp(this, optionsFromRes)
-                        Log.d("BrainQuizApplication", "FirebaseApp initialized from resource options successfully")
+                        val initApp = FirebaseApp.initializeApp(this, optionsFromRes)
+                        Log.d("BrainQuizApplication", "FirebaseApp initialized via optionsFromRes SUCCESS -> projectId: ${initApp.options.projectId}")
+                    } else {
+                        Log.e("BrainQuizApplication", "FirebaseOptions.fromResource(this) returned null. Ensure google-services.json is valid in /app directory.")
                     }
                 }
+            } else {
+                val app = FirebaseApp.getInstance()
+                Log.d("BrainQuizApplication", "FirebaseApp already initialized -> name: ${app.name}, projectId: ${app.options.projectId}, applicationId: ${app.options.applicationId}")
             }
         } catch (e: Exception) {
-            Log.e("BrainQuizApplication", "Failed to initialize FirebaseApp", e)
+            Log.e("BrainQuizApplication", "Failed to initialize FirebaseApp: [${e.javaClass.name}] ${e.message}", e)
         }
 
         try {
@@ -40,3 +49,4 @@ class BrainQuizApplication : Application() {
         }
     }
 }
+

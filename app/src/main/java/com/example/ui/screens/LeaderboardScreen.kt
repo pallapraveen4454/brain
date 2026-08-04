@@ -22,16 +22,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -201,105 +205,116 @@ fun LeaderboardScreen(
         // High Performance Floating Gold & Purple Particles Canvas
         LeaderboardAmbientParticlesCanvas()
 
-        Column(
+        val top3 = remember(filteredPlayers, searchQuery) { filteredPlayers.take(3) }
+        val listItems = remember(filteredPlayers, searchQuery) {
+            if (searchQuery.isBlank() && filteredPlayers.size > 3) {
+                filteredPlayers.drop(3)
+            } else {
+                filteredPlayers
+            }
+        }
+
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 18.dp)
-                .testTag("leaderboard_screen")
+                .testTag("leaderboard_screen"),
+            contentPadding = PaddingValues(
+                start = 18.dp,
+                end = 18.dp,
+                top = 8.dp,
+                bottom = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
             // ------------------------------------------------
             // 1. HERO HEADER WITH SHINY TROPHY & TITLE
             // ------------------------------------------------
-            LeaderboardHeroHeader()
-
-            Spacer(modifier = Modifier.height(14.dp))
+            item(key = "leaderboard_hero_header") {
+                LeaderboardHeroHeader()
+            }
 
             // ------------------------------------------------
             // 2. PERIOD FILTER TABS (Global / Weekly / Friends)
             // ------------------------------------------------
-            LeaderboardPeriodTabs(
-                selectedPeriod = selectedPeriod,
-                onPeriodSelected = { period ->
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    SoundEffects.playCoinSound()
-                    onPeriodSelected(period)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
+            item(key = "leaderboard_period_tabs") {
+                LeaderboardPeriodTabs(
+                    selectedPeriod = selectedPeriod,
+                    onPeriodSelected = { period ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        SoundEffects.playCoinSound()
+                        onPeriodSelected(period)
+                    }
+                )
+            }
 
             // ------------------------------------------------
             // 3. USER POSITION BANNER (Glow Card)
             // ------------------------------------------------
-            CurrentUserRankBanner(user = currentUserEntry)
-
-            Spacer(modifier = Modifier.height(14.dp))
+            item(key = "leaderboard_user_banner") {
+                CurrentUserRankBanner(user = currentUserEntry)
+            }
 
             // ------------------------------------------------
             // 4. SEARCH BAR FOR COMPETITORS
             // ------------------------------------------------
-            LeaderboardSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it }
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
+            item(key = "leaderboard_search_bar") {
+                LeaderboardSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it }
+                )
+            }
 
             // ------------------------------------------------
             // 5. TOP 3 PODIUM (Gold, Silver, Bronze Columns)
             // ------------------------------------------------
-            val top3 = filteredPlayers.take(3)
             if (top3.isNotEmpty() && searchQuery.isBlank()) {
-                PodiumSection(top3 = top3)
-                Spacer(modifier = Modifier.height(16.dp))
+                item(key = "leaderboard_podium") {
+                    PodiumSection(top3 = top3)
+                }
             }
 
             // ------------------------------------------------
             // 6. ACHIEVEMENT HIGHLIGHTS STRIP
             // ------------------------------------------------
-            LeaderboardAchievementStrip()
-
-            Spacer(modifier = Modifier.height(12.dp))
+            item(key = "leaderboard_achievement_strip") {
+                LeaderboardAchievementStrip()
+            }
 
             // ------------------------------------------------
             // 7. MAIN RANKINGS LIST
             // ------------------------------------------------
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                val listItems = if (searchQuery.isBlank() && filteredPlayers.size > 3) {
-                    filteredPlayers.drop(3)
-                } else {
-                    filteredPlayers
-                }
-
-                if (listItems.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No competitors found matching \"$searchQuery\"",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                } else {
-                    itemsIndexed(listItems, key = { _, user -> user.id.ifBlank { user.name + user.rank } }) { _, user ->
-                        LeaderboardRowCard(user = user)
+            if (listItems.isEmpty()) {
+                item(key = "leaderboard_empty_state") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No competitors found matching \"$searchQuery\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
+            } else {
+                itemsIndexed(
+                    items = listItems,
+                    key = { _, user -> user.id.ifBlank { user.name + user.rank } }
+                ) { _, user ->
+                    LeaderboardRowCard(user = user)
+                }
+            }
 
-                item { Spacer(modifier = Modifier.height(30.dp)) }
+            // Bottom spacing item to guarantee bottom content is never clipped or overlapping with navigation bar
+            item(key = "leaderboard_bottom_spacer") {
+                Spacer(
+                    modifier = Modifier
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .height(32.dp)
+                )
             }
         }
     }

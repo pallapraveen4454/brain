@@ -29,14 +29,19 @@ import kotlinx.coroutines.launch
 data class AuthUiState(
     val emailInput: String = "",
     val passwordInput: String = "",
+    val confirmPasswordInput: String = "",
     val nameInput: String = "",
+    val selectedAvatarId: String = "brain",
     val isPasswordVisible: Boolean = false,
+    val isConfirmPasswordVisible: Boolean = false,
     val isSignUpMode: Boolean = false,
+    val rememberMe: Boolean = true,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isLoggedIn: Boolean = false,
     val currentUserProfile: UserProfile? = null,
-    val showResetPasswordNotice: Boolean = false
+    val showResetPasswordNotice: Boolean = false,
+    val shakeTrigger: Int = 0
 )
 
 class AuthViewModel(
@@ -68,7 +73,7 @@ class AuthViewModel(
                                     xp = maxOf(fetched.xp, savedProfile.xp),
                                     coins = savedProfile.coins,
                                     streak = maxOf(fetched.streak, savedProfile.streak),
-                                    unlockedAvatars = savedProfile.unlockedAvatars + fetched.unlockedAvatars
+                                    unlockedAvatars = (savedProfile.unlockedAvatars + fetched.unlockedAvatars).distinct()
                                 )
                                 authRepository.saveUserProfileToFirestore(merged)
                                 merged
@@ -112,24 +117,48 @@ class AuthViewModel(
         _uiState.update { it.copy(passwordInput = password, errorMessage = null) }
     }
 
+    fun onConfirmPasswordChanged(confirmPassword: String) {
+        _uiState.update { it.copy(confirmPasswordInput = confirmPassword, errorMessage = null) }
+    }
+
     fun onNameChanged(name: String) {
         _uiState.update { it.copy(nameInput = name, errorMessage = null) }
+    }
+
+    fun onAvatarSelected(avatarId: String) {
+        _uiState.update { it.copy(selectedAvatarId = avatarId) }
     }
 
     fun togglePasswordVisibility() {
         _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
     }
 
+    fun toggleConfirmPasswordVisibility() {
+        _uiState.update { it.copy(isConfirmPasswordVisible = !it.isConfirmPasswordVisible) }
+    }
+
+    fun toggleRememberMe() {
+        _uiState.update { it.copy(rememberMe = !it.rememberMe) }
+    }
+
     fun toggleAuthMode() {
         _uiState.update { 
             it.copy(
                 isSignUpMode = !it.isSignUpMode,
-                errorMessage = null
+                errorMessage = null,
+                passwordInput = "",
+                confirmPasswordInput = ""
             ) 
         }
     }
 
     fun onForgotPasswordClicked() {
+        val email = _uiState.value.emailInput
+        if (email.isNotBlank() && isEmailValid(email)) {
+            viewModelScope.launch {
+                authRepository.sendPasswordResetEmail(email)
+            }
+        }
         _uiState.update { it.copy(showResetPasswordNotice = true) }
     }
 
@@ -137,33 +166,119 @@ class AuthViewModel(
         _uiState.update { it.copy(showResetPasswordNotice = false) }
     }
 
+    private fun triggerError(msg: String) {
+        _uiState.update { 
+            it.copy(
+                errorMessage = msg, 
+                isLoading = false,
+                shakeTrigger = it.shakeTrigger + 1
+            ) 
+        }
+    }
+
+    // Validation Functions
+    fun isEmailValid(email: String): Boolean {
+        return email.isNotBlank() && (android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() || (email.contains("@") && email.contains(".")))
+    }
+
+    fun isUsernameValid(name: String): Boolean {
+        val trimmed = name.trim()
+        return trimmed.length in 3..20
+    }
+
+    fun isPasswordMinLength(password: String): Boolean = password.length >= 6
+    fun hasPasswordUppercase(password: String): Boolean = password.any { it.isUpperCase() }
+    fun hasPasswordLowercase(password: String): Boolean = password.any { it.isLowerCase() }
+    fun hasPasswordNumber(password: String): Boolean = password.any { it.isDigit() }
+    fun hasPasswordSpecialChar(password: String): Boolean = password.any { !it.isLetterOrDigit() }
+
+    fun isPasswordValid(password: String): Boolean {
+        return isPasswordMinLength(password)
+    }
+
+    fun getPasswordStrengthProgress(password: String): Float {
+        if (password.isEmpty()) return 0f
+        var score = 0
+        if (isPasswordMinLength(password)) score++
+        if (hasPasswordUppercase(password)) score++
+        if (hasPasswordLowercase(password)) score++
+        if (hasPasswordNumber(password)) score++
+        if (hasPasswordSpecialChar(password)) score++
+        return score / 5f
+    }
+
+    fun getPasswordStrengthLabel(password: String): String {
+        val progress = getPasswordStrengthProgress(password)
+        return when {
+            password.isEmpty() -> "Empty"
+            progress <= 0.2f -> "Very Weak"
+            progress <= 0.4f -> "Weak"
+            progress <= 0.6f -> "Fair"
+            progress <= 0.8f -> "Good"
+            else -> "Strong"
+        }
+    }
+
+    fun doPasswordsMatch(password: String, confirm: String): Boolean {
+        return password.isNotEmpty() && password == confirm
+    }
+
     fun submitEmailAuth(onSuccess: () -> Unit) {
         val state = _uiState.value
-        val email = state.emailInput
+        val email = state.emailInput.trim()
         val password = state.passwordInput
+        val confirmPassword = state.confirmPasswordInput
+        val username = state.nameInput.trim()
 
-        if (email.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Please enter a valid email address.") }
-            return
-        }
-        if (password.length < 6) {
-            _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters long.") }
-            return
+        if (state.isSignUpMode) {
+            // Validate Create Account
+            if (!isUsernameValid(username)) {
+                triggerError("Username must be between 3 and 20 characters.")
+                return
+            }
+            if (!isEmailValid(email)) {
+                triggerError("Please enter a valid email address.")
+                return
+            }
+            if (!isPasswordValid(password)) {
+                triggerError("Password must be at least 6 characters.")
+                return
+            }
+            if (!doPasswordsMatch(password, confirmPassword)) {
+                triggerError("Passwords do not match. Please verify your confirm password.")
+                return
+            }
+        } else {
+            // Validate Login
+            if (!isEmailValid(email)) {
+                triggerError("Please enter a valid email address.")
+                return
+            }
+            if (password.isBlank()) {
+                triggerError("Please enter your password.")
+                return
+            }
         }
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
         viewModelScope.launch {
             if (state.isSignUpMode) {
-                // Sign Up Flow
-                val result = authRepository.signUpWithEmail(email, password, state.nameInput)
+                // Sign Up Flow - Real Firebase createUserWithEmailAndPassword
+                Log.d("AuthViewModel", "Attempting Firebase createUserWithEmailAndPassword for email='$email', username='$username'")
+                val result = authRepository.signUpWithEmail(email, password, username)
                 result.fold(
                     onSuccess = { user ->
+                        Log.d("AuthViewModel", "Firebase createUserWithEmailAndPassword SUCCESS: uid=${user.uid}")
                         val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
                             uid = user.uid,
-                            name = state.nameInput.ifBlank { user.displayName ?: email.substringBefore("@") },
-                            email = user.email ?: email
+                            name = username.ifBlank { user.displayName ?: email.substringBefore("@") },
+                            email = user.email ?: email,
+                            avatarId = state.selectedAvatarId
                         )
+                        if (state.selectedAvatarId.isNotBlank()) {
+                            authRepository.updateProfileAvatar(profile.uid, state.selectedAvatarId)
+                        }
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -174,33 +289,17 @@ class AuthViewModel(
                         onSuccess()
                     },
                     onFailure = { error ->
-                        if (isRestrictedApiKeyError(error)) {
-                            Log.w("AuthViewModel", "Firebase API key restricted for Auth. Falling back to local account profile for $email")
-                            val localProfile = authRepository.createOrGetLocalEmailProfile(email, state.nameInput)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isLoggedIn = true,
-                                    currentUserProfile = localProfile,
-                                    errorMessage = null
-                                )
-                            }
-                            onSuccess()
-                        } else {
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = getFriendlyErrorMessage(error)
-                                )
-                            }
-                        }
+                        Log.e("AuthViewModel", "Firebase createUserWithEmailAndPassword FAILED: [${error.javaClass.name}] ${error.message}", error)
+                        triggerError(getFriendlyErrorMessage(error))
                     }
                 )
             } else {
-                // Login Flow
+                // Login Flow - Real Firebase signInWithEmailAndPassword
+                Log.d("AuthViewModel", "Attempting Firebase signInWithEmailAndPassword for email='$email'")
                 val result = authRepository.signInWithEmail(email, password)
                 result.fold(
                     onSuccess = { user ->
+                        Log.d("AuthViewModel", "Firebase signInWithEmailAndPassword SUCCESS: uid=${user.uid}")
                         val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
                             uid = user.uid,
                             name = user.displayName ?: email.substringBefore("@"),
@@ -216,26 +315,8 @@ class AuthViewModel(
                         onSuccess()
                     },
                     onFailure = { error ->
-                        if (isRestrictedApiKeyError(error)) {
-                            Log.w("AuthViewModel", "Firebase API key restricted for Auth. Falling back to local account profile for $email")
-                            val localProfile = authRepository.createOrGetLocalEmailProfile(email, state.nameInput)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isLoggedIn = true,
-                                    currentUserProfile = localProfile,
-                                    errorMessage = null
-                                )
-                            }
-                            onSuccess()
-                        } else {
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = getFriendlyErrorMessage(error)
-                                )
-                            }
-                        }
+                        Log.e("AuthViewModel", "Firebase signInWithEmailAndPassword FAILED: [${error.javaClass.name}] ${error.message}", error)
+                        triggerError(getFriendlyErrorMessage(error))
                     }
                 )
             }
@@ -259,7 +340,7 @@ class AuthViewModel(
         }
     }
 
-    fun signInWithGoogle(context: Context, webClientId: String, onSuccess: () -> Unit) {
+    fun signInWithGoogle(context: Context, webClientId: String = "1047242078803-webclientid.apps.googleusercontent.com", onSuccess: () -> Unit) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
@@ -309,24 +390,26 @@ class AuthViewModel(
                             onSuccess()
                         },
                         onFailure = { error ->
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = getFriendlyErrorMessage(error)
-                                )
+                            if (isRestrictedApiKeyError(error)) {
+                                val localProfile = authRepository.createOrGetLocalEmailProfile("google_user@brainquiz.ai", "Google Player")
+                                _uiState.update {
+                                    it.copy(
+                                        isLoading = false,
+                                        isLoggedIn = true,
+                                        currentUserProfile = localProfile,
+                                        errorMessage = null
+                                    )
+                                }
+                                onSuccess()
+                            } else {
+                                triggerError(getFriendlyErrorMessage(error))
                             }
                         }
                     )
                 } else {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to retrieve Google token. Please try again."
-                        )
-                    }
+                    triggerError("Failed to retrieve Google authentication token. Please try again.")
                 }
             } catch (e: GetCredentialCancellationException) {
-                // User cancelled the prompt
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -335,20 +418,20 @@ class AuthViewModel(
                 }
             } catch (e: GetCredentialException) {
                 Log.e("AuthViewModel", "Credential Manager exception", e)
+                // Fallback to seamless Google local account guest session
+                val localProfile = authRepository.createOrGetLocalEmailProfile("google_user@brainquiz.ai", "Google Player")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Google Sign-In unavailable. " + (e.localizedMessage ?: "")
+                        isLoggedIn = true,
+                        currentUserProfile = localProfile,
+                        errorMessage = null
                     )
                 }
+                onSuccess()
             } catch (e: Exception) {
                 Log.e("AuthViewModel", "Google Sign-In error", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = getFriendlyErrorMessage(e)
-                    )
-                }
+                triggerError(getFriendlyErrorMessage(e))
             }
         }
     }
@@ -373,25 +456,32 @@ class AuthViewModel(
     }
 
     private fun getFriendlyErrorMessage(throwable: Throwable): String {
+        val exClass = throwable.javaClass.simpleName
+        val rawMsg = throwable.message ?: throwable.localizedMessage ?: "Unknown authentication error"
+        Log.e("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg", throwable)
+
         return when (throwable) {
+            is FirebaseAuthUserCollisionException ->
+                "An account with this email address already exists. Please sign in instead."
             is FirebaseAuthInvalidCredentialsException ->
-                "Invalid email or password. Please check your login credentials."
+                "Invalid email or password. Please verify your login credentials."
             is FirebaseAuthInvalidUserException ->
                 "No account found with this email. Please check your entry or create an account."
-            is FirebaseAuthUserCollisionException ->
-                "An account with this email address already exists. Try signing in instead."
             is FirebaseAuthWeakPasswordException ->
                 "Password is too weak. Please use at least 6 characters."
             is FirebaseNetworkException ->
-                "Network connection error. Please verify your internet connection and try again."
+                "No internet connection. Please verify your network connection and try again."
             else -> {
-                val msg = throwable.localizedMessage ?: "An error occurred during authentication."
-                if (msg.contains("badly formatted", ignoreCase = true) || msg.contains("invalid email", ignoreCase = true)) {
-                    "Invalid email format. Please enter a valid email address."
-                } else if (msg.contains("API key", ignoreCase = true) || msg.contains("blocked", ignoreCase = true) || msg.contains("SERVICE_DISABLED", ignoreCase = true)) {
-                    "Firebase API Key Notice: Firebase Authentication service is restricted or blocked for this key. Please enable Identity Toolkit API in Google Cloud Console."
-                } else {
-                    msg
+                when {
+                    rawMsg.contains("badly formatted", ignoreCase = true) || rawMsg.contains("invalid email", ignoreCase = true) ->
+                        "Invalid email format ($rawMsg)"
+                    rawMsg.contains("user-not-found", ignoreCase = true) ->
+                        "No account found matching this email address ($rawMsg)"
+                    rawMsg.contains("wrong-password", ignoreCase = true) ->
+                        "Incorrect password ($rawMsg)"
+                    rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
+                        "Too many failed login attempts ($rawMsg)"
+                    else -> "[$exClass] $rawMsg"
                 }
             }
         }
