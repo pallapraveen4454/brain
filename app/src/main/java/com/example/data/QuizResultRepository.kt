@@ -45,10 +45,14 @@ class QuizResultRepository(
 ) {
 
     private fun getFirestore(): FirebaseFirestore? {
+        val appCtx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+        if (appCtx != null) {
+            BrainQuizApplication.ensureFirebaseInitialized(appCtx)
+        }
         return try {
             FirebaseFirestore.getInstance()
         } catch (e: Exception) {
-            Log.e("QuizResultRepository", "Failed to access FirebaseFirestore instance", e)
+            Log.e("QuizResultRepository", "Failed to access FirebaseFirestore instance: [${e.javaClass.name}] ${e.message}", e)
             null
         }
     }

@@ -46,35 +46,35 @@ class AuthRepository(
     private val userProfileStore: UserProfileStore = UserProfileStore(context)
 ) {
 
-    private fun getAuth(): FirebaseAuth {
+    private fun getAuth(): FirebaseAuth? {
         val appCtx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         if (appCtx != null) {
-            try {
-                if (FirebaseApp.getApps(appCtx).isEmpty()) {
-                    Log.d("AuthRepository", "getAuth(): FirebaseApp not initialized yet. Initializing now...")
-                    val app = FirebaseApp.initializeApp(appCtx)
-                    Log.d("AuthRepository", "getAuth(): FirebaseApp initialized -> name: ${app?.name}, projectId: ${app?.options?.projectId}")
-                }
-            } catch (e: Exception) {
-                Log.e("AuthRepository", "getAuth(): Error initializing FirebaseApp: [${e.javaClass.name}] ${e.message}", e)
-            }
+            BrainQuizApplication.ensureFirebaseInitialized(appCtx)
         }
-        val auth = FirebaseAuth.getInstance()
-        Log.d("AuthRepository", "getAuth(): FirebaseAuth instance obtained successfully")
-        return auth
+        return try {
+            val auth = FirebaseAuth.getInstance()
+            auth
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "getAuth(): Failed to obtain FirebaseAuth instance: [${e.javaClass.name}] ${e.message}", e)
+            null
+        }
     }
 
     private fun getFirestore(): FirebaseFirestore? {
+        val appCtx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+        if (appCtx != null) {
+            BrainQuizApplication.ensureFirebaseInitialized(appCtx)
+        }
         return try {
             FirebaseFirestore.getInstance()
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to access FirebaseFirestore instance", e)
+            Log.e("AuthRepository", "Failed to access FirebaseFirestore instance: [${e.javaClass.name}] ${e.message}", e)
             null
         }
     }
 
     val currentUser: FirebaseUser?
-        get() = try { getAuth().currentUser } catch (e: Exception) { null }
+        get() = try { getAuth()?.currentUser } catch (e: Exception) { null }
 
     fun getOrCreateGuestId(): String {
         return userProfileStore.getGuestId()
@@ -179,7 +179,7 @@ class AuthRepository(
     suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> {
         Log.d("AuthRepository", "signInWithEmail starting for email='$email'")
         return try {
-            val auth = getAuth()
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             Log.d("AuthRepository", "Calling FirebaseAuth.signInWithEmailAndPassword(email='$email')...")
             val result = auth.signInWithEmailAndPassword(email, password).await()
             val user = result.user ?: throw Exception("Authentication returned empty user object")
@@ -197,7 +197,7 @@ class AuthRepository(
     suspend fun signUpWithEmail(email: String, password: String, name: String): Result<FirebaseUser> {
         Log.d("AuthRepository", "signUpWithEmail starting for email='$email', name='$name'")
         return try {
-            val auth = getAuth()
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             Log.d("AuthRepository", "Calling FirebaseAuth.createUserWithEmailAndPassword(email='$email')...")
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val user = result.user ?: throw Exception("User creation returned empty user object")
@@ -242,7 +242,7 @@ class AuthRepository(
     suspend fun signInWithGoogleCredential(idToken: String): Result<FirebaseUser> {
         Log.d("AuthRepository", "signInWithGoogleCredential starting...")
         return try {
-            val auth = getAuth()
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             Log.d("AuthRepository", "Calling FirebaseAuth.signInWithCredential(Google)...")
             val result = auth.signInWithCredential(credential).await()
@@ -261,7 +261,7 @@ class AuthRepository(
     suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
         Log.d("AuthRepository", "sendPasswordResetEmail starting for email='$email'")
         return try {
-            val auth = getAuth()
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             Log.d("AuthRepository", "Calling FirebaseAuth.sendPasswordResetEmail(email='$email')...")
             auth.sendPasswordResetEmail(email).await()
             Log.d("AuthRepository", "FirebaseAuth.sendPasswordResetEmail SUCCESS -> email='$email'")
