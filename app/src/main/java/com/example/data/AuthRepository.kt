@@ -199,33 +199,47 @@ class AuthRepository(
         }
     }
 
-    suspend fun signUpWithEmail(email: String, password: String, name: String): Result<FirebaseUser> {
-        Log.d("AuthRepository", "signUpWithEmail starting for email='$email', name='$name'")
+    suspend fun signUpWithEmail(
+        email: String,
+        password: String,
+        name: String,
+        avatarId: String = ""
+    ): Result<UserProfile> {
+        val tStart = System.currentTimeMillis()
+        Log.d("AUTH_PERF", "[TIMING] Sign-up process initiated at $tStart ms for email='$email', name='$name'")
         return try {
             val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
-            Log.d("AuthRepository", "Calling FirebaseAuth.createUserWithEmailAndPassword(email='$email')...")
+            Log.d("AUTH_PERF", "[TIMING] Step 1 - Initiating FirebaseAuth.createUserWithEmailAndPassword...")
+            val tAuthStart = System.currentTimeMillis()
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val user = result.user ?: throw Exception("User creation returned empty user object")
-            Log.d("AuthRepository", "FirebaseAuth.createUserWithEmailAndPassword SUCCESS -> user.uid=${user.uid}, email=${user.email}")
+            val tAuthEnd = System.currentTimeMillis()
+            val authMs = tAuthEnd - tAuthStart
+            Log.d("AUTH_PERF", "[TIMING] Step 1 - FirebaseAuth.createUserWithEmailAndPassword SUCCESS in $authMs ms (uid=${user.uid})")
+            
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
             val displayName = name.ifBlank { email.substringBefore("@").replaceFirstChar { it.uppercase() } }
             
+            val tUpdateStart = System.currentTimeMillis()
             try {
                 val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
                     this.displayName = displayName
                 }
                 user.updateProfile(profileUpdates).await()
-                Log.d("AuthRepository", "Updated user profile displayName to '$displayName'")
+                val tUpdateEnd = System.currentTimeMillis()
+                Log.d("AUTH_PERF", "[TIMING] Step 2 - Firebase Auth user profile displayName updated in ${tUpdateEnd - tUpdateStart} ms")
             } catch (e: Exception) {
-                Log.w("AuthRepository", "Failed to update Firebase user profile name: [${e.javaClass.name}] ${e.message}")
+                Log.w("AUTH_PERF", "Failed to update Firebase user profile name: [${e.javaClass.name}] ${e.message}")
             }
 
+            val tProfileStart = System.currentTimeMillis()
             val local = quizResultRepository.getLocalProgress()
             val profile = UserProfile(
                 uid = user.uid,
                 name = displayName,
                 email = email,
+                avatarId = avatarId,
                 xp = local.totalXp,
                 level = maxOf(1, local.level),
                 coins = local.coins,
@@ -236,10 +250,23 @@ class AuthRepository(
                 lastQuizXpEarned = local.lastXpEarned,
                 lastQuizDate = local.lastQuizDate
             )
+            
+            // Save profile locally immediately
+            userProfileStore.saveProfile(profile)
+
+            // Save profile to Firestore (with 3-second bounded timeout for network responsiveness)
             saveUserProfileToFirestore(profile)
-            Result.success(user)
+            val tProfileEnd = System.currentTimeMillis()
+            val profileMs = tProfileEnd - tProfileStart
+            Log.d("AUTH_PERF", "[TIMING] Step 3 - Profile creation & Firestore sync completed in $profileMs ms")
+
+            val totalMs = System.currentTimeMillis() - tStart
+            Log.d("AUTH_PERF", "[TIMING] SUMMARY - Total Sign-Up Completion: $totalMs ms | Breakdown -> Network/Auth: ${authMs}ms | Profile/Firestore: ${profileMs}ms")
+
+            Result.success(profile)
         } catch (e: Exception) {
-            Log.e("AuthRepository", "FirebaseAuth.createUserWithEmailAndPassword FAILED -> [${e.javaClass.name}] ${e.message}", e)
+            val totalMs = System.currentTimeMillis() - tStart
+            Log.e("AUTH_PERF", "[TIMING] Sign-up FAILED after $totalMs ms: [${e.javaClass.name}] ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -335,9 +362,11 @@ class AuthRepository(
         return try {
             val firestore = getFirestore() ?: return true
             if (profile.uid.isNotBlank()) {
-                firestore.collection("users").document(profile.uid)
-                    .set(profile)
-                    .await()
+                kotlinx.coroutines.withTimeoutOrNull(3000L) {
+                    firestore.collection("users").document(profile.uid)
+                        .set(profile)
+                        .await()
+                }
             }
             true
         } catch (e: Exception) {

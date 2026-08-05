@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 
 data class AuthUiState(
     val emailInput: String = "",
@@ -263,62 +265,80 @@ class AuthViewModel(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
         viewModelScope.launch {
-            if (state.isSignUpMode) {
-                // Sign Up Flow - Real Firebase createUserWithEmailAndPassword
-                Log.d("AuthViewModel", "Attempting Firebase createUserWithEmailAndPassword for email='$email', username='$username'")
-                val result = authRepository.signUpWithEmail(email, password, username)
-                result.fold(
-                    onSuccess = { user ->
-                        Log.d("AuthViewModel", "Firebase createUserWithEmailAndPassword SUCCESS: uid=${user.uid}")
-                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                            uid = user.uid,
-                            name = username.ifBlank { user.displayName ?: email.substringBefore("@") },
-                            email = user.email ?: email,
-                            avatarId = state.selectedAvatarId
+            val startTime = System.currentTimeMillis()
+            try {
+                withTimeout(10_000L) {
+                    if (state.isSignUpMode) {
+                        Log.d("AUTH_PERF", "[AuthViewModel] Create Account initiated at $startTime ms for email='$email'")
+                        val result = authRepository.signUpWithEmail(email, password, username, state.selectedAvatarId)
+                        result.fold(
+                            onSuccess = { profile ->
+                                val totalMs = System.currentTimeMillis() - startTime
+                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Navigating immediately to Home.")
+                                _uiState.update {
+                                    it.copy(
+                                        isLoading = false,
+                                        isLoggedIn = true,
+                                        currentUserProfile = profile
+                                    )
+                                }
+                                onSuccess()
+                            },
+                            onFailure = { error ->
+                                val totalMs = System.currentTimeMillis() - startTime
+                                Log.e("AUTH_PERF", "[AuthViewModel] Create Account FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}", error)
+                                triggerError(getFriendlyErrorMessage(error))
+                            }
                         )
-                        if (state.selectedAvatarId.isNotBlank()) {
-                            authRepository.updateProfileAvatar(profile.uid, state.selectedAvatarId)
-                        }
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                isLoggedIn = true,
-                                currentUserProfile = profile
-                            )
-                        }
-                        onSuccess()
-                    },
-                    onFailure = { error ->
-                        Log.e("AuthViewModel", "Firebase createUserWithEmailAndPassword FAILED: [${error.javaClass.name}] ${error.message}", error)
-                        triggerError(getFriendlyErrorMessage(error))
-                    }
-                )
-            } else {
-                // Login Flow - Real Firebase signInWithEmailAndPassword
-                Log.d("AuthViewModel", "Attempting Firebase signInWithEmailAndPassword for email='$email'")
-                val result = authRepository.signInWithEmail(email, password)
-                result.fold(
-                    onSuccess = { user ->
-                        Log.d("AuthViewModel", "Firebase signInWithEmailAndPassword SUCCESS: uid=${user.uid}")
-                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                            uid = user.uid,
-                            name = user.displayName ?: email.substringBefore("@"),
-                            email = user.email ?: email
+                    } else {
+                        Log.d("AUTH_PERF", "[AuthViewModel] Login initiated at $startTime ms for email='$email'")
+                        val result = authRepository.signInWithEmail(email, password)
+                        result.fold(
+                            onSuccess = { user ->
+                                val totalMs = System.currentTimeMillis() - startTime
+                                Log.d("AUTH_PERF", "[AuthViewModel] Login SUCCESS in $totalMs ms for uid=${user.uid}")
+                                val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                                    uid = user.uid,
+                                    name = user.displayName ?: email.substringBefore("@"),
+                                    email = user.email ?: email
+                                )
+                                _uiState.update {
+                                    it.copy(
+                                        isLoading = false,
+                                        isLoggedIn = true,
+                                        currentUserProfile = profile
+                                    )
+                                }
+                                onSuccess()
+                            },
+                            onFailure = { error ->
+                                val totalMs = System.currentTimeMillis() - startTime
+                                Log.e("AUTH_PERF", "[AuthViewModel] Login FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}", error)
+                                triggerError(getFriendlyErrorMessage(error))
+                            }
                         )
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                isLoggedIn = true,
-                                currentUserProfile = profile
-                            )
-                        }
-                        onSuccess()
-                    },
-                    onFailure = { error ->
-                        Log.e("AuthViewModel", "Firebase signInWithEmailAndPassword FAILED: [${error.javaClass.name}] ${error.message}", error)
-                        triggerError(getFriendlyErrorMessage(error))
                     }
-                )
+                }
+            } catch (e: TimeoutCancellationException) {
+                val totalMs = System.currentTimeMillis() - startTime
+                Log.e("AUTH_PERF", "[AuthViewModel] Create Account/Auth TIMED OUT after 10 seconds (elapsed $totalMs ms)", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Request timed out. Please try again."
+                    )
+                }
+            } catch (e: Exception) {
+                val totalMs = System.currentTimeMillis() - startTime
+                Log.e("AUTH_PERF", "[AuthViewModel] Auth operation EXCEPTION after $totalMs ms: [${e.javaClass.name}] ${e.message}", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = getFriendlyErrorMessage(e)
+                    )
+                }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
@@ -428,6 +448,8 @@ class AuthViewModel(
         Log.e("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg", throwable)
 
         return when (throwable) {
+            is TimeoutCancellationException ->
+                "Request timed out. Please try again."
             is FirebaseAuthUserCollisionException ->
                 "An account with this email address already exists. Please sign in instead."
             is FirebaseAuthInvalidCredentialsException ->
@@ -440,6 +462,8 @@ class AuthViewModel(
                 "No internet connection. Please verify your network connection and try again."
             else -> {
                 when {
+                    rawMsg.contains("timed out", ignoreCase = true) || rawMsg.contains("Timeout", ignoreCase = true) ->
+                        "Request timed out. Please try again."
                     rawMsg.contains("badly formatted", ignoreCase = true) || rawMsg.contains("invalid email", ignoreCase = true) ->
                         "Invalid email format ($rawMsg)"
                     rawMsg.contains("user-not-found", ignoreCase = true) ->
