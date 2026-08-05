@@ -152,6 +152,10 @@ class AuthRepository(
         }
     }
 
+    fun createOrGetGuestProfile(): UserProfile {
+        return userProfileStore.createOrGetGuestProfile()
+    }
+
     fun getPersistentGuestProfile(): UserProfile {
         return userProfileStore.getProfile()
     }
@@ -361,7 +365,7 @@ class AuthRepository(
         userProfileStore.saveProfile(profile)
         return try {
             val firestore = getFirestore() ?: return true
-            if (profile.uid.isNotBlank()) {
+            if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") && !isGuestSessionActive()) {
                 kotlinx.coroutines.withTimeoutOrNull(3000L) {
                     firestore.collection("users").document(profile.uid)
                         .set(profile)
@@ -446,9 +450,21 @@ class AuthRepository(
 
     suspend fun signInAsGuestProfile(): Result<UserProfile> {
         return try {
+            // 1. Clear any cached authenticated user / Firebase Auth session
+            try {
+                getAuth()?.signOut()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Error signing out of Firebase Auth prior to Guest session: ${e.message}")
+            }
+
+            // 2. Activate Guest session
             setGuestSessionActive(true)
-            val profile = getPersistentGuestProfile()
-            saveUserProfileToFirestore(profile)
+
+            // 3. Obtain clean independent guest profile (Username: Guest, Email: Guest Account)
+            val profile = userProfileStore.createOrGetGuestProfile()
+
+            // 4. Guest profile remains isolated from Firebase Authentication (do NOT call saveUserProfileToFirestore)
+            Log.d("AuthRepository", "Signed in as Guest profile: name='${profile.name}', email='${profile.email}', uid='${profile.uid}'")
             Result.success(profile)
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error signing in as guest profile", e)

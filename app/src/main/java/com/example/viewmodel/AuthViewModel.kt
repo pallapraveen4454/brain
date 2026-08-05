@@ -347,7 +347,7 @@ class AuthViewModel(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val result = authRepository.signInAsGuestProfile()
-            val guestProfile = result.getOrElse { authRepository.getPersistentGuestProfile() }
+            val guestProfile = result.getOrElse { authRepository.createOrGetGuestProfile() }
             _uiState.update {
                 it.copy(
                     isLoading = false,
@@ -360,14 +360,43 @@ class AuthViewModel(
         }
     }
 
-    fun signInWithGoogle(context: Context, webClientId: String = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com", onSuccess: () -> Unit) {
+    fun signInWithGoogle(
+        context: Context,
+        webClientId: String = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com",
+        onSuccess: () -> Unit
+    ) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
+            val packageName = context.packageName
+            val resolvedWebClientId = try {
+                val resId = context.resources.getIdentifier("default_web_client_id", "string", packageName)
+                if (resId != 0) context.getString(resId) else webClientId
+            } catch (e: Exception) {
+                webClientId
+            }
+
+            val playServicesStatus = try {
+                val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+                val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(context)
+                if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                    "AVAILABLE"
+                } else {
+                    "UNAVAILABLE (Error code $resultCode)"
+                }
+            } catch (e: Throwable) {
+                "UNKNOWN (${e.message})"
+            }
+
+            Log.d("AUTH_AUDIT", "=== GOOGLE SIGN-IN AUDIT DIAGNOSTICS ===")
+            Log.d("AUTH_AUDIT", "Package Name: $packageName")
+            Log.d("AUTH_AUDIT", "Web Client ID: $resolvedWebClientId")
+            Log.d("AUTH_AUDIT", "Google Play Services Status: $playServicesStatus")
+
             try {
                 val credentialManager = CredentialManager.create(context)
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(webClientId)
+                    .setServerClientId(resolvedWebClientId)
                     .setAutoSelectEnabled(false)
                     .build()
 
@@ -392,6 +421,7 @@ class AuthViewModel(
                 }
 
                 if (idToken != null) {
+                    Log.d("AUTH_AUDIT", "Google ID Token obtained. Exchanging with Firebase...")
                     val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
                     firebaseResult.fold(
                         onSuccess = { user ->
@@ -400,6 +430,7 @@ class AuthViewModel(
                                 name = user.displayName ?: "Google User",
                                 email = user.email ?: ""
                             )
+                            authRepository.setGuestSessionActive(false)
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -410,14 +441,16 @@ class AuthViewModel(
                             onSuccess()
                         },
                         onFailure = { error ->
-                            Log.e("AuthViewModel", "Google Sign-In Firebase auth failed: [${error.javaClass.name}] ${error.message}", error)
+                            Log.e("AUTH_AUDIT", "Google Sign-In Firebase auth failed: [${error.javaClass.name}] ${error.message}", error)
                             triggerError(getFriendlyErrorMessage(error))
                         }
                     )
                 } else {
+                    Log.e("AUTH_AUDIT", "Failed to parse Google ID Token from Credential Manager response.")
                     triggerError("Failed to retrieve Google authentication token. Please try again.")
                 }
             } catch (e: GetCredentialCancellationException) {
+                Log.d("AUTH_AUDIT", "Google sign-in was cancelled by user.")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -425,11 +458,19 @@ class AuthViewModel(
                     )
                 }
             } catch (e: GetCredentialException) {
-                Log.e("AuthViewModel", "Google Credential Manager exception: [${e.javaClass.name}] ${e.message}", e)
-                triggerError("Google Sign-In error: ${e.localizedMessage ?: e.message}")
+                val isNoCredential = e.type.contains("TYPE_NO_CREDENTIAL", ignoreCase = true) || e.message?.contains("No credentials available", ignoreCase = true) == true
+                val rootCause = if (isNoCredential) {
+                    "No credentials available. Root Cause: No Google Account is logged into Android settings / Play Services, or app debug SHA-1 signature is missing in Firebase Console OAuth client configuration."
+                } else {
+                    "Google Sign-In error (${e.type}): ${e.localizedMessage ?: e.message}"
+                }
+                Log.e("AUTH_AUDIT", "Google Credential Manager exception: type=${e.type}, msg=${e.message}. ROOT CAUSE: $rootCause", e)
+                triggerError(rootCause)
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Google Sign-In error: [${e.javaClass.name}] ${e.message}", e)
+                Log.e("AUTH_AUDIT", "Google Sign-In error: [${e.javaClass.name}] ${e.message}", e)
                 triggerError(getFriendlyErrorMessage(e))
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }

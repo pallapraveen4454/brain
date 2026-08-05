@@ -131,8 +131,8 @@ import java.util.Locale
 
 @Composable
 fun SettingsScreen(
-    playerName: String = "Player",
-    playerEmail: String = "guest@brainquiz.ai",
+    playerName: String = "Guest",
+    playerEmail: String = "Guest Account",
     onEditUsername: ((String) -> Unit)? = null,
     onResetAccount: () -> Unit = {},
     onSignOut: () -> Unit = {},

@@ -420,7 +420,7 @@ fun ProfileScreen(
                         }
 
                         Text(
-                            text = playerEmail.ifBlank { "guest@brainquiz.ai" },
+                            text = playerEmail.ifBlank { "Guest Account" },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                             modifier = Modifier.testTag("profile_player_email")
