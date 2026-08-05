@@ -143,10 +143,11 @@ class HomeViewModel(
             val profile = authRepository.getPersistentGuestProfile()
             val stats = quizResultRepository.getUserStats()
 
-            val (localStreak, localActiveDate) = StreakUtils.calculateStreak(
+            val (calculatedStreak, localActiveDate) = StreakUtils.calculateStreak(
                 profile.lastActiveDate,
                 profile.streak
             )
+            val localStreak = maxOf(profile.streak, calculatedStreak)
             val computedRank = RankUtils.getRankForXp(profile.xp)
 
             // Check and unlock achievements
@@ -162,7 +163,7 @@ class HomeViewModel(
             val questionsAnswered = maxOf(profile.totalQuestionsAnswered, stats.totalQuestionsAnswered)
             val correctAnswers = maxOf(profile.totalCorrectAnswers, stats.totalCorrectAnswers)
             val bestScore = maxOf(profile.bestScore, stats.bestScore)
-            val longestStreak = maxOf(profile.longestStreak, stats.longestStreak)
+            val longestStreak = maxOf(profile.longestStreak, stats.longestStreak, localStreak)
             val accuracy = if (questionsAnswered > 0) ((correctAnswers.toDouble() / questionsAnswered.toDouble()) * 100).toInt() else 0
             val history = if (profile.quizHistory.isNotEmpty()) profile.quizHistory else quizResultRepository.getLocalQuizResultsList()
 

@@ -21,11 +21,11 @@ object StreakUtils {
         val todayStr = dateFormat.format(Date())
 
         if (lastActiveDateStr.isBlank()) {
-            return Pair(1, todayStr)
+            return Pair(maxOf(0, currentStreak), todayStr)
         }
 
         if (lastActiveDateStr == todayStr) {
-            return Pair(maxOf(1, currentStreak), todayStr)
+            return Pair(maxOf(0, currentStreak), todayStr)
         }
 
         return try {
@@ -35,15 +35,15 @@ object StreakUtils {
                 val diffMs = todayDate.time - lastDate.time
                 val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
                 when {
-                    diffDays == 1 -> Pair(maxOf(1, currentStreak) + 1, todayStr)
-                    diffDays > 1 -> Pair(1, todayStr)
-                    else -> Pair(maxOf(1, currentStreak), todayStr)
+                    diffDays == 1 -> Pair(maxOf(0, currentStreak) + 1, todayStr)
+                    diffDays > 1 -> Pair(maxOf(0, currentStreak), todayStr)
+                    else -> Pair(maxOf(0, currentStreak), todayStr)
                 }
             } else {
-                Pair(1, todayStr)
+                Pair(maxOf(0, currentStreak), todayStr)
             }
         } catch (e: Exception) {
-            Pair(1, todayStr)
+            Pair(maxOf(0, currentStreak), todayStr)
         }
     }
 }

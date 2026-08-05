@@ -14,6 +14,8 @@ class UserProfileStore(
 ) {
     private val prefsName = "user_profile_prefs"
     private val keyProfileJson = "persistent_user_profile"
+    private val keyGuestProfileJson = "guest_user_profile"
+    private val keyAuthProfileJson = "auth_user_profile"
 
     private fun getPrefs() = context?.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
 
@@ -26,7 +28,7 @@ class UserProfileStore(
         var id = authPrefs?.getString("guest_user_id", "") ?: ""
 
         if (id.isBlank()) {
-            val jsonStr = profilePrefs?.getString(keyProfileJson, "") ?: ""
+            val jsonStr = profilePrefs?.getString(keyGuestProfileJson, "") ?: profilePrefs?.getString(keyProfileJson, "") ?: ""
             if (jsonStr.isNotBlank()) {
                 try {
                     val jsonObj = JSONObject(jsonStr)
@@ -62,7 +64,7 @@ class UserProfileStore(
     fun isGuestActive(): Boolean {
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         val prefs = ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-        return prefs?.getBoolean("is_guest_active", false) ?: true
+        return prefs?.getBoolean("is_guest_active", true) ?: true
     }
 
     fun setGuestActive(active: Boolean) {
@@ -86,7 +88,9 @@ class UserProfileStore(
     }
 
     fun hasSavedProfile(): Boolean {
-        val jsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
+        val isGuest = isGuestActive()
+        val targetKey = if (isGuest) keyGuestProfileJson else keyAuthProfileJson
+        val jsonStr = getPrefs()?.getString(targetKey, "") ?: getPrefs()?.getString(keyProfileJson, "") ?: ""
         if (jsonStr.isNotBlank()) return true
 
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
@@ -100,56 +104,81 @@ class UserProfileStore(
         setGuestActive(true)
         val guestId = getGuestId()
         
-        // Recover current progress if existing guest, or initialize new guest profile
+        // Recover current progress if existing guest profile exists
         val currentJson = try {
-            val jsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
+            val jsonStr = getPrefs()?.getString(keyGuestProfileJson, "") ?: getPrefs()?.getString(keyProfileJson, "") ?: ""
             if (jsonStr.isNotBlank()) profileFromJson(JSONObject(jsonStr)) else null
         } catch (e: Exception) { null }
 
         val guestXp = currentJson?.xp ?: 0
         val guestCoins = currentJson?.coins ?: 0
         val guestStreak = currentJson?.streak ?: 0
+        val guestLongestStreak = maxOf(currentJson?.longestStreak ?: 0, guestStreak)
+        val guestHistory = currentJson?.quizHistory ?: emptyList()
+        val guestAvatar = currentJson?.avatarId?.ifBlank { "brain" } ?: "brain"
+        val guestName = if (currentJson?.name?.isNotBlank() == true && currentJson.name != "Player" && currentJson.name != "Guest Player") currentJson.name else "Guest"
+        val guestActiveDate = currentJson?.lastActiveDate ?: ""
 
         val guestProfile = UserProfile(
             uid = guestId,
-            name = "Guest",
+            name = guestName,
             email = "Guest Account",
-            avatarId = "brain",
+            avatarId = guestAvatar,
             xp = guestXp,
             level = maxOf(1, (guestXp / 500) + 1),
             coins = guestCoins,
             streak = guestStreak,
-            rank = RankUtils.getRankForXp(guestXp)
+            longestStreak = guestLongestStreak,
+            rank = RankUtils.getRankForXp(guestXp),
+            lastActiveDate = guestActiveDate,
+            quizHistory = guestHistory,
+            totalQuizzesPlayed = maxOf(currentJson?.totalQuizzesPlayed ?: 0, guestHistory.size),
+            totalQuestionsAnswered = maxOf(currentJson?.totalQuestionsAnswered ?: 0, guestHistory.size * 10),
+            totalCorrectAnswers = maxOf(currentJson?.totalCorrectAnswers ?: 0, guestHistory.sumOf { it.scoreOutOfTen }),
+            bestScore = maxOf(currentJson?.bestScore ?: 0, guestHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0)
         )
         
-        // Direct save without merging fields from non-guest accounts
-        getPrefs()?.edit()?.putString(keyProfileJson, profileToJson(guestProfile).toString())?.apply()
+        getPrefs()?.edit()
+            ?.putString(keyGuestProfileJson, profileToJson(guestProfile).toString())
+            ?.putString(keyProfileJson, profileToJson(guestProfile).toString())
+            ?.apply()
         syncLegacyPrefs(guestProfile)
         return guestProfile
     }
 
     fun getProfile(): UserProfile {
-        Log.d("GuestAccount", "App Started - Loading Profile")
         val guestId = getGuestId()
         val isGuest = isGuestActive()
+        val targetKey = if (isGuest) keyGuestProfileJson else keyAuthProfileJson
 
         try {
-            val jsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
+            val jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
             if (jsonStr.isNotBlank()) {
                 val profile = profileFromJson(JSONObject(jsonStr))
-                
                 if (isGuest) {
-                    // Force complete guest isolation: never display previous authenticated user account details
                     val sanitized = profile.copy(
                         uid = if (profile.uid.startsWith("guest_")) profile.uid else guestId,
                         name = if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name,
                         email = "Guest Account"
                     )
-                    Log.d("GuestAccount", "Guest Profile loaded cleanly and isolated")
                     return sanitized
                 } else {
-                    val finalUid = if (profile.uid.isNotBlank()) profile.uid else guestId
-                    return profile.copy(uid = finalUid)
+                    return profile
+                }
+            } else if (isGuest) {
+                // Fallback check legacy key for guest
+                val legacyJsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
+                if (legacyJsonStr.isNotBlank()) {
+                    val legacyProfile = profileFromJson(JSONObject(legacyJsonStr))
+                    if (legacyProfile.uid.startsWith("guest_")) {
+                        val sanitized = legacyProfile.copy(
+                            uid = legacyProfile.uid,
+                            name = if (legacyProfile.name.isBlank() || legacyProfile.name == "Player" || legacyProfile.name == "Guest Player") "Guest" else legacyProfile.name,
+                            email = "Guest Account"
+                        )
+                        getPrefs()?.edit()?.putString(keyGuestProfileJson, profileToJson(sanitized).toString())?.apply()
+                        return sanitized
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -160,11 +189,10 @@ class UserProfileStore(
             return createOrGetGuestProfile()
         }
 
-        // Default initial user profile
         val defaultProfile = UserProfile(
-            uid = guestId,
-            name = "Guest",
-            email = "Guest Account",
+            uid = "",
+            name = "Player",
+            email = "",
             avatarId = "brain",
             xp = 0,
             level = 1,
@@ -172,19 +200,15 @@ class UserProfileStore(
             streak = 0,
             rank = "Beginner"
         )
-        getPrefs()?.edit()?.putString(keyProfileJson, profileToJson(defaultProfile).toString())?.apply()
-        syncLegacyPrefs(defaultProfile)
         return defaultProfile
     }
 
     fun resetGuestAccount(): UserProfile {
         Log.d("GuestAccount", "Guest Account explicitly reset by user")
         try {
+            getPrefs()?.edit()?.remove(keyGuestProfileJson)?.apply()
             val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
-            getPrefs()?.edit()?.clear()?.apply()
-            ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
-            ctx?.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
-            ctx?.getSharedPreferences("achievements_prefs", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
+            ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()?.remove("guest_user_id")?.apply()
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error during resetGuestAccount", e)
         }
@@ -193,21 +217,26 @@ class UserProfileStore(
 
     fun saveProfile(profile: UserProfile): UserProfile {
         try {
-            val isGuest = isGuestActive() || profile.uid.startsWith("guest_")
+            val isGuestTarget = profile.uid.startsWith("guest_") || (isGuestActive() && profile.uid.isBlank())
+            val targetKey = if (isGuestTarget) keyGuestProfileJson else keyAuthProfileJson
+
             val current = try {
-                val jsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
+                val jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
                 if (jsonStr.isNotBlank()) profileFromJson(JSONObject(jsonStr)) else null
             } catch (e: Exception) { null }
 
-            val isSameUser = current != null && current.uid.isNotBlank() && current.uid == profile.uid && (current.uid.startsWith("guest_") == profile.uid.startsWith("guest_"))
+            val isSameUser = current != null && (
+                (isGuestTarget && current.uid.startsWith("guest_")) ||
+                (!isGuestTarget && current.uid == profile.uid && profile.uid.isNotBlank())
+            )
 
-            val mergedUid = if (isGuest) {
+            val mergedUid = if (isGuestTarget) {
                 if (profile.uid.startsWith("guest_")) profile.uid else getGuestId()
             } else {
-                profile.uid.ifBlank { if (isSameUser) current?.uid ?: "" else "" }
+                profile.uid.ifBlank { current?.uid ?: "" }
             }
 
-            val mergedName = if (isGuest) {
+            val mergedName = if (isGuestTarget) {
                 if (profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player") profile.name else "Guest"
             } else {
                 val currentName = if (isSameUser) current?.name?.ifBlank { "" } ?: "" else ""
@@ -218,7 +247,7 @@ class UserProfileStore(
                 }
             }
 
-            val mergedEmail = if (isGuest) {
+            val mergedEmail = if (isGuestTarget) {
                 "Guest Account"
             } else {
                 profile.email.ifBlank { if (isSameUser) current?.email ?: "" else "" }
@@ -234,7 +263,6 @@ class UserProfileStore(
             }
 
             val mergedXp = if (isSameUser) maxOf(profile.xp, current?.xp ?: 0) else profile.xp
-            Log.d("XP_TRACE", "[UserProfileStore] saveProfile: isSameUser=$isSameUser, currentXp=${current?.xp}, incomingXp=${profile.xp}, mergedXp=$mergedXp")
             val mergedCoins = profile.coins
             val mergedStreak = if (isSameUser) maxOf(profile.streak, current?.streak ?: 0) else profile.streak
             val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)
@@ -245,7 +273,6 @@ class UserProfileStore(
             val mergedClaimed = if (isSameUser) ((current?.claimedRewards ?: emptyList()) + profile.claimedRewards).distinct() else profile.claimedRewards
             val mergedUnlockedAvatars = if (isSameUser) ((current?.unlockedAvatars ?: listOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars).distinct() else profile.unlockedAvatars.ifEmpty { listOf("student_boy", "student_girl", "brain") }
 
-            // Combine and deduplicate history if same user
             val rawHistory = if (isSameUser) (profile.quizHistory + (current?.quizHistory ?: emptyList())) else profile.quizHistory
             val combinedHistory = rawHistory
                 .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
@@ -260,6 +287,7 @@ class UserProfileStore(
             val lastScore = if (profile.lastQuizScore > 0) profile.lastQuizScore else (if (isSameUser) current?.lastQuizScore ?: 0 else 0)
             val lastXp = if (profile.lastQuizXpEarned > 0) profile.lastQuizXpEarned else (if (isSameUser) current?.lastQuizXpEarned ?: 0 else 0)
             val lastDate = profile.lastQuizDate.ifBlank { if (isSameUser) current?.lastQuizDate ?: "" else "" }
+            val mergedActiveDate = profile.lastActiveDate.ifBlank { if (isSameUser) current?.lastActiveDate ?: "" else "" }
             val mergedInstallDate = profile.installDate.ifBlank { if (isSameUser) current?.installDate ?: "" else "" }
 
             val updated = profile.copy(
@@ -280,6 +308,7 @@ class UserProfileStore(
                 lastQuizScore = lastScore,
                 lastQuizXpEarned = lastXp,
                 lastQuizDate = lastDate,
+                lastActiveDate = mergedActiveDate,
                 totalQuizzesPlayed = mergedQuizzesPlayed,
                 totalQuestionsAnswered = mergedQuestionsAnswered,
                 totalCorrectAnswers = mergedCorrectAnswers,
@@ -289,10 +318,11 @@ class UserProfileStore(
             )
 
             val jsonObj = profileToJson(updated)
-            getPrefs()?.edit()?.putString(keyProfileJson, jsonObj.toString())?.apply()
+            getPrefs()?.edit()?.putString(targetKey, jsonObj.toString())?.apply()
 
-            // Keep legacy SharedPreferences keys in sync
-            syncLegacyPrefs(updated)
+            if (isGuestTarget == isGuestActive()) {
+                syncLegacyPrefs(updated)
+            }
 
             return updated
         } catch (e: Exception) {
