@@ -340,7 +340,7 @@ class AuthViewModel(
         }
     }
 
-    fun signInWithGoogle(context: Context, webClientId: String = "1047242078803-webclientid.apps.googleusercontent.com", onSuccess: () -> Unit) {
+    fun signInWithGoogle(context: Context, webClientId: String = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com", onSuccess: () -> Unit) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
@@ -390,20 +390,8 @@ class AuthViewModel(
                             onSuccess()
                         },
                         onFailure = { error ->
-                            if (isRestrictedApiKeyError(error)) {
-                                val localProfile = authRepository.createOrGetLocalEmailProfile("google_user@brainquiz.ai", "Google Player")
-                                _uiState.update {
-                                    it.copy(
-                                        isLoading = false,
-                                        isLoggedIn = true,
-                                        currentUserProfile = localProfile,
-                                        errorMessage = null
-                                    )
-                                }
-                                onSuccess()
-                            } else {
-                                triggerError(getFriendlyErrorMessage(error))
-                            }
+                            Log.e("AuthViewModel", "Google Sign-In Firebase auth failed: [${error.javaClass.name}] ${error.message}", error)
+                            triggerError(getFriendlyErrorMessage(error))
                         }
                     )
                 } else {
@@ -417,20 +405,10 @@ class AuthViewModel(
                     )
                 }
             } catch (e: GetCredentialException) {
-                Log.e("AuthViewModel", "Credential Manager exception", e)
-                // Fallback to seamless Google local account guest session
-                val localProfile = authRepository.createOrGetLocalEmailProfile("google_user@brainquiz.ai", "Google Player")
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isLoggedIn = true,
-                        currentUserProfile = localProfile,
-                        errorMessage = null
-                    )
-                }
-                onSuccess()
+                Log.e("AuthViewModel", "Google Credential Manager exception: [${e.javaClass.name}] ${e.message}", e)
+                triggerError("Google Sign-In error: ${e.localizedMessage ?: e.message}")
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Google Sign-In error", e)
+                Log.e("AuthViewModel", "Google Sign-In error: [${e.javaClass.name}] ${e.message}", e)
                 triggerError(getFriendlyErrorMessage(e))
             }
         }
@@ -442,17 +420,6 @@ class AuthViewModel(
             AuthUiState()
         }
         onComplete()
-    }
-
-    private fun isRestrictedApiKeyError(throwable: Throwable): Boolean {
-        val msg = throwable.message ?: ""
-        val localizedMsg = throwable.localizedMessage ?: ""
-        return msg.contains("restricted", ignoreCase = true) ||
-               msg.contains("blocked", ignoreCase = true) ||
-               msg.contains("SERVICE_DISABLED", ignoreCase = true) ||
-               msg.contains("API key", ignoreCase = true) ||
-               localizedMsg.contains("restricted", ignoreCase = true) ||
-               localizedMsg.contains("blocked", ignoreCase = true)
     }
 
     private fun getFriendlyErrorMessage(throwable: Throwable): String {
@@ -481,6 +448,10 @@ class AuthViewModel(
                         "Incorrect password ($rawMsg)"
                     rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
                         "Too many failed login attempts ($rawMsg)"
+                    rawMsg.contains("blocked", ignoreCase = true) || rawMsg.contains("identitytoolkit", ignoreCase = true) ->
+                        "Requests to Identity Toolkit API are blocked in GCP project. Please enable Identity Toolkit API and check API key restrictions."
+                    rawMsg.contains("API key", ignoreCase = true) || rawMsg.contains("restricted", ignoreCase = true) ->
+                        "Firebase Auth API key restriction error: Please check API key restrictions in Google Cloud Console."
                     else -> "[$exClass] $rawMsg"
                 }
             }

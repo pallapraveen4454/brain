@@ -435,7 +435,10 @@ private fun LeaderboardPeriodTabs(
                         .weight(1f)
                         .clip(RoundedCornerShape(20.dp))
                         .background(bgColor)
-                        .clickable { onPeriodSelected(period) }
+                        .clickable {
+                            SoundEffects.playClickSound()
+                            onPeriodSelected(period)
+                        }
                         .padding(vertical = 8.dp)
                         .testTag("period_tab_${period.name.lowercase()}"),
                     contentAlignment = Alignment.Center

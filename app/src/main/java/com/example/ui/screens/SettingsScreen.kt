@@ -156,6 +156,7 @@ fun SettingsScreen(
     var showRateAppDialog by remember { mutableStateOf(false) }
     var showContactSupportDialog by remember { mutableStateOf(false) }
     var showRestoreDataDialog by remember { mutableStateOf(false) }
+    var showPermissionRequiredDialog by remember { mutableStateOf(false) }
 
     // Text inputs & feedback state
     var newUsernameInput by remember { mutableStateOf(playerName) }
@@ -320,6 +321,9 @@ fun SettingsScreen(
                             if (userSettings.soundEffectsEnabled) {
                                 SoundEffects.playCoinSound()
                             }
+                            if (checked && !com.example.utils.NotificationHelper.hasNotificationPermission(context)) {
+                                showPermissionRequiredDialog = true
+                            }
                             updateSettings(userSettings.copy(dailyChallengeReminder = checked))
                             val msg = if (checked) "Daily Challenge reminders enabled!" else "Daily Challenge reminders disabled."
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -342,6 +346,9 @@ fun SettingsScreen(
                             if (userSettings.soundEffectsEnabled) {
                                 SoundEffects.playCoinSound()
                             }
+                            if (checked && !com.example.utils.NotificationHelper.hasNotificationPermission(context)) {
+                                showPermissionRequiredDialog = true
+                            }
                             updateSettings(userSettings.copy(streakReminder = checked))
                         }
                     )
@@ -361,6 +368,9 @@ fun SettingsScreen(
                             }
                             if (userSettings.soundEffectsEnabled) {
                                 SoundEffects.playCoinSound()
+                            }
+                            if (checked && !com.example.utils.NotificationHelper.hasNotificationPermission(context)) {
+                                showPermissionRequiredDialog = true
                             }
                             updateSettings(userSettings.copy(achievementNotifications = checked))
                         }
@@ -691,6 +701,62 @@ fun SettingsScreen(
     // ==================================================
     // DIALOGS SECTION
     // ==================================================
+
+    if (showPermissionRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRequiredDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = PrimaryPurpleLight,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Permission Required",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextWhite
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Android notification permission is required to receive reminders. Please enable notifications in System Settings.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionRequiredDialog = false
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            val intent = Intent(android.provider.Settings.ACTION_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                ) {
+                    Text("Open Settings", color = TextWhite)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRequiredDialog = false }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = DarkCardSurface,
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.testTag("notification_permission_required_dialog")
+        )
+    }
 
     // 1. Edit Profile Dialog
     if (showEditProfileDialog) {

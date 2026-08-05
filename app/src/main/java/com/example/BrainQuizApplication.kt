@@ -28,17 +28,28 @@ class BrainQuizApplication : Application() {
                     if (FirebaseApp.getApps(context).isEmpty()) {
                         Log.w("BrainQuizApplication", "Resource initialization unavailable. Using fallback explicit FirebaseOptions builder...")
                         val explicitOptions = FirebaseOptions.Builder()
-                            .setApplicationId("1:1047242078803:android:com_aistudio_brainquizai_app")
-                            .setApiKey("AIzaSyAd7H-0cu2afd-sKk8ZM932mMIwoVmSNHk")
-                            .setGcmSenderId("1047242078803")
-                            .setProjectId("brainquiz-ai")
-                            .setStorageBucket("brainquiz-ai.appspot.com")
+                            .setApplicationId("1:106236832575:android:8bb30cbfcabc48ffdfc18a")
+                            .setApiKey("AIzaSyApStHvA17YLLkNv-H75VIOJjCvPMr1azM")
+                            .setGcmSenderId("106236832575")
+                            .setProjectId("brainquiz-ai-app")
+                            .setStorageBucket("brainquiz-ai-app.firebasestorage.app")
                             .build()
                         app = FirebaseApp.initializeApp(context, explicitOptions)
                     }
-                    Log.d("BrainQuizApplication", "ensureFirebaseInitialized: SUCCESS -> app=${app?.name}, projectId=${app?.options?.projectId}")
+                    val activeApp = FirebaseApp.getInstance()
+                    val runtimeApiKey = activeApp.options.apiKey ?: ""
+                    val googleServicesKey = "AIzaSyApStHvA17YLLkNv-H75VIOJjCvPMr1azM"
+                    val isFromGoogleServicesJson = (runtimeApiKey == googleServicesKey)
+                    val keyMasked = if (runtimeApiKey.length > 8) "${runtimeApiKey.take(6)}...${runtimeApiKey.takeLast(4)}" else runtimeApiKey
+                    Log.d("FirebaseAuthCheck", "Firebase Auth Runtime API Key: $keyMasked (Source: ${if (isFromGoogleServicesJson) "google-services.json" else "other source"})")
+                    Log.d("BrainQuizApplication", "ensureFirebaseInitialized: SUCCESS -> app=${activeApp.name}, projectId=${activeApp.options.projectId}")
                 } else {
                     val defaultApp = FirebaseApp.getInstance()
+                    val runtimeApiKey = defaultApp.options.apiKey ?: ""
+                    val googleServicesKey = "AIzaSyApStHvA17YLLkNv-H75VIOJjCvPMr1azM"
+                    val isFromGoogleServicesJson = (runtimeApiKey == googleServicesKey)
+                    val keyMasked = if (runtimeApiKey.length > 8) "${runtimeApiKey.take(6)}...${runtimeApiKey.takeLast(4)}" else runtimeApiKey
+                    Log.d("FirebaseAuthCheck", "Firebase Auth Runtime API Key: $keyMasked (Source: ${if (isFromGoogleServicesJson) "google-services.json" else "other source"})")
                     Log.d("BrainQuizApplication", "ensureFirebaseInitialized: Already initialized (${apps.size} app(s)) -> projectId=${defaultApp.options.projectId}")
                 }
             } catch (e: Exception) {

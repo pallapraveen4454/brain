@@ -53,6 +53,11 @@ class AuthRepository(
         }
         return try {
             val auth = FirebaseAuth.getInstance()
+            val runtimeApiKey = auth.app.options.apiKey ?: ""
+            val googleServicesKey = "AIzaSyApStHvA17YLLkNv-H75VIOJjCvPMr1azM"
+            val isFromGoogleServicesJson = (runtimeApiKey == googleServicesKey)
+            val keyMasked = if (runtimeApiKey.length > 8) "${runtimeApiKey.take(6)}...${runtimeApiKey.takeLast(4)}" else runtimeApiKey
+            Log.d("FirebaseAuthCheck", "getAuth(): Active FirebaseAuth instance obtained -> API Key: $keyMasked (Source: ${if (isFromGoogleServicesJson) "google-services.json" else "other source"})")
             auth
         } catch (e: Exception) {
             Log.e("AuthRepository", "getAuth(): Failed to obtain FirebaseAuth instance: [${e.javaClass.name}] ${e.message}", e)

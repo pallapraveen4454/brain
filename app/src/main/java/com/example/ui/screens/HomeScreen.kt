@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -88,10 +92,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.R
 import com.example.ui.components.AchievementUnlockedDialog
 import com.example.ui.components.CategoryCard
 import com.example.ui.components.GlassCard
+import com.example.ui.components.NotificationPermissionDialog
 import com.example.ui.components.NotificationsDialog
 import com.example.ui.components.QuickPlayCard
 import com.example.ui.components.StatCard
@@ -116,6 +125,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.NotificationHelper
 import com.example.utils.SoundEffects
 import com.example.utils.VibrationUtils
 import com.example.viewmodel.BottomNavTab
@@ -132,6 +142,52 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    var showNotificationPermissionRationale by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            NotificationHelper.syncReminders(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPerm = NotificationHelper.hasNotificationPermission(context)
+            val isPromptShown = NotificationHelper.isNotificationPromptShown(context)
+            if (!hasPerm && !isPromptShown) {
+                showNotificationPermissionRationale = true
+            } else if (hasPerm) {
+                NotificationHelper.syncReminders(context)
+            }
+        } else {
+            NotificationHelper.syncReminders(context)
+        }
+    }
+
+    if (showNotificationPermissionRationale) {
+        NotificationPermissionDialog(
+            onEnableClick = {
+                NotificationHelper.setNotificationPromptShown(context, true)
+                showNotificationPermissionRationale = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (!NotificationHelper.hasNotificationPermission(context)) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        NotificationHelper.syncReminders(context)
+                    }
+                } else {
+                    NotificationHelper.syncReminders(context)
+                }
+            },
+            onMaybeLaterClick = {
+                NotificationHelper.setNotificationPromptShown(context, true)
+                showNotificationPermissionRationale = false
+            }
+        )
+    }
 
     if (uiState.showNotificationsDialog) {
         NotificationsDialog(
@@ -852,7 +908,10 @@ fun HomeBottomNavigationBar(
             val isSelected = selectedTab == item.tab
             NavigationBarItem(
                 selected = isSelected,
-                onClick = { onTabSelect(item.tab) },
+                onClick = {
+                    SoundEffects.playClickSound()
+                    onTabSelect(item.tab)
+                },
                 alwaysShowLabel = true,
                 icon = {
                     Icon(

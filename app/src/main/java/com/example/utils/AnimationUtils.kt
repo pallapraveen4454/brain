@@ -51,7 +51,10 @@ fun Modifier.bounceClick(
                 Modifier.clickable(
                     interactionSource = interactionSource,
                     indication = null,
-                    onClick = onClick
+                    onClick = {
+                        SoundEffects.playClickSound()
+                        onClick()
+                    }
                 )
             } else Modifier
         )
