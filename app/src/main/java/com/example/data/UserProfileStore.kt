@@ -199,16 +199,18 @@ class UserProfileStore(
                 if (jsonStr.isNotBlank()) profileFromJson(JSONObject(jsonStr)) else null
             } catch (e: Exception) { null }
 
+            val isSameUser = current != null && current.uid.isNotBlank() && current.uid == profile.uid && (current.uid.startsWith("guest_") == profile.uid.startsWith("guest_"))
+
             val mergedUid = if (isGuest) {
                 if (profile.uid.startsWith("guest_")) profile.uid else getGuestId()
             } else {
-                profile.uid.ifBlank { current?.uid ?: "" }
+                profile.uid.ifBlank { if (isSameUser) current?.uid ?: "" else "" }
             }
 
             val mergedName = if (isGuest) {
                 if (profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player") profile.name else "Guest"
             } else {
-                val currentName = current?.name?.ifBlank { "" } ?: ""
+                val currentName = if (isSameUser) current?.name?.ifBlank { "" } ?: "" else ""
                 when {
                     profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player" -> profile.name
                     currentName.isNotBlank() && currentName != "Player" && currentName != "Guest Player" -> currentName
@@ -219,10 +221,10 @@ class UserProfileStore(
             val mergedEmail = if (isGuest) {
                 "Guest Account"
             } else {
-                profile.email.ifBlank { current?.email ?: "" }
+                profile.email.ifBlank { if (isSameUser) current?.email ?: "" else "" }
             }
 
-            val currentAvatar = current?.avatarId?.ifBlank { "" } ?: ""
+            val currentAvatar = if (isSameUser) current?.avatarId?.ifBlank { "" } ?: "" else ""
             val mergedAvatar = when {
                 profile.avatarId.isNotBlank() && profile.avatarId != "brain" -> profile.avatarId
                 currentAvatar.isNotBlank() && currentAvatar != "brain" -> currentAvatar
@@ -231,34 +233,34 @@ class UserProfileStore(
                 else -> "brain"
             }
 
-            val mergedXp = maxOf(profile.xp, current?.xp ?: 0)
-            Log.d("XP_TRACE", "[UserProfileStore] saveProfile: currentXp=${current?.xp}, incomingXp=${profile.xp}, mergedXp=$mergedXp")
+            val mergedXp = if (isSameUser) maxOf(profile.xp, current?.xp ?: 0) else profile.xp
+            Log.d("XP_TRACE", "[UserProfileStore] saveProfile: isSameUser=$isSameUser, currentXp=${current?.xp}, incomingXp=${profile.xp}, mergedXp=$mergedXp")
             val mergedCoins = profile.coins
-            val mergedStreak = maxOf(profile.streak, current?.streak ?: 0)
-            val mergedLongestStreak = maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak)
+            val mergedStreak = if (isSameUser) maxOf(profile.streak, current?.streak ?: 0) else profile.streak
+            val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)
             val mergedLevel = maxOf(1, (mergedXp / 500) + 1)
             val mergedRank = RankUtils.getRankForXp(mergedXp)
 
-            val mergedUnlocked = ((current?.unlockedAchievements ?: emptyList()) + profile.unlockedAchievements).distinct()
-            val mergedClaimed = ((current?.claimedRewards ?: emptyList()) + profile.claimedRewards).distinct()
-            val mergedUnlockedAvatars = ((current?.unlockedAvatars ?: listOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars).distinct()
+            val mergedUnlocked = if (isSameUser) ((current?.unlockedAchievements ?: emptyList()) + profile.unlockedAchievements).distinct() else profile.unlockedAchievements
+            val mergedClaimed = if (isSameUser) ((current?.claimedRewards ?: emptyList()) + profile.claimedRewards).distinct() else profile.claimedRewards
+            val mergedUnlockedAvatars = if (isSameUser) ((current?.unlockedAvatars ?: listOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars).distinct() else profile.unlockedAvatars.ifEmpty { listOf("student_boy", "student_girl", "brain") }
 
-            // Combine and deduplicate history
-            val rawHistory = (profile.quizHistory + (current?.quizHistory ?: emptyList()))
+            // Combine and deduplicate history if same user
+            val rawHistory = if (isSameUser) (profile.quizHistory + (current?.quizHistory ?: emptyList())) else profile.quizHistory
             val combinedHistory = rawHistory
                 .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
                 .sortedByDescending { it.timestamp }
 
-            val mergedQuizzesPlayed = maxOf(profile.totalQuizzesPlayed, current?.totalQuizzesPlayed ?: 0, combinedHistory.size)
-            val mergedQuestionsAnswered = maxOf(profile.totalQuestionsAnswered, current?.totalQuestionsAnswered ?: 0, combinedHistory.size * 10)
-            val mergedCorrectAnswers = maxOf(profile.totalCorrectAnswers, current?.totalCorrectAnswers ?: 0, combinedHistory.sumOf { it.scoreOutOfTen })
-            val mergedBestScore = maxOf(profile.bestScore, current?.bestScore ?: 0, combinedHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0)
+            val mergedQuizzesPlayed = if (isSameUser) maxOf(profile.totalQuizzesPlayed, current?.totalQuizzesPlayed ?: 0, combinedHistory.size) else maxOf(profile.totalQuizzesPlayed, combinedHistory.size)
+            val mergedQuestionsAnswered = if (isSameUser) maxOf(profile.totalQuestionsAnswered, current?.totalQuestionsAnswered ?: 0, combinedHistory.size * 10) else maxOf(profile.totalQuestionsAnswered, combinedHistory.size * 10)
+            val mergedCorrectAnswers = if (isSameUser) maxOf(profile.totalCorrectAnswers, current?.totalCorrectAnswers ?: 0, combinedHistory.sumOf { it.scoreOutOfTen }) else maxOf(profile.totalCorrectAnswers, combinedHistory.sumOf { it.scoreOutOfTen })
+            val mergedBestScore = if (isSameUser) maxOf(profile.bestScore, current?.bestScore ?: 0, combinedHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0) else maxOf(profile.bestScore, combinedHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0)
 
-            val lastCategory = profile.lastQuizCategory.ifBlank { current?.lastQuizCategory ?: "" }
-            val lastScore = if (profile.lastQuizScore > 0) profile.lastQuizScore else (current?.lastQuizScore ?: 0)
-            val lastXp = if (profile.lastQuizXpEarned > 0) profile.lastQuizXpEarned else (current?.lastQuizXpEarned ?: 0)
-            val lastDate = profile.lastQuizDate.ifBlank { current?.lastQuizDate ?: "" }
-            val mergedInstallDate = profile.installDate.ifBlank { current?.installDate ?: "" }
+            val lastCategory = profile.lastQuizCategory.ifBlank { if (isSameUser) current?.lastQuizCategory ?: "" else "" }
+            val lastScore = if (profile.lastQuizScore > 0) profile.lastQuizScore else (if (isSameUser) current?.lastQuizScore ?: 0 else 0)
+            val lastXp = if (profile.lastQuizXpEarned > 0) profile.lastQuizXpEarned else (if (isSameUser) current?.lastQuizXpEarned ?: 0 else 0)
+            val lastDate = profile.lastQuizDate.ifBlank { if (isSameUser) current?.lastQuizDate ?: "" else "" }
+            val mergedInstallDate = profile.installDate.ifBlank { if (isSameUser) current?.installDate ?: "" else "" }
 
             val updated = profile.copy(
                 uid = mergedUid,

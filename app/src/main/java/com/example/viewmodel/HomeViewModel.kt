@@ -234,20 +234,27 @@ class HomeViewModel(
                     try {
                         val remoteProfile = authRepository.fetchUserProfile(user.uid)
                         if (remoteProfile != null) {
-                            val mergedXp = maxOf(remoteProfile.xp, profile.xp)
-                            Log.d("XP_TRACE", "[HomeViewModel] loadUserProfile: localXp=${profile.xp}, remoteXp=${remoteProfile.xp}, mergedXp=$mergedXp")
-                            val mergedCoins = updatedCoins
-                            val mergedStreak = maxOf(remoteProfile.streak, localStreak)
-                            val mergedRank = RankUtils.getRankForXp(mergedXp)
+                            val userRank = RankUtils.getRankForXp(remoteProfile.xp)
+                            val userName = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player" && remoteProfile.name != "Guest Player") remoteProfile.name else (user.displayName ?: user.email?.substringBefore("@") ?: "Player")
+                            val userEmail = user.email ?: remoteProfile.email
 
                             _uiState.update {
                                 it.copy(
-                                    playerEmail = user.email ?: remoteProfile.email,
-                                    xp = mergedXp,
-                                    level = maxOf(1, (mergedXp / 500) + 1),
-                                    coins = mergedCoins,
-                                    streakDays = mergedStreak,
-                                    rank = mergedRank
+                                    playerName = userName,
+                                    playerEmail = userEmail,
+                                    avatarId = remoteProfile.avatarId.ifBlank { "brain" },
+                                    xp = remoteProfile.xp,
+                                    level = maxOf(1, (remoteProfile.xp / 500) + 1),
+                                    coins = remoteProfile.coins,
+                                    streakDays = remoteProfile.streak,
+                                    rank = userRank,
+                                    unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
+                                    totalQuizzesPlayed = remoteProfile.totalQuizzesPlayed,
+                                    totalQuestionsAnswered = remoteProfile.totalQuestionsAnswered,
+                                    totalCorrectAnswers = remoteProfile.totalCorrectAnswers,
+                                    bestScore = remoteProfile.bestScore,
+                                    longestStreak = remoteProfile.longestStreak,
+                                    quizHistory = remoteProfile.quizHistory
                                 )
                             }
                         }

@@ -13,7 +13,11 @@ import com.example.data.AuthRepository
 import com.example.data.QuizResultRepository
 import com.example.data.UserProfile
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -40,6 +44,7 @@ data class AuthUiState(
     val rememberMe: Boolean = true,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
     val isLoggedIn: Boolean = false,
     val currentUserProfile: UserProfile? = null,
     val showResetPasswordNotice: Boolean = false,
@@ -68,20 +73,16 @@ class AuthViewModel(
                         val user = authRepository.currentUser
                         val profileToUse = if (user != null) {
                             val fetched = authRepository.fetchUserProfile(user.uid)
-                            if (fetched != null) {
-                                val merged = savedProfile.copy(
-                                    uid = user.uid,
-                                    email = user.email ?: fetched.email,
-                                    xp = maxOf(fetched.xp, savedProfile.xp),
-                                    coins = savedProfile.coins,
-                                    streak = maxOf(fetched.streak, savedProfile.streak),
-                                    unlockedAvatars = (savedProfile.unlockedAvatars + fetched.unlockedAvatars).distinct()
-                                )
-                                authRepository.saveUserProfileToFirestore(merged)
-                                merged
-                            } else {
-                                savedProfile
-                            }
+                            fetched ?: UserProfile(
+                                uid = user.uid,
+                                name = user.displayName ?: user.email?.substringBefore("@") ?: "Player",
+                                email = user.email ?: "",
+                                avatarId = "brain",
+                                xp = 0,
+                                level = 1,
+                                coins = 0,
+                                rank = "Beginner"
+                            )
                         } else {
                             savedProfile
                         }
@@ -148,6 +149,7 @@ class AuthViewModel(
             it.copy(
                 isSignUpMode = !it.isSignUpMode,
                 errorMessage = null,
+                successMessage = null,
                 passwordInput = "",
                 confirmPasswordInput = ""
             ) 
@@ -274,15 +276,19 @@ class AuthViewModel(
                         result.fold(
                             onSuccess = { profile ->
                                 val totalMs = System.currentTimeMillis() - startTime
-                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Navigating immediately to Home.")
+                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Switching to Login screen with success message.")
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
-                                        isLoggedIn = true,
-                                        currentUserProfile = profile
+                                        isLoggedIn = false,
+                                        isSignUpMode = false,
+                                        successMessage = "✅ Account created successfully.",
+                                        errorMessage = null,
+                                        passwordInput = "",
+                                        confirmPasswordInput = ""
                                     )
                                 }
-                                onSuccess()
+                                // Do NOT auto-login or navigate to Home
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime
@@ -297,16 +303,26 @@ class AuthViewModel(
                             onSuccess = { user ->
                                 val totalMs = System.currentTimeMillis() - startTime
                                 Log.d("AUTH_PERF", "[AuthViewModel] Login SUCCESS in $totalMs ms for uid=${user.uid}")
-                                val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                                val fetchedProfile = authRepository.fetchUserProfile(user.uid)
+                                val profile = fetchedProfile ?: UserProfile(
                                     uid = user.uid,
-                                    name = user.displayName ?: email.substringBefore("@"),
-                                    email = user.email ?: email
+                                    name = user.displayName ?: email.substringBefore("@").replaceFirstChar { it.uppercase() },
+                                    email = user.email ?: email,
+                                    avatarId = "brain",
+                                    xp = 0,
+                                    level = 1,
+                                    coins = 0,
+                                    streak = 0,
+                                    rank = "Beginner"
                                 )
+                                authRepository.saveUserProfileToFirestore(profile)
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
                                         isLoggedIn = true,
-                                        currentUserProfile = profile
+                                        currentUserProfile = profile,
+                                        successMessage = null,
+                                        errorMessage = null
                                     )
                                 }
                                 onSuccess()
@@ -375,33 +391,15 @@ class AuthViewModel(
                 webClientId
             }
 
-            val playServicesStatus = try {
-                val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
-                val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(context)
-                if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                    "AVAILABLE"
-                } else {
-                    "UNAVAILABLE (Error code $resultCode)"
-                }
-            } catch (e: Throwable) {
-                "UNKNOWN (${e.message})"
-            }
+            val credentialManager = CredentialManager.create(context)
+            var idToken: String? = null
 
-            Log.d("AUTH_AUDIT", "=== GOOGLE SIGN-IN AUDIT DIAGNOSTICS ===")
-            Log.d("AUTH_AUDIT", "Package Name: $packageName")
-            Log.d("AUTH_AUDIT", "Web Client ID: $resolvedWebClientId")
-            Log.d("AUTH_AUDIT", "Google Play Services Status: $playServicesStatus")
-
+            // Step 1: Official Interactive Google Identity Services flow (GetSignInWithGoogleOption)
             try {
-                val credentialManager = CredentialManager.create(context)
-                val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(resolvedWebClientId)
-                    .setAutoSelectEnabled(false)
+                val signInWithGoogleOption = GetSignInWithGoogleOption.Builder(resolvedWebClientId)
                     .build()
-
                 val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
+                    .addCredentialOption(signInWithGoogleOption)
                     .build()
 
                 val result = credentialManager.getCredential(
@@ -410,7 +408,7 @@ class AuthViewModel(
                 )
 
                 val credential = result.credential
-                val idToken = when {
+                idToken = when {
                     credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL -> {
                         GoogleIdTokenCredential.createFrom(credential.data).idToken
                     }
@@ -418,36 +416,6 @@ class AuthViewModel(
                         credential.idToken
                     }
                     else -> null
-                }
-
-                if (idToken != null) {
-                    Log.d("AUTH_AUDIT", "Google ID Token obtained. Exchanging with Firebase...")
-                    val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
-                    firebaseResult.fold(
-                        onSuccess = { user ->
-                            val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                                uid = user.uid,
-                                name = user.displayName ?: "Google User",
-                                email = user.email ?: ""
-                            )
-                            authRepository.setGuestSessionActive(false)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isLoggedIn = true,
-                                    currentUserProfile = profile
-                                )
-                            }
-                            onSuccess()
-                        },
-                        onFailure = { error ->
-                            Log.e("AUTH_AUDIT", "Google Sign-In Firebase auth failed: [${error.javaClass.name}] ${error.message}", error)
-                            triggerError(getFriendlyErrorMessage(error))
-                        }
-                    )
-                } else {
-                    Log.e("AUTH_AUDIT", "Failed to parse Google ID Token from Credential Manager response.")
-                    triggerError("Failed to retrieve Google authentication token. Please try again.")
                 }
             } catch (e: GetCredentialCancellationException) {
                 Log.d("AUTH_AUDIT", "Google sign-in was cancelled by user.")
@@ -457,21 +425,102 @@ class AuthViewModel(
                         errorMessage = "Google sign-in was cancelled."
                     )
                 }
+                return@launch
             } catch (e: GetCredentialException) {
-                val isNoCredential = e.type.contains("TYPE_NO_CREDENTIAL", ignoreCase = true) || e.message?.contains("No credentials available", ignoreCase = true) == true
-                val rootCause = if (isNoCredential) {
-                    "No credentials available. Root Cause: No Google Account is logged into Android settings / Play Services, or app debug SHA-1 signature is missing in Firebase Console OAuth client configuration."
-                } else {
-                    "Google Sign-In error (${e.type}): ${e.localizedMessage ?: e.message}"
+                Log.d("AUTH_AUDIT", "GetSignInWithGoogleOption returned GetCredentialException (${e.type}): ${e.message}. Launching automatic fallback...")
+
+                // Step 2: Fallback A - GetGoogleIdOption (filterByAuthorizedAccounts = false)
+                try {
+                    val googleIdOption = GetGoogleIdOption.Builder()
+                        .setFilterByAuthorizedAccounts(false)
+                        .setServerClientId(resolvedWebClientId)
+                        .setAutoSelectEnabled(false)
+                        .build()
+
+                    val fallbackRequest = GetCredentialRequest.Builder()
+                        .addCredentialOption(googleIdOption)
+                        .build()
+
+                    val result = credentialManager.getCredential(
+                        request = fallbackRequest,
+                        context = context
+                    )
+
+                    val credential = result.credential
+                    idToken = when {
+                        credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL -> {
+                            GoogleIdTokenCredential.createFrom(credential.data).idToken
+                        }
+                        credential is GoogleIdTokenCredential -> {
+                            credential.idToken
+                        }
+                        else -> null
+                    }
+                } catch (fallbackCancel: GetCredentialCancellationException) {
+                    Log.d("AUTH_AUDIT", "Google sign-in fallback was cancelled by user.")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Google sign-in was cancelled."
+                        )
+                    }
+                    return@launch
+                } catch (fallbackException: Exception) {
+                    Log.d("AUTH_AUDIT", "GetGoogleIdOption fallback failed: ${fallbackException.message}. Checking GoogleSignIn account fallback...")
+
+                    // Step 3: Fallback B - GoogleSignIn Client check
+                    try {
+                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                            .requestIdToken(resolvedWebClientId)
+                            .requestEmail()
+                            .build()
+                        val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                        val accountTask = googleSignInClient.silentSignIn()
+                        val account = if (accountTask.isSuccessful) {
+                            accountTask.result
+                        } else {
+                            GoogleSignIn.getLastSignedInAccount(context)
+                        }
+                        idToken = account?.idToken
+                    } catch (gsiException: Exception) {
+                        Log.e("AUTH_AUDIT", "GoogleSignIn client fallback error", gsiException)
+                    }
                 }
-                Log.e("AUTH_AUDIT", "Google Credential Manager exception: type=${e.type}, msg=${e.message}. ROOT CAUSE: $rootCause", e)
-                triggerError(rootCause)
             } catch (e: Exception) {
-                Log.e("AUTH_AUDIT", "Google Sign-In error: [${e.javaClass.name}] ${e.message}", e)
-                triggerError(getFriendlyErrorMessage(e))
-            } finally {
-                _uiState.update { it.copy(isLoading = false) }
+                Log.e("AUTH_AUDIT", "Unexpected error during Google Sign-In", e)
             }
+
+            // Step 4: Perform Firebase Auth credential exchange if token obtained
+            if (idToken != null) {
+                Log.d("AUTH_AUDIT", "Google ID Token obtained. Exchanging with Firebase...")
+                val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
+                firebaseResult.fold(
+                    onSuccess = { user ->
+                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                            uid = user.uid,
+                            name = user.displayName ?: "Google User",
+                            email = user.email ?: ""
+                        )
+                        authRepository.setGuestSessionActive(false)
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isLoggedIn = true,
+                                currentUserProfile = profile
+                            )
+                        }
+                        onSuccess()
+                    },
+                    onFailure = { error ->
+                        Log.e("AUTH_AUDIT", "Google Sign-In Firebase auth failed: [${error.javaClass.name}] ${error.message}", error)
+                        triggerError(getFriendlyErrorMessage(error))
+                    }
+                )
+            } else {
+                Log.e("AUTH_AUDIT", "Failed to retrieve Google ID Token across all options.")
+                triggerError("No Google credentials available on this device. Please sign in with Email & Password or add a Google account in Android settings.")
+            }
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 

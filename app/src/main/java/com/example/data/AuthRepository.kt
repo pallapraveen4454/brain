@@ -221,8 +221,6 @@ class AuthRepository(
             val authMs = tAuthEnd - tAuthStart
             Log.d("AUTH_PERF", "[TIMING] Step 1 - FirebaseAuth.createUserWithEmailAndPassword SUCCESS in $authMs ms (uid=${user.uid})")
             
-            setGuestSessionActive(false)
-            userProfileStore.setLoggedIn(true)
             val displayName = name.ifBlank { email.substringBefore("@").replaceFirstChar { it.uppercase() } }
             
             val tUpdateStart = System.currentTimeMillis()
@@ -238,34 +236,49 @@ class AuthRepository(
             }
 
             val tProfileStart = System.currentTimeMillis()
-            val local = quizResultRepository.getLocalProgress()
+            val chosenAvatar = if (avatarId.isNotBlank()) avatarId else "brain"
             val profile = UserProfile(
                 uid = user.uid,
                 name = displayName,
                 email = email,
-                avatarId = avatarId,
-                xp = local.totalXp,
-                level = maxOf(1, local.level),
-                coins = local.coins,
-                streak = local.streak,
-                lastActiveDate = local.lastActiveDate,
-                lastQuizCategory = local.lastCategoryName,
-                lastQuizScore = local.lastScoreOutOfTen,
-                lastQuizXpEarned = local.lastXpEarned,
-                lastQuizDate = local.lastQuizDate
+                avatarId = chosenAvatar,
+                xp = 0,
+                level = 1,
+                coins = 0,
+                streak = 0,
+                rank = "Beginner",
+                unlockedAchievements = emptyList(),
+                claimedRewards = emptyList(),
+                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                quizHistory = emptyList(),
+                totalQuizzesPlayed = 0,
+                totalQuestionsAnswered = 0,
+                totalCorrectAnswers = 0,
+                bestScore = 0,
+                longestStreak = 0
             )
             
-            // Save profile locally immediately
-            userProfileStore.saveProfile(profile)
+            // Clear guest session and do NOT log in yet
+            setGuestSessionActive(false)
+            userProfileStore.setLoggedIn(false)
 
-            // Save profile to Firestore (with 3-second bounded timeout for network responsiveness)
+            // Save brand-new clean profile locally and to Firestore
+            userProfileStore.saveProfile(profile)
             saveUserProfileToFirestore(profile)
+
             val tProfileEnd = System.currentTimeMillis()
             val profileMs = tProfileEnd - tProfileStart
             Log.d("AUTH_PERF", "[TIMING] Step 3 - Profile creation & Firestore sync completed in $profileMs ms")
 
+            // Sign out Firebase user so user is not automatically logged in
+            try {
+                auth.signOut()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Error signing out after sign up", e)
+            }
+
             val totalMs = System.currentTimeMillis() - tStart
-            Log.d("AUTH_PERF", "[TIMING] SUMMARY - Total Sign-Up Completion: $totalMs ms | Breakdown -> Network/Auth: ${authMs}ms | Profile/Firestore: ${profileMs}ms")
+            Log.d("AUTH_PERF", "[TIMING] SUMMARY - Total Sign-Up Completion: $totalMs ms")
 
             Result.success(profile)
         } catch (e: Exception) {
@@ -383,7 +396,6 @@ class AuthRepository(
         try {
             val firestore = getFirestore() ?: return
             val doc = firestore.collection("users").document(user.uid).get().await()
-            val local = quizResultRepository.getLocalProgress()
 
             if (!doc.exists()) {
                 val displayName = user.displayName
@@ -393,54 +405,27 @@ class AuthRepository(
                     uid = user.uid,
                     name = displayName,
                     email = user.email ?: "",
-                    xp = local.totalXp,
-                    level = maxOf(1, local.level),
-                    coins = local.coins,
-                    streak = local.streak,
-                    lastActiveDate = local.lastActiveDate,
-                    lastQuizCategory = local.lastCategoryName,
-                    lastQuizScore = local.lastScoreOutOfTen,
-                    lastQuizXpEarned = local.lastXpEarned,
-                    lastQuizDate = local.lastQuizDate
+                    avatarId = "brain",
+                    xp = 0,
+                    level = 1,
+                    coins = 0,
+                    streak = 0,
+                    rank = "Beginner",
+                    unlockedAchievements = emptyList(),
+                    claimedRewards = emptyList(),
+                    unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                    quizHistory = emptyList(),
+                    totalQuizzesPlayed = 0,
+                    totalQuestionsAnswered = 0,
+                    totalCorrectAnswers = 0,
+                    bestScore = 0,
+                    longestStreak = 0
                 )
                 saveUserProfileToFirestore(profile)
             } else {
                 val existing = doc.toObject(UserProfile::class.java)
                 if (existing != null) {
-                    val mergedXp = maxOf(existing.xp, local.totalXp)
-                    Log.d("XP_TRACE", "[AuthRepository] ensureUserProfileExists: localXp=${local.totalXp}, existingRemoteXp=${existing.xp}, mergedXp=$mergedXp")
-                    val mergedCoins = local.coins
-                    val mergedStreak = maxOf(existing.streak, local.streak)
-                    val mergedActiveDate = if (local.lastActiveDate.isNotBlank()) local.lastActiveDate else existing.lastActiveDate
-                    val mergedCategory = existing.lastQuizCategory.ifBlank { local.lastCategoryName }
-                    val mergedScore = if (existing.lastQuizScore > 0) existing.lastQuizScore else local.lastScoreOutOfTen
-                    val mergedXpEarned = if (existing.lastQuizXpEarned > 0) existing.lastQuizXpEarned else local.lastXpEarned
-                    val mergedDate = existing.lastQuizDate.ifBlank { local.lastQuizDate }
-
-                    val updated = existing.copy(
-                        xp = mergedXp,
-                        level = maxOf(1, (mergedXp / 500) + 1),
-                        coins = mergedCoins,
-                        streak = mergedStreak,
-                        lastActiveDate = mergedActiveDate,
-                        lastQuizCategory = mergedCategory,
-                        lastQuizScore = mergedScore,
-                        lastQuizXpEarned = mergedXpEarned,
-                        lastQuizDate = mergedDate
-                    )
-                    saveUserProfileToFirestore(updated)
-                    // Also sync local SharedPreferences
-                    quizResultRepository.saveLocalProgress(
-                        totalXp = mergedXp,
-                        level = updated.level,
-                        coins = mergedCoins,
-                        streak = mergedStreak,
-                        lastActiveDate = mergedActiveDate,
-                        lastCategoryName = mergedCategory,
-                        lastScoreOutOfTen = mergedScore,
-                        lastXpEarned = mergedXpEarned,
-                        lastQuizDate = mergedDate
-                    )
+                    saveUserProfileToFirestore(existing)
                 }
             }
         } catch (e: Exception) {
