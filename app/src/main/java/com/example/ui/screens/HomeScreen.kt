@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -143,6 +144,9 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    // Point 9: Immediately before HomeScreen receives / renders uiState
+    Log.d("RUNTIME_TRACE", "[Point 9: HomeScreen received uiState] playerName=${uiState.playerName}, xp=${uiState.xp}, coins=${uiState.coins}, streakDays=${uiState.streakDays}, level=${uiState.level}")
+
     var showNotificationPermissionRationale by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -154,6 +158,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
+        viewModel.loadUserProfile()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val hasPerm = NotificationHelper.hasNotificationPermission(context)
             val isPromptShown = NotificationHelper.isNotificationPromptShown(context)

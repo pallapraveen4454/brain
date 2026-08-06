@@ -322,6 +322,9 @@ class QuizViewModel(
             )
         }
 
+        // Point 1: Before saveQuizResultData is called
+        Log.d("RUNTIME_TRACE", "[Point 1: Before saveQuizResultData] scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained")
+
         // Save quiz result data storage system
         saveQuizResultData(
             categoryName = state.categoryTitle,
@@ -341,6 +344,9 @@ class QuizViewModel(
         dateFormatted: String,
         timestamp: Long
     ) {
+        // Point 2: At the first line of saveQuizResultData
+        Log.d("RUNTIME_TRACE", "[Point 2: First line of saveQuizResultData] categoryName=$categoryName, scoreOutOfTen=$scoreOutOfTen, xpEarned=$xpEarned, coinsGained=$coinsGained")
+
         viewModelScope.launch {
             try {
                 val user = authRepository.currentUser
@@ -353,6 +359,9 @@ class QuizViewModel(
                 } else {
                     authRepository.getPersistentGuestProfile()
                 }
+
+                // Point 3: Immediately after getPersistentGuestProfile / loading profile
+                Log.d("RUNTIME_TRACE", "[Point 3: After loading profile] uid=${currentProfile.uid}, xp=${currentProfile.xp}, coins=${currentProfile.coins}, streak=${currentProfile.streak}, lastActiveDate=${currentProfile.lastActiveDate}, level=${currentProfile.level}, isGuest=$isGuest")
 
                 // 1. Calculate XP and Coins
                 val startXp = maxOf(currentProfile.xp, _uiState.value.totalXp)
@@ -388,6 +397,9 @@ class QuizViewModel(
                 )
 
                 val finalCoins = newCoins + achResult.extraCoinsEarned
+
+                // Point 4: After calculating new XP, Coins and Streak
+                Log.d("RUNTIME_TRACE", "[Point 4: After calculating new XP, Coins, Streak] uid=$userId, xp=$newTotalXp, coins=$finalCoins, streak=$updatedStreak, lastActiveDate=$newActiveDate, level=$newLevel, isGuest=$isGuest")
 
                 // 5. Save quiz result to history
                 val quizResult = quizResultRepository.saveQuizResult(
@@ -436,7 +448,7 @@ class QuizViewModel(
                     lastQuizScore = scoreOutOfTen,
                     lastQuizXpEarned = xpEarned,
                     lastQuizDate = dateFormatted,
-                    totalQuizzesPlayed = newQuizzesPlayed,
+ totalQuizzesPlayed = newQuizzesPlayed,
                     totalQuestionsAnswered = newQuestionsAnswered,
                     totalCorrectAnswers = newCorrectAnswers,
                     bestScore = newBestScore,
@@ -444,6 +456,9 @@ class QuizViewModel(
                     unlockedAchievements = newUnlockedAchievements,
                     claimedRewards = newClaimedRewards
                 )
+
+                // Point 5: Immediately before saveProfile / saveUserProfileToFirestore
+                Log.d("RUNTIME_TRACE", "[Point 5: Immediately before saveProfile] uid=${updatedProfile.uid}, xp=${updatedProfile.xp}, coins=${updatedProfile.coins}, streak=${updatedProfile.streak}, lastActiveDate=${updatedProfile.lastActiveDate}, level=${updatedProfile.level}, targetKey=${if (updatedProfile.uid.startsWith("guest_")) "guest_user_profile_json" else "auth_user_profile_json"}, isGuest=$isGuest")
 
                 authRepository.saveUserProfileToFirestore(updatedProfile)
             } catch (e: Exception) {

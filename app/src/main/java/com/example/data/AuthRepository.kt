@@ -393,6 +393,9 @@ class AuthRepository(
     }
 
     private suspend fun ensureUserProfileExists(user: FirebaseUser) {
+        val currentAuthUserUid = currentUser?.uid
+        val isGuestActive = isGuestSessionActive()
+        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] ENTER ensureUserProfileExists: uid=${user.uid}, isGuestSessionActive=$isGuestActive, currentFirebaseUserUid=$currentAuthUserUid")
         try {
             val firestore = getFirestore() ?: return
             val doc = firestore.collection("users").document(user.uid).get().await()
@@ -421,15 +424,19 @@ class AuthRepository(
                     bestScore = 0,
                     longestStreak = 0
                 )
+                Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc does not exist. Saving default profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, fullProfile=$profile")
+                Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(profile)...")
                 saveUserProfileToFirestore(profile)
             } else {
                 val existing = doc.toObject(UserProfile::class.java)
                 if (existing != null) {
+                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Existing profile: uid=${existing.uid}, xp=${existing.xp}, coins=${existing.coins}, streak=${existing.streak}, fullProfile=$existing")
+                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(existing)...")
                     saveUserProfileToFirestore(existing)
                 }
             }
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Error ensuring user profile exists", e)
+            Log.e("RUNTIME_TRACE", "[ENSURE_PROFILE] Exception in ensureUserProfileExists", e)
         }
     }
 

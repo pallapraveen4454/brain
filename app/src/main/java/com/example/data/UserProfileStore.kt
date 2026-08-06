@@ -220,6 +220,9 @@ class UserProfileStore(
             val isGuestTarget = profile.uid.startsWith("guest_") || (isGuestActive() && profile.uid.isBlank())
             val targetKey = if (isGuestTarget) keyGuestProfileJson else keyAuthProfileJson
 
+            // Point 6: At the beginning of UserProfileStore.saveProfile
+            Log.d("RUNTIME_TRACE", "[Point 6: Beginning of UserProfileStore.saveProfile] profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestTarget=$isGuestTarget, targetKey=$targetKey, isGuestActive=${isGuestActive()}")
+
             val current = try {
                 val jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
                 if (jsonStr.isNotBlank()) profileFromJson(JSONObject(jsonStr)) else null
@@ -319,6 +322,10 @@ class UserProfileStore(
 
             val jsonObj = profileToJson(updated)
             getPrefs()?.edit()?.putString(targetKey, jsonObj.toString())?.apply()
+
+            val jsonAfterSaving = getPrefs()?.getString(targetKey, "") ?: ""
+            // Point 7: Immediately after SharedPreferences.apply
+            Log.d("RUNTIME_TRACE", "[Point 7: Immediately after SharedPreferences.apply] targetKey=$targetKey, savedProfile: uid=${updated.uid}, xp=${updated.xp}, coins=${updated.coins}, streak=${updated.streak}, lastActiveDate=${updated.lastActiveDate}, level=${updated.level}, jsonAfterSaving=$jsonAfterSaving")
 
             if (isGuestTarget == isGuestActive()) {
                 syncLegacyPrefs(updated)

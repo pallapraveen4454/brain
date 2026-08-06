@@ -141,6 +141,12 @@ class HomeViewModel(
         try {
             // 1. Load persistent user profile
             val profile = authRepository.getPersistentGuestProfile()
+
+            // Point 8: Inside HomeViewModel.loadUserProfile
+            val isGuest = authRepository.isGuestSessionActive()
+            val targetKey = if (isGuest) "guest_user_profile_json" else "auth_user_profile_json"
+            Log.d("RUNTIME_TRACE", "[Point 8: Inside HomeViewModel.loadUserProfile] profile loaded: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestActive=$isGuest, targetKey=$targetKey")
+
             val stats = quizResultRepository.getUserStats()
 
             val (calculatedStreak, localActiveDate) = StreakUtils.calculateStreak(
