@@ -9,6 +9,7 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.CustomCredential
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AuthRepository
@@ -424,8 +425,12 @@ class AuthViewModel(
                     .setAutoSelectEnabled(false)
                     .build()
 
+                val signInWithGoogleOption = GetSignInWithGoogleOption.Builder(serverClientId = resolvedWebClientId)
+                    .build()
+
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
+                    .addCredentialOption(signInWithGoogleOption)
                     .build()
 
                 Log.d("AUTH_AUDIT", "[EXECUTE] Requesting Google Credential via CredentialManager with ClientId=$resolvedWebClientId")
@@ -491,6 +496,14 @@ class AuthViewModel(
                     it.copy(
                         isLoading = false,
                         errorMessage = null
+                    )
+                }
+            } catch (e: NoCredentialException) {
+                Log.e("AUTH_AUDIT", "[NO_CREDENTIAL] No Google account found or SHA-1/Firebase mismatch", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "No Google account found on device or SHA-1 fingerprint mismatch in Firebase Console. Please add a Google account in Settings."
                     )
                 }
             } catch (e: GetCredentialException) {
