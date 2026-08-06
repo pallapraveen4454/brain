@@ -3,6 +3,7 @@ package com.example.viewmodel
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -388,9 +389,56 @@ class AuthViewModel(
         return null
     }
 
+    fun setAuthError(message: String?) {
+        _uiState.update { it.copy(isLoading = false, errorMessage = message) }
+    }
+
+    fun signInWithGoogleIdToken(
+        idToken: String,
+        onSuccess: () -> Unit
+    ) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            Log.d("AUTH_AUDIT", "[FIREBASE_EXCHANGE] Exchanging Google ID Token with Firebase Auth...")
+            val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
+            firebaseResult.fold(
+                onSuccess = { user ->
+                    Log.d("AUTH_AUDIT", "[SUCCESS] Firebase Google Auth succeeded. UID=${user.uid}, Email=${user.email}")
+                    val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
+                        uid = user.uid,
+                        name = user.displayName ?: "Google User",
+                        email = user.email ?: ""
+                    )
+                    authRepository.setGuestSessionActive(false)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            currentUserProfile = profile,
+                            errorMessage = null
+                        )
+                    }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val exClass = error.javaClass.simpleName
+                    val exMsg = error.message ?: "Firebase authentication failed"
+                    Log.e("AUTH_AUDIT", "[FIREBASE_FAILURE] Firebase Auth rejected credential: [$exClass] $exMsg", error)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Firebase Auth Error [$exClass]: $exMsg"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     fun signInWithGoogle(
         context: Context,
         webClientId: String = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com",
+        onFallbackToGoogleSignInClient: ((Intent) -> Unit)? = null,
         onSuccess: () -> Unit
     ) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
@@ -417,6 +465,28 @@ class AuthViewModel(
                 return@launch
             }
 
+            fun launchFallback() {
+                if (onFallbackToGoogleSignInClient != null) {
+                    Log.d("AUTH_AUDIT", "[FALLBACK] Triggering GoogleSignInClient Intent fallback...")
+                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(resolvedWebClientId)
+                        .requestEmail()
+                        .build()
+                    val googleSignInClient = GoogleSignIn.getClient(activityContext, gso)
+                    googleSignInClient.signOut().addOnCompleteListener {
+                        val signInIntent = googleSignInClient.signInIntent
+                        onFallbackToGoogleSignInClient.invoke(signInIntent)
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Google Sign-In requires account selection on device."
+                        )
+                    }
+                }
+            }
+
             try {
                 val credentialManager = CredentialManager.create(activityContext)
                 val googleIdOption = GetGoogleIdOption.Builder()
@@ -425,12 +495,8 @@ class AuthViewModel(
                     .setAutoSelectEnabled(false)
                     .build()
 
-                val signInWithGoogleOption = GetSignInWithGoogleOption.Builder(serverClientId = resolvedWebClientId)
-                    .build()
-
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
-                    .addCredentialOption(signInWithGoogleOption)
                     .build()
 
                 Log.d("AUTH_AUDIT", "[EXECUTE] Requesting Google Credential via CredentialManager with ClientId=$resolvedWebClientId")
@@ -457,39 +523,7 @@ class AuthViewModel(
                     }
                 }
 
-                Log.d("AUTH_AUDIT", "[FIREBASE_EXCHANGE] Exchanging Google ID Token with Firebase Auth...")
-                val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
-                firebaseResult.fold(
-                    onSuccess = { user ->
-                        Log.d("AUTH_AUDIT", "[SUCCESS] Firebase Google Auth succeeded. UID=${user.uid}, Email=${user.email}")
-                        val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                            uid = user.uid,
-                            name = user.displayName ?: "Google User",
-                            email = user.email ?: ""
-                        )
-                        authRepository.setGuestSessionActive(false)
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                isLoggedIn = true,
-                                currentUserProfile = profile,
-                                errorMessage = null
-                            )
-                        }
-                        onSuccess()
-                    },
-                    onFailure = { error ->
-                        val exClass = error.javaClass.simpleName
-                        val exMsg = error.message ?: "Firebase authentication failed"
-                        Log.e("AUTH_AUDIT", "[FIREBASE_FAILURE] Firebase Auth rejected credential: [$exClass] $exMsg", error)
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = "Firebase Auth Error [$exClass]: $exMsg"
-                            )
-                        }
-                    }
-                )
+                signInWithGoogleIdToken(idToken, onSuccess)
             } catch (e: GetCredentialCancellationException) {
                 Log.d("AUTH_AUDIT", "[CANCEL] Google Sign-In cancelled by user.")
                 _uiState.update {
@@ -499,33 +533,18 @@ class AuthViewModel(
                     )
                 }
             } catch (e: NoCredentialException) {
-                Log.e("AUTH_AUDIT", "[NO_CREDENTIAL] No Google account found or SHA-1/Firebase mismatch", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "No Google account found on device or SHA-1 fingerprint mismatch in Firebase Console. Please add a Google account in Settings."
-                    )
-                }
+                Log.e("AUTH_AUDIT", "[NO_CREDENTIAL] CredentialManager NoCredentialException. Using GoogleSignInClient fallback...", e)
+                launchFallback()
             } catch (e: GetCredentialException) {
                 val exClass = e.javaClass.simpleName
                 val exMsg = e.message ?: "Credential exception"
-                Log.e("AUTH_AUDIT", "[CREDENTIAL_ERROR] GetCredentialException [$exClass]: $exMsg", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Google Sign-In failed [$exClass]: $exMsg"
-                    )
-                }
+                Log.e("AUTH_AUDIT", "[CREDENTIAL_ERROR] GetCredentialException [$exClass]: $exMsg. Using fallback...", e)
+                launchFallback()
             } catch (e: Exception) {
                 val exClass = e.javaClass.simpleName
                 val exMsg = e.message ?: "Unknown error"
-                Log.e("AUTH_AUDIT", "[UNKNOWN_ERROR] Google Sign-In failed [$exClass]: $exMsg", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Google Sign-In failed [$exClass]: $exMsg"
-                    )
-                }
+                Log.e("AUTH_AUDIT", "[UNKNOWN_ERROR] Google Sign-In failed [$exClass]: $exMsg. Trying fallback...", e)
+                launchFallback()
             }
         }
     }

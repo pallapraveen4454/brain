@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -172,6 +178,35 @@ fun LoginScreen(
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val idToken = account?.idToken
+                if (!idToken.isNullOrEmpty()) {
+                    viewModel.signInWithGoogleIdToken(
+                        idToken = idToken,
+                        onSuccess = {
+                            VibrationUtils.vibrateCorrect(context)
+                            SoundEffects.playCorrectSound(context)
+                            onNavigateToHome()
+                        }
+                    )
+                } else {
+                    viewModel.setAuthError("Google Sign-In failed: Could not retrieve ID token.")
+                }
+            } catch (e: ApiException) {
+                Log.e("AUTH_AUDIT", "GoogleSignInClient failed statusCode=${e.statusCode}", e)
+                viewModel.setAuthError("Google Sign-In failed (Status ${e.statusCode}): ${e.message}")
+            }
+        } else {
+            viewModel.setAuthError(null)
+        }
+    }
 
     // Trigger error sound and vibration when errorMessage or shakeTrigger updates
     LaunchedEffect(uiState.shakeTrigger) {
@@ -856,6 +891,9 @@ fun LoginScreen(
                             VibrationUtils.vibrateClick(context)
                             viewModel.signInWithGoogle(
                                 context = context,
+                                onFallbackToGoogleSignInClient = { intent ->
+                                    googleSignInLauncher.launch(intent)
+                                },
                                 onSuccess = {
                                     VibrationUtils.vibrateCorrect(context)
                                     SoundEffects.playCorrectSound(context)
