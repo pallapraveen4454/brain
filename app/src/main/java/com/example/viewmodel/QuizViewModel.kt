@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.example.data.AchievementRepository
 import com.example.data.model.Achievement
+import com.example.utils.StreakUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -343,25 +344,34 @@ class QuizViewModel(
         viewModelScope.launch {
             try {
                 val user = authRepository.currentUser
+                val isGuest = (user == null) || authRepository.isGuestSessionActive()
                 val existingLocalProfile = authRepository.getPersistentGuestProfile()
-                val userId = user?.uid ?: existingLocalProfile.uid
+                val userId = if (isGuest) existingLocalProfile.uid else (user?.uid ?: existingLocalProfile.uid)
 
-                val currentProfile = if (user != null) {
+                val currentProfile = if (!isGuest && user != null) {
                     authRepository.fetchUserProfile(user.uid) ?: existingLocalProfile
-                } else existingLocalProfile
+                } else {
+                    authRepository.getPersistentGuestProfile()
+                }
 
-                val startXp = _uiState.value.totalXp.takeIf { it > 0 } ?: existingLocalProfile.xp
+                // 1. Calculate XP and Coins
+                val startXp = maxOf(currentProfile.xp, _uiState.value.totalXp)
                 val newTotalXp = startXp + xpEarned
                 Log.d("XP_TRACE", "[QuizViewModel] saveQuizResultData: startXp=$startXp, xpEarned=$xpEarned, newTotalXp=$newTotalXp")
 
-                val startCoins = existingLocalProfile.coins
+                val startCoins = currentProfile.coins
                 val newCoins = startCoins + coinsGained
-                val newLevel = (newTotalXp / 500) + 1
+                val newLevel = maxOf(1, (newTotalXp / 500) + 1)
 
-                val currentStreak = maxOf(currentProfile.streak, existingLocalProfile.streak)
-                val activeDate = if (existingLocalProfile.lastActiveDate.isNotBlank()) existingLocalProfile.lastActiveDate else currentProfile.lastActiveDate
+                // 2. Calculate Streak and Active Date using StreakUtils
+                val (calculatedStreak, newActiveDate) = StreakUtils.calculateStreak(
+                    currentProfile.lastActiveDate,
+                    currentProfile.streak
+                )
+                val updatedStreak = maxOf(currentProfile.streak, calculatedStreak)
+                val updatedLongestStreak = maxOf(currentProfile.longestStreak, updatedStreak)
 
-                // Record stats for achievement tracking
+                // 3. Record stats for achievement tracking
                 val questionsCount = _uiState.value.questions.size.ifZero(10)
                 val isAiCustom = _uiState.value.categoryId == "ai_custom"
                 achievementRepository.recordQuizCompletion(
@@ -370,16 +380,16 @@ class QuizViewModel(
                     isAiCustom = isAiCustom
                 )
 
-                // Check and unlock achievements
+                // 4. Check and unlock achievements
                 val achResult = achievementRepository.checkAndUnlockAchievements(
                     totalXp = newTotalXp,
                     totalCoins = newCoins,
-                    currentStreak = currentStreak
+                    currentStreak = updatedStreak
                 )
 
                 val finalCoins = newCoins + achResult.extraCoinsEarned
 
-                // Save quiz result to history with strictly scoreOutOfTen * 10 coinsEarned
+                // 5. Save quiz result to history
                 val quizResult = quizResultRepository.saveQuizResult(
                     userId = userId,
                     categoryName = categoryName,
@@ -388,10 +398,21 @@ class QuizViewModel(
                     totalXp = newTotalXp,
                     coins = finalCoins,
                     coinsEarned = coinsGained,
-                    streak = currentStreak,
-                    lastActiveDate = activeDate,
+                    streak = updatedStreak,
+                    lastActiveDate = newActiveDate,
                     timestamp = timestamp
                 )
+
+                // 6. Calculate updated stats and history for profile
+                val newQuizzesPlayed = maxOf(currentProfile.totalQuizzesPlayed + 1, currentProfile.quizHistory.size + 1)
+                val newQuestionsAnswered = maxOf(currentProfile.totalQuestionsAnswered + questionsCount, newQuizzesPlayed * 10)
+                val newCorrectAnswers = currentProfile.totalCorrectAnswers + scoreOutOfTen
+                val newBestScore = maxOf(currentProfile.bestScore, scoreOutOfTen)
+                val newHistory = (listOf(quizResult) + currentProfile.quizHistory)
+                    .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
+                    .sortedByDescending { it.timestamp }
+                val newUnlockedAchievements = (currentProfile.unlockedAchievements + achResult.newlyUnlocked.map { it.id }).distinct()
+                val newClaimedRewards = (currentProfile.claimedRewards + achResult.newlyUnlocked.map { it.id }).distinct()
 
                 _uiState.update {
                     it.copy(
@@ -402,19 +423,28 @@ class QuizViewModel(
                     )
                 }
 
-                // Save updated user profile
+                // 7. Save updated user profile
                 val updatedProfile = currentProfile.copy(
                     uid = userId,
                     xp = newTotalXp,
                     coins = finalCoins,
                     level = newLevel,
-                    streak = currentStreak,
-                    lastActiveDate = activeDate,
+                    streak = updatedStreak,
+                    longestStreak = updatedLongestStreak,
+                    lastActiveDate = newActiveDate,
                     lastQuizCategory = categoryName,
                     lastQuizScore = scoreOutOfTen,
                     lastQuizXpEarned = xpEarned,
-                    lastQuizDate = dateFormatted
+                    lastQuizDate = dateFormatted,
+                    totalQuizzesPlayed = newQuizzesPlayed,
+                    totalQuestionsAnswered = newQuestionsAnswered,
+                    totalCorrectAnswers = newCorrectAnswers,
+                    bestScore = newBestScore,
+                    quizHistory = newHistory,
+                    unlockedAchievements = newUnlockedAchievements,
+                    claimedRewards = newClaimedRewards
                 )
+
                 authRepository.saveUserProfileToFirestore(updatedProfile)
             } catch (e: Exception) {
                 Log.e("QuizViewModel", "Error saving quiz result data", e)
