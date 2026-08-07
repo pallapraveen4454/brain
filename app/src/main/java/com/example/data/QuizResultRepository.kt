@@ -8,7 +8,11 @@ import com.example.utils.RankUtils
 import com.example.utils.StreakUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -200,13 +204,19 @@ class QuizResultRepository(
         try {
             val firestore = getFirestore()
             if (firestore != null && userId.isNotBlank() && !userId.startsWith("guest_")) {
-                firestore.collection("users")
-                    .document(userId)
-                    .collection("quiz_results")
-                    .document(resultId)
-                    .set(quizResult)
-                    .await()
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(3000L) {
+                        firestore.collection("users")
+                            .document(userId)
+                            .collection("quiz_results")
+                            .document(resultId)
+                            .set(quizResult)
+                            .await()
+                    }
+                }
             }
+        } catch (e: CancellationException) {
+            Log.d("QuizResultRepository", "saveQuizResult to Firestore cancelled")
         } catch (e: Exception) {
             Log.e("QuizResultRepository", "Error saving quiz result to Firestore", e)
         }
@@ -252,6 +262,8 @@ class QuizResultRepository(
                     return merged
                 }
             }
+        } catch (e: CancellationException) {
+            Log.d("QuizResultRepository", "getRecentQuizResults cancelled")
         } catch (e: Exception) {
             Log.e("QuizResultRepository", "Error fetching quiz results from Firestore", e)
         }

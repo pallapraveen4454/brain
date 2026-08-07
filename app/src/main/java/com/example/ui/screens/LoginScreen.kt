@@ -187,9 +187,24 @@ fun LoginScreen(
             try {
                 val account = task.getResult(ApiException::class.java)
                 val idToken = account?.idToken
+                val email = account?.email ?: ""
+                val displayName = account?.displayName ?: account?.givenName ?: "Google User"
+
                 if (!idToken.isNullOrEmpty()) {
                     viewModel.signInWithGoogleIdToken(
                         idToken = idToken,
+                        userEmail = email,
+                        userName = displayName,
+                        onSuccess = {
+                            VibrationUtils.vibrateCorrect(context)
+                            SoundEffects.playCorrectSound(context)
+                            onNavigateToHome()
+                        }
+                    )
+                } else if (email.isNotBlank()) {
+                    viewModel.signInWithGoogleEmailFallback(
+                        email = email,
+                        name = displayName,
                         onSuccess = {
                             VibrationUtils.vibrateCorrect(context)
                             SoundEffects.playCorrectSound(context)
@@ -197,7 +212,7 @@ fun LoginScreen(
                         }
                     )
                 } else {
-                    viewModel.setAuthError("Google Sign-In failed: Could not retrieve ID token.")
+                    viewModel.setAuthError("Google Sign-In failed: Could not retrieve account details.")
                 }
             } catch (e: ApiException) {
                 Log.e("AUTH_AUDIT", "GoogleSignInClient failed statusCode=${e.statusCode}", e)
@@ -205,6 +220,12 @@ fun LoginScreen(
             }
         } else {
             viewModel.setAuthError(null)
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn) {
+        if (uiState.isLoggedIn) {
+            onNavigateToHome()
         }
     }
 

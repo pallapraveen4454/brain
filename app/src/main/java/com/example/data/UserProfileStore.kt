@@ -64,7 +64,7 @@ class UserProfileStore(
     fun isGuestActive(): Boolean {
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         val prefs = ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-        return prefs?.getBoolean("is_guest_active", true) ?: true
+        return prefs?.getBoolean("is_guest_active", false) ?: false
     }
 
     fun setGuestActive(active: Boolean) {
@@ -267,7 +267,7 @@ class UserProfileStore(
 
             val mergedXp = if (isSameUser) maxOf(profile.xp, current?.xp ?: 0) else profile.xp
             val mergedCoins = profile.coins
-            val mergedStreak = if (isSameUser) maxOf(profile.streak, current?.streak ?: 0) else profile.streak
+            val mergedStreak = profile.streak
             val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)
             val mergedLevel = maxOf(1, (mergedXp / 500) + 1)
             val mergedRank = RankUtils.getRankForXp(mergedXp)

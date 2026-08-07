@@ -9,7 +9,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 data class UserProfile(
@@ -91,11 +95,13 @@ class AuthRepository(
 
     fun setGuestSessionActive(active: Boolean) {
         userProfileStore.setGuestActive(active)
-        userProfileStore.setLoggedIn(active)
+        if (active) {
+            userProfileStore.setLoggedIn(true)
+        }
     }
 
     fun hasSavedUserSession(): Boolean {
-        return (currentUser != null) || (userProfileStore.isLoggedIn() && userProfileStore.isGuestActive())
+        return (currentUser != null) || userProfileStore.isLoggedIn()
     }
 
     fun isUserLoggedIn(): Boolean {
@@ -125,10 +131,17 @@ class AuthRepository(
         return try {
             val firestore = getFirestore() ?: return true
             if (uid.isNotBlank() && !uid.startsWith("guest_")) {
-                firestore.collection("users").document(uid)
-                    .update("name", newName)
-                    .await()
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(3000L) {
+                        firestore.collection("users").document(uid)
+                            .update("name", newName)
+                            .await()
+                    }
+                }
             }
+            true
+        } catch (e: CancellationException) {
+            Log.d("AuthRepository", "updateProfileName cancelled")
             true
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error updating profile name in Firestore", e)
@@ -141,10 +154,17 @@ class AuthRepository(
         return try {
             val firestore = getFirestore() ?: return true
             if (uid.isNotBlank() && !uid.startsWith("guest_")) {
-                firestore.collection("users").document(uid)
-                    .update("avatarId", newAvatarId)
-                    .await()
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(3000L) {
+                        firestore.collection("users").document(uid)
+                            .update("avatarId", newAvatarId)
+                            .await()
+                    }
+                }
             }
+            true
+        } catch (e: CancellationException) {
+            Log.d("AuthRepository", "updateProfileAvatar cancelled")
             true
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error updating avatar in Firestore", e)
@@ -379,12 +399,17 @@ class AuthRepository(
         return try {
             val firestore = getFirestore() ?: return true
             if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") && !isGuestSessionActive()) {
-                kotlinx.coroutines.withTimeoutOrNull(3000L) {
-                    firestore.collection("users").document(profile.uid)
-                        .set(profile)
-                        .await()
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(3000L) {
+                        firestore.collection("users").document(profile.uid)
+                            .set(profile)
+                            .await()
+                    }
                 }
             }
+            true
+        } catch (e: CancellationException) {
+            Log.d("AuthRepository", "saveUserProfileToFirestore cancelled")
             true
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error saving user profile to Firestore", e)

@@ -377,7 +377,7 @@ class QuizViewModel(
                     currentProfile.lastActiveDate,
                     currentProfile.streak
                 )
-                val updatedStreak = maxOf(currentProfile.streak, calculatedStreak)
+                val updatedStreak = calculatedStreak
                 val updatedLongestStreak = maxOf(currentProfile.longestStreak, updatedStreak)
 
                 // 3. Record stats for achievement tracking

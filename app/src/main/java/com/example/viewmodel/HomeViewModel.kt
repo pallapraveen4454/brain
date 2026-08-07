@@ -149,11 +149,15 @@ class HomeViewModel(
 
             val stats = quizResultRepository.getUserStats()
 
-            val (calculatedStreak, localActiveDate) = StreakUtils.calculateStreak(
-                profile.lastActiveDate,
-                profile.streak
-            )
-            val localStreak = maxOf(profile.streak, calculatedStreak)
+            val (calculatedStreak, localActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
+                StreakUtils.calculateStreak(
+                    profile.lastActiveDate,
+                    profile.streak
+                )
+            } else {
+                Pair(profile.streak, profile.lastActiveDate)
+            }
+            val localStreak = calculatedStreak
             val computedRank = RankUtils.getRankForXp(profile.xp)
 
             // Check and unlock achievements
