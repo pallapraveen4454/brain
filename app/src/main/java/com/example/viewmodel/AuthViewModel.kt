@@ -63,15 +63,18 @@ class AuthViewModel(
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+    private var autoLoginJob: kotlinx.coroutines.Job? = null
+
     init {
         checkAutoLogin()
     }
 
     private fun checkAutoLogin() {
         try {
+            autoLoginJob?.cancel()
             if (authRepository.hasSavedUserSession()) {
                 _uiState.update { it.copy(isLoading = true) }
-                viewModelScope.launch {
+                autoLoginJob = viewModelScope.launch {
                     try {
                         val savedProfile = authRepository.getPersistentGuestProfile()
                         val user = authRepository.currentUser
@@ -91,12 +94,21 @@ class AuthViewModel(
                             savedProfile
                         }
 
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                isLoggedIn = true,
-                                currentUserProfile = profileToUse
-                            )
+                        if (authRepository.hasSavedUserSession()) {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    isLoggedIn = true,
+                                    currentUserProfile = profileToUse
+                                )
+                            }
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    isLoggedIn = false
+                                )
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e("AuthViewModel", "Error in checkAutoLogin inner launch", e)
@@ -291,19 +303,17 @@ class AuthViewModel(
                         result.fold(
                             onSuccess = { profile ->
                                 val totalMs = System.currentTimeMillis() - startTime
-                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Switching to Login screen with success message.")
+                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Logging in user automatically.")
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
-                                        isLoggedIn = false,
-                                        isSignUpMode = false,
-                                        successMessage = "✅ Account created successfully.",
-                                        errorMessage = null,
-                                        passwordInput = "",
-                                        confirmPasswordInput = ""
+                                        isLoggedIn = true,
+                                        currentUserProfile = profile,
+                                        successMessage = null,
+                                        errorMessage = null
                                     )
                                 }
-                                // Do NOT auto-login or navigate to Home
+                                onSuccess()
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime
@@ -516,10 +526,10 @@ class AuthViewModel(
 
             fun launchFallback() {
                 if (onFallbackToGoogleSignInClient != null) {
-                    Log.d("AUTH_AUDIT", "[FALLBACK] Triggering GoogleSignInClient Intent fallback...")
+                    Log.d("AUTH_AUDIT", "[FALLBACK] Triggering GoogleSignInClient Intent fallback with email & profile...")
                     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(resolvedWebClientId)
                         .requestEmail()
+                        .requestProfile()
                         .build()
                     val googleSignInClient = GoogleSignIn.getClient(activityContext, gso)
                     googleSignInClient.signOut().addOnCompleteListener {
@@ -598,12 +608,47 @@ class AuthViewModel(
         }
     }
 
-    fun signOut(onComplete: () -> Unit) {
+    fun launchGoogleSignInWithoutIdToken(
+        context: Context,
+        onFallbackToGoogleSignInClient: (Intent) -> Unit
+    ) {
+        val activityContext = context.findActivity() ?: return
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .build()
+        val googleSignInClient = GoogleSignIn.getClient(activityContext, gso)
+        googleSignInClient.signOut().addOnCompleteListener {
+            val signInIntent = googleSignInClient.signInIntent
+            onFallbackToGoogleSignInClient.invoke(signInIntent)
+        }
+    }
+
+    fun signOut(context: Context? = null, onComplete: () -> Unit = {}) {
+        autoLoginJob?.cancel()
+        autoLoginJob = null
         authRepository.signOut()
-        _uiState.update {
-            AuthUiState()
+        _uiState.value = AuthUiState(isLoggedIn = false)
+        if (context != null) {
+            try {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+                GoogleSignIn.getClient(context, gso).signOut()
+            } catch (e: Exception) {
+                Log.w("AuthViewModel", "Error signing out Google client: ${e.message}")
+            }
         }
         onComplete()
+    }
+
+    fun isUserLoggedIn(): Boolean {
+        return authRepository.isUserLoggedIn()
+    }
+
+    fun resetAuthState() {
+        autoLoginJob?.cancel()
+        autoLoginJob = null
+        authRepository.signOut()
+        _uiState.value = AuthUiState(isLoggedIn = false)
     }
 
     private fun getFriendlyErrorMessage(throwable: Throwable): String {

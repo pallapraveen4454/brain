@@ -69,7 +69,7 @@ class UserProfileStore(
 
     fun setGuestActive(active: Boolean) {
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
-        ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()?.putBoolean("is_guest_active", active)?.apply()
+        ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()?.putBoolean("is_guest_active", active)?.commit()
     }
 
     fun isLoggedIn(): Boolean {
@@ -84,7 +84,7 @@ class UserProfileStore(
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()
             ?.putBoolean("is_logged_in", loggedIn)
-            ?.apply()
+            ?.commit()
     }
 
     fun hasSavedProfile(): Boolean {

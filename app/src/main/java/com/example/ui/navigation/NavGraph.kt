@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -30,6 +31,8 @@ fun BrainQuizNavGraph(
     authViewModel: AuthViewModel = viewModel(),
     homeViewModel: HomeViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+
     NavHost(
         navController = navController,
         startDestination = ScreenRoute.Splash.route,
@@ -108,8 +111,11 @@ fun BrainQuizNavGraph(
                     navController.navigate(ScreenRoute.AvatarShop.route)
                 },
                 onNavigateToLogin = {
-                    navController.navigate(ScreenRoute.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                    authViewModel.signOut(context) {
+                        homeViewModel.signOut()
+                        navController.navigate(ScreenRoute.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 }
             )
