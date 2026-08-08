@@ -257,10 +257,6 @@ fun LoginScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.resetAuthState()
-    }
-
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             onNavigateToHome()
