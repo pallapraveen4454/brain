@@ -17,8 +17,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.app.Activity
 import com.example.data.AchievementRepository
+import com.example.data.HintRepository
 import com.example.data.model.Achievement
+import com.example.utils.RewardedAdManager
 import com.example.utils.StreakUtils
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -45,7 +48,11 @@ data class QuizUiState(
     val savedQuizResult: QuizResult? = null,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
     val isQuizComplete: Boolean = false,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val hiddenOptionIndices: Set<Int> = emptySet(),
+    val isHintAvailableToday: Boolean = true,
+    val isShowingAdForHint: Boolean = false,
+    val hintErrorMessage: String? = null
 )
 
 class QuizViewModel(
@@ -53,7 +60,8 @@ class QuizViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
     private val geminiQuizService: GeminiQuizService = GeminiQuizService(),
     private val quizResultRepository: QuizResultRepository = QuizResultRepository(),
-    private val achievementRepository: AchievementRepository = AchievementRepository()
+    private val achievementRepository: AchievementRepository = AchievementRepository(),
+    private val hintRepository: HintRepository = HintRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuizUiState())
@@ -96,7 +104,11 @@ class QuizViewModel(
                     coinsEarned = 0,
                     totalXp = currentLocalXp,
                     isQuizComplete = false,
-                    isLoading = false
+                    isLoading = false,
+                    hiddenOptionIndices = emptySet(),
+                    isHintAvailableToday = hintRepository.isHintAvailableForCategory("ai_custom"),
+                    isShowingAdForHint = false,
+                    hintErrorMessage = null
                 )
             }
 
@@ -153,7 +165,11 @@ class QuizViewModel(
                 coinsEarned = 0,
                 totalXp = currentLocalXp,
                 isQuizComplete = false,
-                isLoading = false
+                isLoading = false,
+                hiddenOptionIndices = emptySet(),
+                isHintAvailableToday = hintRepository.isHintAvailableForCategory(categoryId),
+                isShowingAdForHint = false,
+                hintErrorMessage = null
             )
         }
 
@@ -287,13 +303,82 @@ class QuizViewModel(
                     selectedOptionIndex = null,
                     isAnswerSubmitted = false,
                     isCorrect = null,
-                    timeRemaining = 15
+                    timeRemaining = 15,
+                    hiddenOptionIndices = emptySet(),
+                    isShowingAdForHint = false,
+                    hintErrorMessage = null,
+                    isHintAvailableToday = hintRepository.isHintAvailableForCategory(it.categoryId)
                 )
             }
             startTimer()
         } else {
             completeQuiz()
         }
+    }
+
+    /**
+     * Request a daily 50/50 hint for the current category.
+     * Triggers the Rewarded Ad flow. The hint is ONLY consumed if the reward is confirmed.
+     */
+    fun requestHint(activity: Activity) {
+        val currentState = _uiState.value
+        if (currentState.isAnswerSubmitted || currentState.isQuizComplete) return
+        if (currentState.timeRemaining <= 0) return
+        if (currentState.isShowingAdForHint) return
+        if (currentState.hiddenOptionIndices.isNotEmpty()) return
+        if (!currentState.isHintAvailableToday) return
+
+        _uiState.update { it.copy(isShowingAdForHint = true, hintErrorMessage = null) }
+
+        RewardedAdManager.showRewardedAd(
+            activity = activity,
+            onRewardEarned = {
+                applyHint5050()
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isShowingAdForHint = false,
+                        hintErrorMessage = errorMsg
+                    )
+                }
+            }
+        )
+    }
+
+    private fun applyHint5050() {
+        val currentState = _uiState.value
+        val question = currentState.questions.getOrNull(currentState.currentQuestionIndex) ?: run {
+            _uiState.update { it.copy(isShowingAdForHint = false) }
+            return
+        }
+
+        val correctIndex = (0 until question.options.size).find { question.isAnswerCorrect(it) } ?: question.correctOptionIndex
+        val incorrectIndices = (0 until question.options.size).filter { it != correctIndex }
+
+        if (incorrectIndices.isEmpty()) {
+            _uiState.update { it.copy(isShowingAdForHint = false) }
+            return
+        }
+
+        val keptIncorrectIndex = incorrectIndices.random()
+        val hiddenIndices = incorrectIndices.filter { it != keptIncorrectIndex }.toSet()
+
+        // Persist hint consumption for today's calendar date for this category ONLY upon confirmed reward!
+        hintRepository.markHintUsedForCategory(currentState.categoryId)
+
+        _uiState.update {
+            it.copy(
+                hiddenOptionIndices = hiddenIndices,
+                isHintAvailableToday = false,
+                isShowingAdForHint = false,
+                hintErrorMessage = null
+            )
+        }
+    }
+
+    fun clearHintError() {
+        _uiState.update { it.copy(hintErrorMessage = null) }
     }
 
     private fun completeQuiz() {

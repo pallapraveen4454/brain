@@ -179,6 +179,50 @@ fun LoginScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val idToken = account?.idToken
+                val email = account?.email ?: ""
+                val displayName = account?.displayName ?: account?.givenName ?: "Google User"
+
+                Log.d("GOOGLE_AUTH_FLOW", "STEP 6 (Fallback) GoogleSignInAccount returned: email=$email, hasIdToken=${!idToken.isNullOrEmpty()}")
+
+                if (!idToken.isNullOrEmpty()) {
+                    Log.d("GOOGLE_AUTH_FLOW", "STEP 8 ID token extracted from GoogleSignInAccount")
+                    viewModel.signInWithGoogleIdToken(
+                        idToken = idToken,
+                        userEmail = email,
+                        userName = displayName,
+                        onSuccess = {
+                            VibrationUtils.vibrateCorrect(context)
+                            SoundEffects.playCorrectSound(context)
+                            onNavigateToHome()
+                        }
+                    )
+                } else {
+                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInAccount idToken is empty/null for email=$email")
+                    viewModel.setAuthError("Google Sign-In failed: Could not retrieve ID token from Google Play Services.")
+                }
+            } catch (e: ApiException) {
+                if (e.statusCode == 12501) {
+                    Log.d("GOOGLE_AUTH_FLOW", "User cancelled Google Account selection (statusCode=12501)")
+                    viewModel.setAuthError(null)
+                } else {
+                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInClient failed statusCode=${e.statusCode}: ${e.message}", e)
+                    viewModel.setAuthError("Google Sign-In failed (Status ${e.statusCode}): ${e.message ?: "Please try again."}")
+                }
+            }
+        } else {
+            Log.d("GOOGLE_AUTH_FLOW", "Google Sign-In activity result cancelled or no data")
+            viewModel.setAuthError(null)
+        }
+    }
+
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             onNavigateToHome()
@@ -868,6 +912,9 @@ fun LoginScreen(
                             VibrationUtils.vibrateClick(context)
                             viewModel.signInWithGoogle(
                                 context = context,
+                                onFallbackToGoogleSignInClient = { intent ->
+                                    googleSignInLauncher.launch(intent)
+                                },
                                 onSuccess = {
                                     VibrationUtils.vibrateCorrect(context)
                                     SoundEffects.playCorrectSound(context)
