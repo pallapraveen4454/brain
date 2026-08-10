@@ -183,7 +183,7 @@ fun LoginScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         Log.d("GOOGLE_AUTH_FLOW", "googleSignInLauncher activity result received: resultCode=${result.resultCode}, dataNotNull=${result.data != null}")
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+        if (result.data != null) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 val account = task.getResult(ApiException::class.java)
@@ -226,7 +226,7 @@ fun LoginScreen(
                 }
             }
         } else {
-            Log.w("GOOGLE_AUTH_FLOW", "Google Sign-In activity result not RESULT_OK: resultCode=${result.resultCode}. Remaining on login screen.")
+            Log.w("GOOGLE_AUTH_FLOW", "Google Sign-In activity result data is null. ResultCode=${result.resultCode}")
             viewModel.setAuthError(null)
         }
     }
