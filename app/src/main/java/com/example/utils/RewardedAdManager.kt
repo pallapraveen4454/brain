@@ -1,6 +1,7 @@
 package com.example.utils
 
 import android.app.Activity
+import android.content.Context
 import android.util.Log
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -22,12 +23,18 @@ object RewardedAdManager {
     @Volatile
     private var isMobileAdsInitialized = false
 
-    private fun ensureMobileAdsInitialized(activity: Activity) {
+    @Volatile
+    private var preloadedAd: RewardedAd? = null
+
+    @Volatile
+    private var isPreloading = false
+
+    fun ensureMobileAdsInitialized(context: Context) {
         if (!isMobileAdsInitialized) {
             synchronized(this) {
                 if (!isMobileAdsInitialized) {
                     try {
-                        MobileAds.initialize(activity.applicationContext) {}
+                        MobileAds.initialize(context.applicationContext) {}
                         isMobileAdsInitialized = true
                         Log.d(TAG, "MobileAds initialized successfully")
                     } catch (e: Exception) {
@@ -39,13 +46,46 @@ object RewardedAdManager {
     }
 
     /**
+     * Preloads a Rewarded Ad in the background so it can be presented immediately when requested.
+     */
+    fun preloadRewardedAd(context: Context) {
+        ensureMobileAdsInitialized(context)
+        if (preloadedAd != null || isPreloading) return
+        isPreloading = true
+
+        val adRequest = AdRequest.Builder().build()
+        Log.d(TAG, "Preloading Rewarded Ad...")
+
+        RewardedAd.load(
+            context,
+            TEST_REWARDED_AD_UNIT_ID,
+            adRequest,
+            object : RewardedAdLoadCallback() {
+                override fun onAdLoaded(rewardedAd: RewardedAd) {
+                    preloadedAd = rewardedAd
+                    isPreloading = false
+                    Log.d(TAG, "Rewarded Ad preloaded successfully")
+                }
+
+                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                    preloadedAd = null
+                    isPreloading = false
+                    Log.w(TAG, "Failed to preload Rewarded Ad: ${loadAdError.message}")
+                }
+            }
+        )
+    }
+
+    /**
      * Loads and shows a Rewarded Ad.
      * The [onRewardEarned] callback is ONLY invoked if the user successfully watches the ad and earns the reward.
-     * If the user cancels, skips, or if the ad fails to load/show, [onError] is called and no reward is granted.
+     * If the user closes the ad before reward, [onAdClosedWithoutReward] is invoked.
+     * If the ad fails to load or show, [onError] is called.
      */
     fun showRewardedAd(
         activity: Activity,
         onRewardEarned: () -> Unit,
+        onAdClosedWithoutReward: () -> Unit,
         onError: (String) -> Unit
     ) {
         if (isAdActive) {
@@ -56,47 +96,72 @@ object RewardedAdManager {
         isAdActive = true
         ensureMobileAdsInitialized(activity)
 
-        val adRequest = AdRequest.Builder().build()
+        var rewardEarned = false
 
-        Log.d(TAG, "Loading Rewarded Ad with Unit ID: $TEST_REWARDED_AD_UNIT_ID")
+        fun presentAd(rewardedAd: RewardedAd) {
+            rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    Log.d(TAG, "Rewarded Ad dismissed. rewardEarned=$rewardEarned")
+                    isAdActive = false
+                    // Preload the next ad in background
+                    preloadRewardedAd(activity)
+                    // Resume background music if enabled
+                    BackgroundMusicPlayer.resume(activity)
 
-        RewardedAd.load(
-            activity,
-            TEST_REWARDED_AD_UNIT_ID,
-            adRequest,
-            object : RewardedAdLoadCallback() {
-                override fun onAdLoaded(rewardedAd: RewardedAd) {
-                    Log.d(TAG, "Rewarded Ad loaded successfully. Presenting to user...")
-
-                    rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            Log.d(TAG, "Rewarded Ad dismissed by user")
-                            isAdActive = false
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            Log.e(TAG, "Rewarded Ad failed to show: ${adError.message} (code ${adError.code})")
-                            isAdActive = false
-                            onError("Hint unavailable right now. Please try again.")
-                        }
-
-                        override fun onAdShowedFullScreenContent() {
-                            Log.d(TAG, "Rewarded Ad is now showing full screen")
-                        }
-                    }
-
-                    rewardedAd.show(activity) { rewardItem ->
-                        Log.d(TAG, "User completed Rewarded Ad! Reward earned: amount=${rewardItem.amount}, type=${rewardItem.type}")
-                        onRewardEarned()
+                    if (!rewardEarned) {
+                        onAdClosedWithoutReward()
                     }
                 }
 
-                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                    Log.e(TAG, "Rewarded Ad failed to load: ${loadAdError.message} (code ${loadAdError.code})")
+                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                    Log.e(TAG, "Rewarded Ad failed to show: ${adError.message} (code ${adError.code})")
                     isAdActive = false
+                    preloadedAd = null
+                    preloadRewardedAd(activity)
+                    BackgroundMusicPlayer.resume(activity)
                     onError("Hint unavailable right now. Please try again.")
                 }
+
+                override fun onAdShowedFullScreenContent() {
+                    Log.d(TAG, "Rewarded Ad is now showing full screen")
+                    BackgroundMusicPlayer.pause()
+                }
             }
-        )
+
+            rewardedAd.show(activity) { rewardItem ->
+                Log.d(TAG, "User completed Rewarded Ad! Reward earned: amount=${rewardItem.amount}, type=${rewardItem.type}")
+                rewardEarned = true
+                onRewardEarned()
+            }
+        }
+
+        val existingAd = preloadedAd
+        if (existingAd != null) {
+            preloadedAd = null
+            Log.d(TAG, "Using preloaded Rewarded Ad")
+            presentAd(existingAd)
+        } else {
+            val adRequest = AdRequest.Builder().build()
+            Log.d(TAG, "No preloaded ad available. Loading Rewarded Ad directly...")
+
+            RewardedAd.load(
+                activity,
+                TEST_REWARDED_AD_UNIT_ID,
+                adRequest,
+                object : RewardedAdLoadCallback() {
+                    override fun onAdLoaded(rewardedAd: RewardedAd) {
+                        Log.d(TAG, "Rewarded Ad loaded directly. Presenting to user...")
+                        presentAd(rewardedAd)
+                    }
+
+                    override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                        Log.e(TAG, "Rewarded Ad failed to load: ${loadAdError.message} (code ${loadAdError.code})")
+                        isAdActive = false
+                        preloadRewardedAd(activity)
+                        onError("Hint unavailable right now. Please try again.")
+                    }
+                }
+            )
+        }
     }
 }

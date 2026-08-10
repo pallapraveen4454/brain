@@ -679,73 +679,6 @@ fun QuizActiveView(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 💡 Premium Hint System Button
-                    HintButton(
-                        isHintAvailableToday = uiState.isHintAvailableToday,
-                        isShowingAdForHint = uiState.isShowingAdForHint,
-                        hasApplied5050 = uiState.hiddenOptionIndices.isNotEmpty(),
-                        isAnswerSubmitted = uiState.isAnswerSubmitted,
-                        isTimeUp = uiState.timeRemaining <= 0,
-                        onClick = onRequestHint
-                    )
-
-                    if (uiState.hintErrorMessage != null) {
-                        LaunchedEffect(uiState.hintErrorMessage) {
-                            delay(3500)
-                            onClearHintError()
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFFE74C3C).copy(alpha = 0.22f))
-                                .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp))
-                                .padding(vertical = 12.dp, horizontal = 16.dp)
-                                .testTag("hint_error_banner"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(
-                                        imageVector = Icons.Default.Cancel,
-                                        contentDescription = null,
-                                        tint = Color(0xFFE74C3C),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = uiState.hintErrorMessage ?: "Hint unavailable right now. Please try again.",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        ),
-                                        color = Color(0xFFFFD1D1)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = onClearHintError,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = TextWhite,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     // Option Buttons
                     val optionLabels = listOf("A", "B", "C", "D")
                     question.options.forEachIndexed { index, optionText ->
@@ -763,6 +696,81 @@ fun QuizActiveView(
                                 isAnswerSubmitted = uiState.isAnswerSubmitted,
                                 onClick = { onSelectOption(index) }
                             )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 💡 Compact Bottom-Right Hint Control
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HintButton(
+                            isHintAvailableToday = uiState.isHintAvailableToday,
+                            isShowingAdForHint = uiState.isShowingAdForHint,
+                            hasApplied5050 = uiState.hiddenOptionIndices.isNotEmpty(),
+                            isAnswerSubmitted = uiState.isAnswerSubmitted,
+                            isTimeUp = uiState.timeRemaining <= 0,
+                            onClick = onRequestHint
+                        )
+                    }
+
+                    if (uiState.hintErrorMessage != null) {
+                        LaunchedEffect(uiState.hintErrorMessage) {
+                            delay(3500)
+                            onClearHintError()
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFFE74C3C).copy(alpha = 0.22f))
+                                .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp))
+                                .padding(vertical = 10.dp, horizontal = 14.dp)
+                                .testTag("hint_error_banner"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = Icons.Default.Cancel,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE74C3C),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = uiState.hintErrorMessage ?: "Hint unavailable right now. Please try again.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        ),
+                                        color = Color(0xFFFFD1D1)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = onClearHintError,
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = TextWhite,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1818,7 +1826,7 @@ fun HintButton(
 
     val bgBrush = when {
         isShowingAdForHint -> Brush.horizontalGradient(
-            colors = listOf(PrimaryPurple.copy(alpha = 0.4f), PrimaryPurpleLight.copy(alpha = 0.4f))
+            colors = listOf(PrimaryPurple.copy(alpha = 0.5f), PrimaryPurpleLight.copy(alpha = 0.5f))
         )
         hasApplied5050 -> Brush.horizontalGradient(
             colors = listOf(Color(0xFF2ECC71).copy(alpha = 0.22f), Color(0xFF27AE60).copy(alpha = 0.22f))
@@ -1848,14 +1856,13 @@ fun HintButton(
             }
         },
         enabled = isClickable,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color.Transparent,
         modifier = modifier
-            .fillMaxWidth()
-            .bounceClick(scaleDown = 0.95f)
+            .bounceClick(scaleDown = 0.94f)
             .shadow(
-                elevation = if (isClickable) 8.dp else 0.dp,
-                shape = RoundedCornerShape(18.dp),
+                elevation = if (isClickable) 6.dp else 0.dp,
+                shape = RoundedCornerShape(16.dp),
                 ambientColor = if (isClickable) Color(0xFFF1C40F) else Color.Transparent,
                 spotColor = if (isClickable) Color(0xFFF1C40F) else Color.Transparent
             )
@@ -1863,10 +1870,9 @@ fun HintButton(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
                 .background(bgBrush)
-                .border(1.5.dp, borderColor, RoundedCornerShape(18.dp))
-                .padding(vertical = 12.dp, horizontal = 16.dp),
+                .border(1.2.dp, borderColor, RoundedCornerShape(16.dp))
+                .padding(vertical = 8.dp, horizontal = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -1875,16 +1881,16 @@ fun HintButton(
             ) {
                 if (isShowingAdForHint) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         color = TextWhite,
                         strokeWidth = 2.dp
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Loading Rewarded Ad...",
-                        style = MaterialTheme.typography.titleMedium.copy(
+                        text = "Loading Ad...",
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 13.sp
                         ),
                         color = TextWhite
                     )
@@ -1893,14 +1899,14 @@ fun HintButton(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "50/50 Hint Applied",
                         tint = Color(0xFF2ECC71),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "💡 50/50 Applied (2 Wrong Options Removed)",
-                        style = MaterialTheme.typography.titleMedium.copy(
+                        text = "50/50 Applied",
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         ),
                         color = Color(0xFF2ECC71)
                     )
@@ -1909,14 +1915,14 @@ fun HintButton(
                         imageVector = Icons.Default.Lightbulb,
                         contentDescription = "Hint Used",
                         tint = TextMuted,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "✓ Hint Used Today (1 Hint/Category/Day)",
-                        style = MaterialTheme.typography.titleMedium.copy(
+                        text = "✓ Hint Used Today",
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         ),
                         color = TextMuted
                     )
@@ -1925,17 +1931,35 @@ fun HintButton(
                         imageVector = Icons.Default.Lightbulb,
                         contentDescription = "Hint",
                         tint = Color(0xFFF1C40F),
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "💡 50/50 Hint (Watch Ad)",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp
-                        ),
-                        color = TextWhite
-                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "💡 Hint 50/50",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            ),
+                            color = TextWhite
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFF1C40F))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "AD",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 9.sp
+                                ),
+                                color = Color.Black
+                            )
+                        }
+                    }
                 }
             }
         }

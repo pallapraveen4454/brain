@@ -181,11 +181,19 @@ class QuizViewModel(
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
-            while (_uiState.value.timeRemaining > 0 && !_uiState.value.isAnswerSubmitted && !_uiState.value.isQuizComplete) {
+            while (_uiState.value.timeRemaining > 0 &&
+                !_uiState.value.isAnswerSubmitted &&
+                !_uiState.value.isQuizComplete &&
+                !_uiState.value.isShowingAdForHint) {
                 delay(1000)
-                if (_uiState.value.isAnswerSubmitted || _uiState.value.isQuizComplete) break
+                if (_uiState.value.isAnswerSubmitted ||
+                    _uiState.value.isQuizComplete ||
+                    _uiState.value.isShowingAdForHint) break
+
                 _uiState.update { currentState ->
-                    if (currentState.isAnswerSubmitted || currentState.isQuizComplete) {
+                    if (currentState.isAnswerSubmitted ||
+                        currentState.isQuizComplete ||
+                        currentState.isShowingAdForHint) {
                         currentState
                     } else {
                         val nextTime = currentState.timeRemaining - 1
@@ -194,10 +202,28 @@ class QuizViewModel(
                 }
             }
 
-            // If time ran out and answer was not submitted
-            if (_uiState.value.timeRemaining <= 0 && !_uiState.value.isAnswerSubmitted && !_uiState.value.isQuizComplete) {
+            // If time ran out and answer was not submitted and ad not showing
+            if (_uiState.value.timeRemaining <= 0 &&
+                !_uiState.value.isAnswerSubmitted &&
+                !_uiState.value.isQuizComplete &&
+                !_uiState.value.isShowingAdForHint) {
                 handleTimeOut()
             }
+        }
+    }
+
+    private fun pauseTimer() {
+        timerJob?.cancel()
+        timerJob = null
+    }
+
+    private fun resumeTimer() {
+        val currentState = _uiState.value
+        if (currentState.timeRemaining > 0 &&
+            !currentState.isAnswerSubmitted &&
+            !currentState.isQuizComplete &&
+            !currentState.isShowingAdForHint) {
+            startTimer()
         }
     }
 
@@ -227,7 +253,8 @@ class QuizViewModel(
     }
 
     fun submitAnswer(optionIndex: Int) {
-        timerJob?.cancel()
+        if (_uiState.value.isShowingAdForHint) return
+        pauseTimer()
         advanceJob?.cancel()
 
         var wasAlreadySubmitted = false
@@ -292,7 +319,7 @@ class QuizViewModel(
 
     private fun advanceToNextQuestion() {
         advanceJob?.cancel()
-        timerJob?.cancel()
+        pauseTimer()
         val currentState = _uiState.value
         val nextIndex = currentState.currentQuestionIndex + 1
 
@@ -319,6 +346,7 @@ class QuizViewModel(
     /**
      * Request a daily 50/50 hint for the current category.
      * Triggers the Rewarded Ad flow. The hint is ONLY consumed if the reward is confirmed.
+     * The timer is IMMEDIATELY paused BEFORE starting the ad and resumes from the exact remaining time.
      */
     fun requestHint(activity: Activity) {
         val currentState = _uiState.value
@@ -328,20 +356,23 @@ class QuizViewModel(
         if (currentState.hiddenOptionIndices.isNotEmpty()) return
         if (!currentState.isHintAvailableToday) return
 
+        // 1. Immediately pause timer before ad loads/shows
+        pauseTimer()
+
+        // 2. Lock UI state
         _uiState.update { it.copy(isShowingAdForHint = true, hintErrorMessage = null) }
 
+        // 3. Launch Rewarded Ad
         RewardedAdManager.showRewardedAd(
             activity = activity,
             onRewardEarned = {
                 applyHint5050()
             },
+            onAdClosedWithoutReward = {
+                onHintAdClosedWithoutReward()
+            },
             onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isShowingAdForHint = false,
-                        hintErrorMessage = errorMsg
-                    )
-                }
+                onHintAdFailed(errorMsg)
             }
         )
     }
@@ -350,6 +381,7 @@ class QuizViewModel(
         val currentState = _uiState.value
         val question = currentState.questions.getOrNull(currentState.currentQuestionIndex) ?: run {
             _uiState.update { it.copy(isShowingAdForHint = false) }
+            resumeTimer()
             return
         }
 
@@ -358,6 +390,7 @@ class QuizViewModel(
 
         if (incorrectIndices.isEmpty()) {
             _uiState.update { it.copy(isShowingAdForHint = false) }
+            resumeTimer()
             return
         }
 
@@ -375,6 +408,31 @@ class QuizViewModel(
                 hintErrorMessage = null
             )
         }
+
+        // Resume timer from exact remaining seconds
+        resumeTimer()
+    }
+
+    private fun onHintAdClosedWithoutReward() {
+        _uiState.update {
+            it.copy(
+                isShowingAdForHint = false,
+                hintErrorMessage = null
+            )
+        }
+        // Resume timer from exact remaining seconds
+        resumeTimer()
+    }
+
+    private fun onHintAdFailed(errorMsg: String) {
+        _uiState.update {
+            it.copy(
+                isShowingAdForHint = false,
+                hintErrorMessage = errorMsg
+            )
+        }
+        // Resume timer from exact remaining seconds
+        resumeTimer()
     }
 
     fun clearHintError() {

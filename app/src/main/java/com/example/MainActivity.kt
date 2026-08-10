@@ -22,6 +22,7 @@ import com.example.ui.navigation.ScreenRoute
 import com.example.ui.theme.BrainQuizAITheme
 import com.example.utils.BackgroundMusicPlayer
 import com.example.utils.NotificationHelper
+import com.example.utils.RewardedAdManager
 
 class MainActivity : ComponentActivity() {
 
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         BackgroundMusicPlayer.updateMusicState(this)
+        RewardedAdManager.preloadRewardedAd(this)
     }
 
     override fun onResume() {
