@@ -473,7 +473,7 @@ fun QuizActiveView(
                     .testTag("timer_badge")
             ) {
                 // Circular Timer Arc Indicator with smooth sweep angle animation
-                val targetProgress = (timeRemaining / 15f).coerceIn(0f, 1f)
+                val targetProgress = (timeRemaining / 20f).coerceIn(0f, 1f)
                 val animatedTimerProgress by animateFloatAsState(
                     targetValue = targetProgress,
                     animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
@@ -552,7 +552,7 @@ fun QuizActiveView(
 
         // Timer Progress Line
         val timerLineProgress by animateFloatAsState(
-            targetValue = (uiState.timeRemaining / 15f).coerceIn(0f, 1f),
+            targetValue = (uiState.timeRemaining / 20f).coerceIn(0f, 1f),
             animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
             label = "TimerLineProgress"
         )
@@ -1894,32 +1894,9 @@ fun HintButton(
                         ),
                         color = TextWhite
                     )
-                } else if (hasApplied5050) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "50/50 Hint Applied",
-                        tint = Color(0xFF2ECC71),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                } else if (hasApplied5050 || !isHintAvailableToday) {
                     Text(
-                        text = "50/50 Applied",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        ),
-                        color = Color(0xFF2ECC71)
-                    )
-                } else if (!isHintAvailableToday) {
-                    Icon(
-                        imageVector = Icons.Default.Lightbulb,
-                        contentDescription = "Hint Used",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "✓ Hint Used Today",
+                        text = "✓ Hint Used",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -1934,32 +1911,14 @@ fun HintButton(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "💡 Hint 50/50",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp
-                            ),
-                            color = TextWhite
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFF1C40F))
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "AD",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 9.sp
-                                ),
-                                color = Color.Black
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Hint",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        ),
+                        color = TextWhite
+                    )
                 }
             }
         }
