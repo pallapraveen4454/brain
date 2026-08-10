@@ -91,7 +91,7 @@ class LeaderboardRepository(
                     list.add(
                         LeaderboardUser(
                             rank = obj.optInt("rank", i + 1),
-                            id = obj.optString("id", "comp_$i"),
+                            id = obj.optString("id", "comp_${i + 1}"),
                             name = obj.optString("name", "Player"),
                             avatarId = obj.optString("avatarId", "brain"),
                             xp = obj.optInt("xp", 100),
@@ -100,34 +100,214 @@ class LeaderboardRepository(
                             quizzesPlayed = obj.optInt("quizzesPlayed", 5),
                             achievementsCount = obj.optInt("achievementsCount", 2),
                             score = obj.optInt("score", 100),
+                            countryFlag = obj.optString("countryFlag", "🇮🇳"),
+                            rankChange = obj.optInt("rankChange", 0),
                             isCurrentUser = false
                         )
                     )
                 }
-                if (list.isNotEmpty()) return list
+                if (list.size >= 100) return list
             } catch (e: Exception) {
                 Log.e("LeaderboardRepository", "Error reading saved competitors", e)
             }
         }
 
-        // Initial competitors if none saved
-        val initialCompetitors = listOf(
-            LeaderboardUser(1, "comp_1", "Sophia Chen", "wizard", 3850, 8, "Legend", 42, 12, 4500),
-            LeaderboardUser(2, "comp_2", "Alex Vance", "rocket", 3120, 7, "Grandmaster", 35, 10, 3700),
-            LeaderboardUser(3, "comp_3", "Elena Rostova", "crown", 2650, 6, "Master", 28, 8, 3100),
-            LeaderboardUser(4, "comp_4", "Marcus Brody", "star", 2100, 5, "Diamond", 22, 7, 2500),
-            LeaderboardUser(5, "comp_5", "David Kim", "brain", 1680, 4, "Gold", 18, 5, 2000),
-            LeaderboardUser(6, "comp_6", "Sarah Connor", "fire", 1350, 3, "Gold", 14, 4, 1600),
-            LeaderboardUser(7, "comp_7", "Liam Neeson", "ninja", 1050, 3, "Silver", 11, 3, 1250),
-            LeaderboardUser(8, "comp_8", "Priya Sharma", "cat", 820, 2, "Silver", 8, 2, 950),
-            LeaderboardUser(9, "comp_9", "Lucas Meyer", "fox", 600, 2, "Bronze", 6, 2, 720),
-            LeaderboardUser(10, "comp_10", "Aria Stark", "owl", 420, 1, "Novice", 4, 1, 500),
-            LeaderboardUser(11, "comp_11", "Ethan Hunt", "robot", 280, 1, "Novice", 3, 1, 340),
-            LeaderboardUser(12, "comp_12", "Maya Patel", "bear", 150, 1, "Novice", 2, 0, 180)
-        )
-
+        // Initial competitors if none saved or upgrade to 150 competitors
+        val initialCompetitors = generate150Competitors()
         saveCompetitors(initialCompetitors)
         return initialCompetitors
+    }
+
+    private fun generate150Competitors(): List<LeaderboardUser> {
+        val rawPlayers = listOf(
+            Triple("Sophia Chen", "🇺🇸", "wizard"),
+            Triple("Alex Vance", "🇨🇦", "rocket"),
+            Triple("Elena Rostova", "🇩🇪", "crown"),
+            Triple("Marcus Brody", "🇬🇧", "star"),
+            Triple("David Kim", "🇰🇷", "brain"),
+            Triple("Sarah Connor", "🇦🇺", "fire"),
+            Triple("Liam Neeson", "🇮🇪", "ninja"),
+            Triple("Priya Sharma", "🇮🇳", "cat"),
+            Triple("Lucas Meyer", "🇫🇷", "fox"),
+            Triple("Aria Stark", "🇬🇧", "owl"),
+            Triple("Ethan Hunt", "🇺🇸", "robot"),
+            Triple("Maya Patel", "🇮🇳", "bear"),
+            Triple("Kenji Takahashi", "🇯🇵", "dragon"),
+            Triple("Carlos Silva", "🇧🇷", "shield"),
+            Triple("Fatima Al-Mansoor", "🇦🇪", "gem"),
+            Triple("Rahul Verma", "🇮🇳", "zap"),
+            Triple("Hannah Schmidt", "🇦🇹", "lion"),
+            Triple("Mateo Rossi", "🇮🇹", "tiger"),
+            Triple("Wei Zhang", "🇨🇳", "dragon"),
+            Triple("Amara Okonkwo", "🇳🇬", "fire"),
+            Triple("Gabriel Garcia", "🇲🇽", "star"),
+            Triple("Ananya Reddy", "🇮🇳", "brain"),
+            Triple("Oliver Smith", "🇬🇧", "rocket"),
+            Triple("Emma Watson", "🇬🇧", "crown"),
+            Triple("Chloe Dubois", "🇫🇷", "cat"),
+            Triple("Viktor Krum", "🇧🇬", "wizard"),
+            Triple("Lars Lindqvist", "🇸🇪", "ninja"),
+            Triple("Santiago Morales", "🇦🇷", "fox"),
+            Triple("Vikram Malhotra", "🇮🇳", "owl"),
+            Triple("Yuki Tanaka", "🇯🇵", "robot"),
+            Triple("Isabella Santos", "🇧🇷", "bear"),
+            Triple("Daniel Craig", "🇬🇧", "shield"),
+            Triple("Sneha Kulkarni", "🇮🇳", "gem"),
+            Triple("Noah Miller", "🇺🇸", "zap"),
+            Triple("Mia Kowalski", "🇵🇱", "lion"),
+            Triple("Rohan Das", "🇮🇳", "tiger"),
+            Triple("Ingrid Johansen", "🇳🇴", "dragon"),
+            Triple("Alejandro Fernandez", "🇪🇸", "fire"),
+            Triple("Kavya Nair", "🇮🇳", "star"),
+            Triple("Seung-Woo Lee", "🇰🇷", "brain"),
+            Triple("Benjamin Franklin", "🇺🇸", "wizard"),
+            Triple("Zeynep Yilmaz", "🇹🇷", "rocket"),
+            Triple("Deepika Padukone", "🇮🇳", "crown"),
+            Triple("James Bond", "🇬🇧", "ninja"),
+            Triple("Astrid Lindgren", "🇸🇪", "fox"),
+            Triple("Aditya Rao", "🇮🇳", "owl"),
+            Triple("Nguyen Van Nam", "🇻🇳", "robot"),
+            Triple("Charlotte Taylor", "🇦🇺", "bear"),
+            Triple("Tariq Al-Hassan", "🇸🇦", "shield"),
+            Triple("Arjun Kapoor", "🇮🇳", "gem"),
+            Triple("Freja Mortensen", "🇩🇰", "zap"),
+            Triple("Luc Besson", "🇫🇷", "lion"),
+            Triple("Divya Teja", "🇮🇳", "tiger"),
+            Triple("Hiroshi Sato", "🇯🇵", "dragon"),
+            Triple("Camila Cabello", "🇨🇺", "fire"),
+            Triple("Siddharth Roy", "🇮🇳", "star"),
+            Triple("Oscar Isaac", "🇬🇹", "brain"),
+            Triple("Elif Safak", "🇹🇷", "cat"),
+            Triple("Suresh Raina", "🇮🇳", "fox"),
+            Triple("Nora Mørk", "🇳🇴", "owl"),
+            Triple("Benjamin Davies", "🇳🇿", "robot"),
+            Triple("Varun Dhawan", "🇮🇳", "bear"),
+            Triple("Mei-Ling Huang", "🇹🇼", "shield"),
+            Triple("Leo Messi", "🇦🇷", "gem"),
+            Triple("Pooja Hegde", "🇮🇳", "zap"),
+            Triple("Arthur Pendelton", "🇬🇧", "lion"),
+            Triple("Thabo Mbeki", "🇿🇦", "tiger"),
+            Triple("Meera Joshi", "🇮🇳", "dragon"),
+            Triple("Jan van der Meer", "🇳🇱", "fire"),
+            Triple("Karthik Raja", "🇮🇳", "star"),
+            Triple("Sonia Ben Ali", "🇲🇦", "brain"),
+            Triple("Gautam Gambhir", "🇮🇳", "wizard"),
+            Triple("Ines de Castro", "🇵🇹", "rocket"),
+            Triple("Siddharth Nigam", "🇮🇳", "crown"),
+            Triple("Klaus Weber", "🇩🇪", "ninja"),
+            Triple("Bhavana Menon", "🇮🇳", "fox"),
+            Triple("Bambang Soetjipto", "🇮🇩", "owl"),
+            Triple("Harish Kumar", "🇮🇳", "robot"),
+            Triple("Youssef El-Sherif", "🇪🇬", "bear"),
+            Triple("Swati Sharma", "🇮🇳", "shield"),
+            Triple("Mikhail Petrov", "🇷🇺", "gem"),
+            Triple("Nisha Aggarwal", "🇮🇳", "zap"),
+            Triple("Taro Yamada", "🇯🇵", "lion"),
+            Triple("Aakash Gupta", "🇮🇳", "tiger"),
+            Triple("Elena Gomez", "🇨🇱", "dragon"),
+            Triple("Ramesh Babu", "🇮🇳", "fire"),
+            Triple("Chiara Ferragni", "🇮🇹", "star"),
+            Triple("Naveen Patnaik", "🇮🇳", "brain"),
+            Triple("Sven Eriksson", "🇸🇪", "cat"),
+            Triple("Shruti Haasan", "🇮🇳", "fox"),
+            Triple("Dimitri Papas", "🇬🇷", "owl"),
+            Triple("Manish Pandey", "🇮🇳", "robot"),
+            Triple("Maja Novak", "🇸🇮", "bear"),
+            Triple("Aravind Swamy", "🇮🇳", "shield"),
+            Triple("Lukas Podolski", "🇩🇪", "gem"),
+            Triple("Trisha Krishnan", "🇮🇳", "zap"),
+            Triple("Elijah Wood", "🇺🇸", "lion"),
+            Triple("Madhavan R", "🇮🇳", "tiger"),
+            Triple("Siobhan O'Connor", "🇮🇪", "dragon"),
+            Triple("Pradeep Kumar", "🇮🇳", "fire"),
+            Triple("Eleni Georgiou", "🇨🇾", "star"),
+            Triple("Vishal Dadlani", "🇮🇳", "brain"),
+            Triple("Nico Rosberg", "🇲🇨", "wizard"),
+            Triple("Anushka Shetty", "🇮🇳", "rocket"),
+            Triple("Kasper Schmeichel", "🇩🇰", "crown"),
+            Triple("Gokulnath M", "🇮🇳", "ninja"),
+            Triple("Gael Monfils", "🇫🇷", "fox"),
+            Triple("Sandhya Rani", "🇮🇳", "owl"),
+            Triple("Boris Johnson", "🇬🇧", "robot"),
+            Triple("Sujith Unnithan", "🇮🇳", "bear"),
+            Triple("Ana de Armas", "🇨🇺", "shield"),
+            Triple("Vijay Sethupathi", "🇮🇳", "gem"),
+            Triple("Hanna Marin", "🇫🇮", "zap"),
+            Triple("Bhuvan Bam", "🇮🇳", "lion"),
+            Triple("Matthijs de Ligt", "🇳🇱", "tiger"),
+            Triple("Keerthy Suresh", "🇮🇳", "dragon"),
+            Triple("Mads Mikkelsen", "🇩🇰", "fire"),
+            Triple("Rajesh Khanna", "🇮🇳", "star"),
+            Triple("Shinya Yamanaka", "🇯🇵", "brain"),
+            Triple("Tanya Bhatia", "🇮🇳", "cat"),
+            Triple("Luka Modric", "🇭🇷", "fox"),
+            Triple("Sunil Chhetri", "🇮🇳", "owl"),
+            Triple("Alicia Vikander", "🇸🇪", "robot"),
+            Triple("Nitin Gadkari", "🇮🇳", "bear"),
+            Triple("Cillian Murphy", "🇮🇪", "shield"),
+            Triple("Preeti Zinta", "🇮🇳", "gem"),
+            Triple("Lando Norris", "🇬🇧", "zap"),
+            Triple("Vivek Oberoi", "🇮🇳", "lion"),
+            Triple("Pierre Gasly", "🇫🇷", "tiger"),
+            Triple("Tanvi Shah", "🇮🇳", "dragon"),
+            Triple("Kylian Mbappe", "🇫🇷", "fire"),
+            Triple("Sanjay Dutt", "🇮🇳", "star"),
+            Triple("Lewis Hamilton", "🇬🇧", "brain"),
+            Triple("Rashmika Mandanna", "🇮🇳", "wizard"),
+            Triple("Charles Leclerc", "🇲🇨", "rocket"),
+            Triple("Yuvraj Singh", "🇮🇳", "crown"),
+            Triple("Max Verstappen", "🇳🇱", "ninja"),
+            Triple("Kalyani Priyadarshan", "🇮🇳", "fox"),
+            Triple("Carlos Sainz", "🇪🇸", "owl"),
+            Triple("Aishwarya Rai", "🇮🇳", "robot"),
+            Triple("George Russell", "🇬🇧", "bear"),
+            Triple("Samantha Ruth", "🇮🇳", "shield"),
+            Triple("Fernando Alonso", "🇪🇸", "gem"),
+            Triple("Mahendra Singh", "🇮🇳", "zap"),
+            Triple("Sebastian Vettel", "🇩🇪", "lion"),
+            Triple("Shreya Ghoshal", "🇮🇳", "tiger"),
+            Triple("Novak Djokovic", "🇷🇸", "dragon"),
+            Triple("Virat Kohli", "🇮🇳", "fire")
+        )
+
+        val total = rawPlayers.size
+        val rankChangeChoices = listOf(0, 1, -1, 2, -2, 3, -3, 0, 1, 0, 2, -1)
+
+        return rawPlayers.mapIndexed { index, (name, flag, avatar) ->
+            val baseScale = (total - index).toDouble() / total
+            val xp = maxOf(80, (4800 * (baseScale * baseScale * 0.85 + baseScale * 0.15)).toInt() + (index % 5) * 12)
+            val level = maxOf(1, (xp / 350) + 1)
+            val badge = when {
+                xp >= 3500 -> "Legend"
+                xp >= 2800 -> "Grandmaster"
+                xp >= 2200 -> "Master"
+                xp >= 1600 -> "Diamond"
+                xp >= 1000 -> "Gold"
+                xp >= 500 -> "Silver"
+                xp >= 200 -> "Bronze"
+                else -> "Novice"
+            }
+            val quizzes = maxOf(2, (xp / 50) + (index % 7))
+            val achievements = maxOf(1, (xp / 280) + (index % 3))
+            val score = xp + (achievements * 50) + (quizzes * 15)
+            val rankChange = rankChangeChoices[index % rankChangeChoices.size]
+
+            LeaderboardUser(
+                rank = index + 1,
+                id = "comp_${index + 1}",
+                name = name,
+                avatarId = avatar,
+                xp = xp,
+                level = level,
+                rankBadge = badge,
+                quizzesPlayed = quizzes,
+                achievementsCount = achievements,
+                score = score,
+                countryFlag = flag,
+                rankChange = rankChange,
+                isCurrentUser = false
+            )
+        }
     }
 
     private fun saveCompetitors(competitors: List<LeaderboardUser>) {
@@ -146,6 +326,8 @@ class LeaderboardRepository(
                     put("quizzesPlayed", comp.quizzesPlayed)
                     put("achievementsCount", comp.achievementsCount)
                     put("score", comp.score)
+                    put("countryFlag", comp.countryFlag)
+                    put("rankChange", comp.rankChange)
                 }
                 array.put(obj)
             }

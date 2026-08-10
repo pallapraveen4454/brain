@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
+import com.example.data.LeaderboardRepository
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
@@ -146,29 +147,9 @@ fun LeaderboardScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     // Default mock data with flags & rank change dynamics if not provided
-    val defaultPlayers = listOf(
-        LeaderboardUser(1, "1", "Sophia Chen", "wizard", 3850, 8, "Legend", 42, 12, 4500, "🇺🇸", 2),
-        LeaderboardUser(2, "2", "Alex Vance", "rocket", 3120, 7, "Grandmaster", 35, 10, 3700, "🇨🇦", -1),
-        LeaderboardUser(3, "3", "Elena Rostova", "crown", 2650, 6, "Master", 28, 8, 3100, "🇩🇪", 1),
-        LeaderboardUser(4, "4", "Marcus Brody", "star", 2100, 5, "Diamond", 22, 7, 2500, "🇬🇧", 0),
-        LeaderboardUser(
-            rank = 5,
-            id = "current",
-            name = currentUserName.ifBlank { "You" },
-            avatarId = currentUserAvatar,
-            xp = currentUserXp,
-            level = maxOf(1, currentUserLevel),
-            rankBadge = RankUtils.getRankForXp(currentUserXp),
-            countryFlag = "🌟",
-            rankChange = 2,
-            isCurrentUser = true
-        ),
-        LeaderboardUser(6, "6", "David Kim", "brain", 1680, 4, "Gold", 18, 5, 2000, "🇰🇷", -2),
-        LeaderboardUser(7, "7", "Sarah Connor", "fire", 1350, 3, "Gold", 14, 4, 1600, "🇦🇺", 1),
-        LeaderboardUser(8, "8", "Liam Neeson", "ninja", 1050, 3, "Silver", 11, 3, 1250, "🇮🇪", 0),
-        LeaderboardUser(9, "9", "Priya Sharma", "cat", 820, 2, "Silver", 8, 2, 950, "🇮🇳", 3),
-        LeaderboardUser(10, "10", "Lucas Meyer", "fox", 600, 2, "Bronze", 6, 2, 720, "🇫🇷", -1)
-    )
+    val defaultPlayers = remember(selectedPeriod) {
+        LeaderboardRepository(context).getLeaderboard(selectedPeriod).topPlayers
+    }
 
     val players = (leaderboardData?.topPlayers ?: defaultPlayers)
         .sortedByDescending { it.xp }

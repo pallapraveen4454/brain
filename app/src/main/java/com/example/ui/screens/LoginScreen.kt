@@ -179,84 +179,6 @@ fun LoginScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                val idToken = account?.idToken
-                val email = account?.email ?: ""
-                val displayName = account?.displayName ?: account?.givenName ?: "Google User"
-
-                if (!idToken.isNullOrEmpty()) {
-                    viewModel.signInWithGoogleIdToken(
-                        idToken = idToken,
-                        userEmail = email,
-                        userName = displayName,
-                        onSuccess = {
-                            VibrationUtils.vibrateCorrect(context)
-                            SoundEffects.playCorrectSound(context)
-                            onNavigateToHome()
-                        }
-                    )
-                } else if (email.isNotBlank()) {
-                    viewModel.signInWithGoogleEmailFallback(
-                        email = email,
-                        name = displayName,
-                        onSuccess = {
-                            VibrationUtils.vibrateCorrect(context)
-                            SoundEffects.playCorrectSound(context)
-                            onNavigateToHome()
-                        }
-                    )
-                } else {
-                    val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
-                    if (lastAccount != null && !lastAccount.email.isNullOrBlank()) {
-                        viewModel.signInWithGoogleEmailFallback(
-                            email = lastAccount.email!!,
-                            name = lastAccount.displayName ?: lastAccount.givenName ?: "Google User",
-                            onSuccess = {
-                                VibrationUtils.vibrateCorrect(context)
-                                SoundEffects.playCorrectSound(context)
-                                onNavigateToHome()
-                            }
-                        )
-                    } else {
-                        viewModel.setAuthError("Google Sign-In failed: Could not retrieve account details.")
-                    }
-                }
-            } catch (e: ApiException) {
-                Log.e("AUTH_AUDIT", "GoogleSignInClient failed statusCode=${e.statusCode}", e)
-                val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
-                val email = lastAccount?.email
-                val displayName = lastAccount?.displayName ?: lastAccount?.givenName ?: "Google User"
-
-                if (!email.isNullOrBlank()) {
-                    Log.d("AUTH_AUDIT", "ApiException caught (status ${e.statusCode}), but found Google Account email: $email. Proceeding with email fallback.")
-                    viewModel.signInWithGoogleEmailFallback(
-                        email = email,
-                        name = displayName,
-                        onSuccess = {
-                            VibrationUtils.vibrateCorrect(context)
-                            SoundEffects.playCorrectSound(context)
-                            onNavigateToHome()
-                        }
-                    )
-                } else if (e.statusCode == 12501) {
-                    // User cancelled Google Account selection
-                    Log.d("AUTH_AUDIT", "User cancelled Google Sign-In selection.")
-                    viewModel.setAuthError(null)
-                } else {
-                    viewModel.setAuthError("Google Sign-In failed (Status ${e.statusCode}): ${e.message ?: "Please try again or use email sign-in."}")
-                }
-            }
-        } else {
-            viewModel.setAuthError(null)
-        }
-    }
-
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             onNavigateToHome()
@@ -940,15 +862,12 @@ fun LoginScreen(
                     GradientButton(
                         text = "Continue with Google",
                         icon = Icons.Default.GTranslate,
-                        isLoading = false,
+                        isLoading = uiState.isLoading,
                         onClick = {
                             SoundEffects.playClickSound(context)
                             VibrationUtils.vibrateClick(context)
                             viewModel.signInWithGoogle(
                                 context = context,
-                                onFallbackToGoogleSignInClient = { intent ->
-                                    googleSignInLauncher.launch(intent)
-                                },
                                 onSuccess = {
                                     VibrationUtils.vibrateCorrect(context)
                                     SoundEffects.playCorrectSound(context)
