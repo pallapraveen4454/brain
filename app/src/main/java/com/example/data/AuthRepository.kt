@@ -309,20 +309,20 @@ class AuthRepository(
     }
 
     suspend fun signInWithGoogleCredential(idToken: String): Result<FirebaseUser> {
-        Log.d("AuthRepository", "signInWithGoogleCredential starting...")
+        Log.d("GOOGLE_AUTH_FLOW", "AuthRepository: signInWithGoogleCredential starting with idToken (length=${idToken.length})...")
         return try {
             val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            Log.d("AuthRepository", "Calling FirebaseAuth.signInWithCredential(Google)...")
+            Log.d("GOOGLE_AUTH_FLOW", "AuthRepository: Calling FirebaseAuth.signInWithCredential(Google)...")
             val result = auth.signInWithCredential(credential).await()
             val user = result.user ?: throw Exception("Google auth returned empty user object")
-            Log.d("AuthRepository", "FirebaseAuth.signInWithCredential SUCCESS -> user.uid=${user.uid}, email=${user.email}")
+            Log.d("GOOGLE_AUTH_FLOW", "AuthRepository: FirebaseAuth.signInWithCredential SUCCESS -> user.uid=${user.uid}, email=${user.email}")
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
             ensureUserProfileExists(user)
             Result.success(user)
         } catch (e: Exception) {
-            Log.e("AuthRepository", "FirebaseAuth.signInWithCredential FAILED -> [${e.javaClass.name}] ${e.message}", e)
+            Log.e("GOOGLE_AUTH_FLOW", "AuthRepository: FirebaseAuth.signInWithCredential FAILED -> [${e.javaClass.name}] ${e.message}", e)
             Result.failure(e)
         }
     }

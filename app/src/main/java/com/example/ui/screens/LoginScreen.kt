@@ -182,6 +182,7 @@ fun LoginScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        Log.d("GOOGLE_AUTH_FLOW", "googleSignInLauncher activity result received: resultCode=${result.resultCode}, dataNotNull=${result.data != null}")
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
@@ -190,15 +191,16 @@ fun LoginScreen(
                 val email = account?.email ?: ""
                 val displayName = account?.displayName ?: account?.givenName ?: "Google User"
 
-                Log.d("GOOGLE_AUTH_FLOW", "STEP 6 (Fallback) GoogleSignInAccount returned: email=$email, hasIdToken=${!idToken.isNullOrEmpty()}")
+                Log.d("GOOGLE_AUTH_FLOW", "STEP 6 (Fallback Launcher) GoogleSignInAccount returned: email=$email, hasIdToken=${!idToken.isNullOrEmpty()}")
 
                 if (!idToken.isNullOrEmpty()) {
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 8 ID token extracted from GoogleSignInAccount")
+                    Log.d("GOOGLE_AUTH_FLOW", "STEP 8 ID token extracted from GoogleSignInAccount (length=${idToken.length})")
                     viewModel.signInWithGoogleIdToken(
                         idToken = idToken,
                         userEmail = email,
                         userName = displayName,
                         onSuccess = {
+                            Log.d("GOOGLE_AUTH_FLOW", "STEP 14 navigation success (via fallback launcher callback)")
                             VibrationUtils.vibrateCorrect(context)
                             SoundEffects.playCorrectSound(context)
                             onNavigateToHome()
@@ -213,12 +215,18 @@ fun LoginScreen(
                     Log.d("GOOGLE_AUTH_FLOW", "User cancelled Google Account selection (statusCode=12501)")
                     viewModel.setAuthError(null)
                 } else {
-                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInClient failed statusCode=${e.statusCode}: ${e.message}", e)
-                    viewModel.setAuthError("Google Sign-In failed (Status ${e.statusCode}): ${e.message ?: "Please try again."}")
+                    val statusExplanation = when (e.statusCode) {
+                        10 -> "Developer error / SHA-1 or OAuth Client ID mismatch (Code 10)"
+                        12500 -> "Sign-in failed (Code 12500)"
+                        7 -> "Network error (Code 7)"
+                        else -> "Status code ${e.statusCode}"
+                    }
+                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInClient failed statusCode=${e.statusCode} ($statusExplanation): ${e.message}", e)
+                    viewModel.setAuthError("Google Sign-In failed: $statusExplanation. ${e.message ?: ""}")
                 }
             }
         } else {
-            Log.d("GOOGLE_AUTH_FLOW", "Google Sign-In activity result cancelled or no data")
+            Log.w("GOOGLE_AUTH_FLOW", "Google Sign-In activity result not RESULT_OK: resultCode=${result.resultCode}. Remaining on login screen.")
             viewModel.setAuthError(null)
         }
     }
