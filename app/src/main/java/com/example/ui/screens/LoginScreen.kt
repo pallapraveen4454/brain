@@ -222,6 +222,7 @@ fun LoginScreen(
                         else -> "Status code ${e.statusCode}"
                     }
                     Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInClient failed statusCode=${e.statusCode} ($statusExplanation): ${e.message}", e)
+                    Log.e("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=106236832575-nv10u3crcpl0dh353k8..., stage=B_GOOGLE_ACCOUNT_PICKER_RESULT_FAILURE, statusCode=${e.statusCode} ($statusExplanation). Note: Firebase Authentication is NOT responsible for Google Play Services OAuth mismatch.")
                     viewModel.setAuthError("Google Sign-In failed: $statusExplanation. ${e.message ?: ""}")
                 }
             }

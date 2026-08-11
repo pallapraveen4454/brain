@@ -518,10 +518,12 @@ class AuthViewModel(
                 "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
             }
             Log.d("GOOGLE_AUTH_FLOW", "STEP 3 web client ID resolved: ${webClientId.take(20)}...")
+            Log.d("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=INIT")
 
             fun triggerGoogleSignInClientFallback() {
                 if (onFallbackToGoogleSignInClient != null) {
                     Log.d("GOOGLE_AUTH_FLOW", "Triggering GoogleSignInClient intent fallback with webClientId")
+                    Log.d("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=TRIGGER_LEGACY_GOOGLE_SIGN_IN_CLIENT_FALLBACK")
                     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                         .requestIdToken(webClientId)
                         .requestEmail()
@@ -534,6 +536,7 @@ class AuthViewModel(
                             onFallbackToGoogleSignInClient.invoke(signInIntent)
                         } catch (e: Exception) {
                             Log.e("GOOGLE_AUTH_FLOW", "Failed to launch GoogleSignInClient intent fallback: ${e.message}", e)
+                            Log.e("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=A_CREDENTIAL_MANAGER_FAILURE, exception=${e.javaClass.simpleName}: ${e.message}. Note: Firebase Auth is NOT responsible for Google Sign-In intent launch failure.")
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
