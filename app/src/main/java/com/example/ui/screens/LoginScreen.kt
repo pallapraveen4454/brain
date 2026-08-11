@@ -4,6 +4,7 @@ import android.app.Activity
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.utils.GoogleAuthDiagnostics
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import androidx.compose.animation.AnimatedVisibility
@@ -182,8 +183,18 @@ fun LoginScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        Log.d("GOOGLE_AUTH_FLOW", "googleSignInLauncher activity result received: resultCode=${result.resultCode}, dataNotNull=${result.data != null}")
+        GoogleAuthDiagnostics.logEvent(
+            context = context,
+            stage = "STAGE_5_LEGACY_LAUNCHER_RESULT_RECEIVED",
+            flowStep = "googleSignInLauncher activity result received",
+            additionalInfo = "resultCode=${result.resultCode}, dataNotNull=${result.data != null}"
+        )
         if (result.data != null) {
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_5_LEGACY_BEFORE_GET_ACCOUNT_FROM_INTENT",
+                flowStep = "Calling GoogleSignIn.getSignedInAccountFromIntent(result.data)"
+            )
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 val account = task.getResult(ApiException::class.java)
@@ -191,43 +202,66 @@ fun LoginScreen(
                 val email = account?.email ?: ""
                 val displayName = account?.displayName ?: account?.givenName ?: "Google User"
 
-                Log.d("GOOGLE_AUTH_FLOW", "STEP 6 (Fallback Launcher) GoogleSignInAccount returned: email=$email, hasIdToken=${!idToken.isNullOrEmpty()}")
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_5_LEGACY_GET_ACCOUNT_SUCCESS",
+                    flowStep = "GoogleSignInAccount retrieved successfully from intent",
+                    additionalInfo = "hasIdToken=${!idToken.isNullOrEmpty()}"
+                )
 
                 if (!idToken.isNullOrEmpty()) {
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 8 ID token extracted from GoogleSignInAccount (length=${idToken.length})")
                     viewModel.signInWithGoogleIdToken(
                         idToken = idToken,
                         userEmail = email,
                         userName = displayName,
+                        context = context,
                         onSuccess = {
-                            Log.d("GOOGLE_AUTH_FLOW", "STEP 14 navigation success (via fallback launcher callback)")
                             VibrationUtils.vibrateCorrect(context)
                             SoundEffects.playCorrectSound(context)
                             onNavigateToHome()
                         }
                     )
                 } else {
-                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInAccount idToken is empty/null for email=$email")
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_5_LEGACY_GET_ACCOUNT_EMPTY_ID_TOKEN",
+                        flowStep = "GoogleSignInAccount idToken is empty/null"
+                    )
                     viewModel.setAuthError("Google Sign-In failed: Could not retrieve ID token from Google Play Services.")
                 }
             } catch (e: ApiException) {
                 if (e.statusCode == 12501) {
-                    Log.d("GOOGLE_AUTH_FLOW", "User cancelled Google Account selection (statusCode=12501)")
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_5_LEGACY_GET_ACCOUNT_CANCELLED",
+                        flowStep = "User cancelled Google Account selection (statusCode=12501)",
+                        statusCode = 12501
+                    )
                     viewModel.setAuthError(null)
                 } else {
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_5_LEGACY_GOOGLE_SIGN_IN_CLIENT_ACCOUNT_PICKER_RESULT",
+                        flowStep = "GoogleSignInClient failed in getSignedInAccountFromIntent",
+                        exception = e,
+                        statusCode = e.statusCode
+                    )
                     val statusExplanation = when (e.statusCode) {
                         10 -> "Developer error / SHA-1 or OAuth Client ID mismatch (Code 10)"
                         12500 -> "Sign-in failed (Code 12500)"
                         7 -> "Network error (Code 7)"
                         else -> "Status code ${e.statusCode}"
                     }
-                    Log.e("GOOGLE_AUTH_FLOW", "GoogleSignInClient failed statusCode=${e.statusCode} ($statusExplanation): ${e.message}", e)
-                    Log.e("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=106236832575-nv10u3crcpl0dh353k8..., stage=B_GOOGLE_ACCOUNT_PICKER_RESULT_FAILURE, statusCode=${e.statusCode} ($statusExplanation). Note: Firebase Authentication is NOT responsible for Google Play Services OAuth mismatch.")
                     viewModel.setAuthError("Google Sign-In failed: $statusExplanation. ${e.message ?: ""}")
                 }
             }
         } else {
-            Log.w("GOOGLE_AUTH_FLOW", "Google Sign-In activity result data is null. ResultCode=${result.resultCode}")
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_5_LEGACY_LAUNCHER_NULL_DATA",
+                flowStep = "Google Sign-In activity result data is null",
+                additionalInfo = "resultCode=${result.resultCode}"
+            )
             viewModel.setAuthError(null)
         }
     }

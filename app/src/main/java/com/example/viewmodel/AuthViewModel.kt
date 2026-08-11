@@ -16,6 +16,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AuthRepository
 import com.example.data.QuizResultRepository
 import com.example.data.UserProfile
+import com.example.utils.GoogleAuthDiagnostics
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -419,25 +420,42 @@ class AuthViewModel(
         idToken: String,
         userEmail: String = "",
         userName: String = "",
+        context: Context? = null,
         onSuccess: () -> Unit
     ) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 9 Firebase credential created from Google ID Token (length=${idToken.length})")
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 10 Firebase signInWithCredential started")
+            if (context != null) {
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_6_FIREBASE_AUTH_BEFORE_SIGN_IN",
+                    flowStep = "STEP 10 Firebase signInWithCredential started",
+                    additionalInfo = "idTokenLength=${idToken.length}"
+                )
+            } else {
+                Log.d("GOOGLE_AUTH_FLOW", "STEP 10 Firebase signInWithCredential started (idToken length=${idToken.length})")
+            }
 
             val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
             firebaseResult.fold(
                 onSuccess = { user ->
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 11 Firebase authentication success -> email=${user.email}")
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 12 Firebase UID: ${user.uid}")
+                    if (context != null) {
+                        GoogleAuthDiagnostics.logEvent(
+                            context = context,
+                            stage = "STAGE_6_FIREBASE_AUTH_SUCCESS",
+                            flowStep = "STEP 11 Firebase auth success",
+                            additionalInfo = "uid=${user.uid}"
+                        )
+                    } else {
+                        Log.d("GOOGLE_AUTH_FLOW", "STEP 11 Firebase auth success -> uid=${user.uid}")
+                    }
 
                     val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
                         uid = user.uid,
                         name = user.displayName ?: userName.ifBlank { "Google User" },
                         email = user.email ?: userEmail
                     )
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}, name=${profile.name}, xp=${profile.xp}, coins=${profile.coins}")
+                    Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
 
                     authRepository.setGuestSessionActive(false)
                     _uiState.update {
@@ -452,9 +470,18 @@ class AuthViewModel(
                     onSuccess()
                 },
                 onFailure = { error ->
-                    val exClass = error.javaClass.simpleName
+                    val exClass = error.javaClass.name
                     val exMsg = error.message ?: "Firebase authentication failed"
-                    Log.e("GOOGLE_AUTH_FLOW", "Firebase signInWithCredential FAILED: [$exClass] $exMsg", error)
+                    if (context != null) {
+                        GoogleAuthDiagnostics.logEvent(
+                            context = context,
+                            stage = "STAGE_6_FIREBASE_AUTH_FAILURE",
+                            flowStep = "Firebase auth failed",
+                            exception = if (error is Exception) error else Exception(error)
+                        )
+                    } else {
+                        Log.e("GOOGLE_AUTH_FLOW", "Firebase signInWithCredential FAILED: [$exClass] $exMsg", error)
+                    }
 
                     _uiState.update {
                         it.copy(
@@ -500,7 +527,12 @@ class AuthViewModel(
         viewModelScope.launch {
             val activityContext = context.findActivity()
             if (activityContext == null) {
-                Log.e("GOOGLE_AUTH_FLOW", "STEP 2 activity context resolution failed")
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_1_ACTIVITY_CONTEXT_RESOLUTION_FAILED",
+                    flowStep = "STEP 2 Activity Context Resolution Failed",
+                    additionalInfo = "findActivity() returned null"
+                )
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -509,34 +541,57 @@ class AuthViewModel(
                 }
                 return@launch
             }
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 2 activity context resolved")
 
             val webClientId = try {
                 val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
                 if (resId != 0) context.getString(resId) else context.getString(com.example.R.string.default_web_client_id)
             } catch (e: Exception) {
-                "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
+                GoogleAuthDiagnostics.EXPECTED_SERVER_CLIENT_ID
             }
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 3 web client ID resolved: ${webClientId.take(20)}...")
-            Log.d("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=INIT")
 
-            fun triggerGoogleSignInClientFallback() {
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_1_INIT",
+                flowStep = "STEP 3 Sign-In Initialized",
+                serverClientId = webClientId
+            )
+
+            fun triggerGoogleSignInClientFallback(causeException: Exception? = null) {
                 if (onFallbackToGoogleSignInClient != null) {
-                    Log.d("GOOGLE_AUTH_FLOW", "Triggering GoogleSignInClient intent fallback with webClientId")
-                    Log.d("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=TRIGGER_LEGACY_GOOGLE_SIGN_IN_CLIENT_FALLBACK")
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_4_TRIGGER_LEGACY_FALLBACK_PREPARE",
+                        flowStep = "Triggering GoogleSignInClient intent fallback",
+                        exception = causeException,
+                        serverClientId = webClientId,
+                        additionalInfo = "Trigger Cause: ${causeException?.javaClass?.name ?: "Explicit Fallback"}"
+                    )
+
                     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                         .requestIdToken(webClientId)
                         .requestEmail()
                         .requestProfile()
                         .build()
+
                     val googleSignInClient = GoogleSignIn.getClient(activityContext, gso)
                     googleSignInClient.signOut().addOnCompleteListener {
                         try {
                             val signInIntent = googleSignInClient.signInIntent
+                            GoogleAuthDiagnostics.logEvent(
+                                context = context,
+                                stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCHING",
+                                flowStep = "Launching legacy GoogleSignInClient intent",
+                                serverClientId = webClientId
+                            )
                             onFallbackToGoogleSignInClient.invoke(signInIntent)
                         } catch (e: Exception) {
-                            Log.e("GOOGLE_AUTH_FLOW", "Failed to launch GoogleSignInClient intent fallback: ${e.message}", e)
-                            Log.e("GOOGLE_AUTH_RUNTIME", "package=${context.packageName}, firebaseProjectId=brainquiz-ai-app, firebaseAppId=1:106236832575:android:8bb30cbfcabc48ffdfc18a, serverClientId=${webClientId.take(20)}..., stage=A_CREDENTIAL_MANAGER_FAILURE, exception=${e.javaClass.simpleName}: ${e.message}. Note: Firebase Auth is NOT responsible for Google Sign-In intent launch failure.")
+                            GoogleAuthDiagnostics.logEvent(
+                                context = context,
+                                stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCH_FAILED",
+                                flowStep = "Failed to launch legacy GoogleSignInClient intent",
+                                exception = e,
+                                serverClientId = webClientId
+                            )
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -546,6 +601,12 @@ class AuthViewModel(
                         }
                     }
                 } else {
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_4_LEGACY_FALLBACK_NO_LAUNCHER_AVAILABLE",
+                        flowStep = "No fallback launcher provided",
+                        serverClientId = webClientId
+                    )
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -564,36 +625,78 @@ class AuthViewModel(
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)
                 .build()
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 4 credential request created")
+
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_2_CREDENTIAL_MANAGER_BEFORE_GET_CREDENTIAL",
+                flowStep = "STEP 5 getCredential starting",
+                serverClientId = webClientId
+            )
 
             val credentialManager = CredentialManager.create(activityContext)
             val result = try {
-                Log.d("GOOGLE_AUTH_FLOW", "STEP 5 getCredential started")
                 credentialManager.getCredential(
                     request = request,
                     context = activityContext
                 )
             } catch (e: GetCredentialCancellationException) {
-                Log.d("GOOGLE_AUTH_FLOW", "User cancelled Google account selection in CredentialManager")
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_2_CREDENTIAL_MANAGER_CANCELLED",
+                    flowStep = "User cancelled Google account selection in CredentialManager",
+                    exception = e,
+                    serverClientId = webClientId
+                )
                 _uiState.update { it.copy(isLoading = false, errorMessage = null) }
                 return@launch
             } catch (e: NoCredentialException) {
-                Log.d("GOOGLE_AUTH_FLOW", "NoCredentialException in CredentialManager [${e.javaClass.simpleName}]: ${e.message}. Attempting GoogleSignInClient fallback...")
-                triggerGoogleSignInClientFallback()
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_2_CREDENTIAL_MANAGER_NO_CREDENTIAL",
+                    flowStep = "NoCredentialException in CredentialManager -> triggering GoogleSignInClient fallback",
+                    exception = e,
+                    serverClientId = webClientId
+                )
+                triggerGoogleSignInClientFallback(e)
                 return@launch
             } catch (e: GetCredentialException) {
-                Log.d("GOOGLE_AUTH_FLOW", "GetCredentialException in CredentialManager [${e.javaClass.simpleName}]: ${e.message}. Attempting GoogleSignInClient fallback...")
-                triggerGoogleSignInClientFallback()
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_2_CREDENTIAL_MANAGER_GET_CREDENTIAL_EXCEPTION",
+                    flowStep = "GetCredentialException in CredentialManager -> triggering GoogleSignInClient fallback",
+                    exception = e,
+                    serverClientId = webClientId
+                )
+                triggerGoogleSignInClientFallback(e)
                 return@launch
             } catch (e: Exception) {
-                Log.d("GOOGLE_AUTH_FLOW", "Unexpected Exception in CredentialManager [${e.javaClass.simpleName}]: ${e.message}. Attempting GoogleSignInClient fallback...")
-                triggerGoogleSignInClientFallback()
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_2_CREDENTIAL_MANAGER_UNEXPECTED_EXCEPTION",
+                    flowStep = "Unexpected Exception in CredentialManager -> triggering GoogleSignInClient fallback",
+                    exception = e,
+                    serverClientId = webClientId
+                )
+                triggerGoogleSignInClientFallback(e)
                 return@launch
             }
 
             val credential = result.credential
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 6 credential returned")
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 7 credential type: ${credential.type}")
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_2_CREDENTIAL_MANAGER_AFTER_GET_CREDENTIAL_SUCCESS",
+                flowStep = "STEP 6 credential returned",
+                serverClientId = webClientId,
+                additionalInfo = "credentialType=${credential.type}"
+            )
+
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_3_CREDENTIAL_EXTRACTION_BEFORE",
+                flowStep = "STEP 7 Extracting ID Token",
+                serverClientId = webClientId,
+                additionalInfo = "credentialType=${credential.type}"
+            )
 
             val (extractedToken, extractedEmail, extractedName) = try {
                 val googleIdTokenCred = when {
@@ -613,16 +716,30 @@ class AuthViewModel(
                 }
                 Triple(token, googleIdTokenCred.id, googleIdTokenCred.displayName ?: googleIdTokenCred.givenName ?: "")
             } catch (e: Exception) {
-                Log.e("GOOGLE_AUTH_FLOW", "Failed to extract Google ID Token from CredentialManager result: [${e.javaClass.simpleName}] ${e.message}", e)
-                triggerGoogleSignInClientFallback()
+                GoogleAuthDiagnostics.logEvent(
+                    context = context,
+                    stage = "STAGE_3_CREDENTIAL_EXTRACTION_EXCEPTION",
+                    flowStep = "Failed to extract Google ID Token -> triggering fallback",
+                    exception = e,
+                    serverClientId = webClientId
+                )
+                triggerGoogleSignInClientFallback(e)
                 return@launch
             }
 
-            Log.d("GOOGLE_AUTH_FLOW", "STEP 8 ID token extracted (length=${extractedToken.length}, email=$extractedEmail)")
+            GoogleAuthDiagnostics.logEvent(
+                context = context,
+                stage = "STAGE_3_CREDENTIAL_EXTRACTION_SUCCESS",
+                flowStep = "STEP 8 ID token extracted successfully",
+                serverClientId = webClientId,
+                additionalInfo = "idTokenLength=${extractedToken.length}"
+            )
+
             signInWithGoogleIdToken(
                 idToken = extractedToken,
                 userEmail = extractedEmail,
                 userName = extractedName,
+                context = context,
                 onSuccess = onSuccess
             )
         }
