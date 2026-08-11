@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.utils.GoogleAuthDiagnostics
@@ -44,6 +48,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.GTranslate
@@ -1006,7 +1011,143 @@ fun LoginScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
+
+            // Runtime Certificate Diagnostic Card
+            RuntimeCertificateDiagnosticCard(
+                modifier = Modifier.padding(top = 20.dp)
+            )
         }
+    }
+}
+
+@Composable
+fun RuntimeCertificateDiagnosticCard(
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val (runtimeSha1, runtimeSha256) = remember { GoogleAuthDiagnostics.getRuntimeSigningCertificates(context) }
+    val expectedSha1 = GoogleAuthDiagnostics.EXPECTED_SHA1
+    val isMatch = runtimeSha1.equals(expectedSha1, ignoreCase = true)
+    val webClientId = GoogleAuthDiagnostics.getDefaultWebClientId(context)
+    val androidClientId = GoogleAuthDiagnostics.ANDROID_CLIENT_ID
+    val packageName = context.packageName
+
+    GlassCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("runtime_certificate_diagnostic_card"),
+        shape = RoundedCornerShape(20.dp),
+        elevation = 12.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "RUNTIME CERTIFICATE DIAGNOSTIC",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        letterSpacing = 1.sp
+                    ),
+                    color = Color(0xFFFFB74D)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isMatch) Color(0xFF1B5E20) else Color(0xFFB71C1C))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isMatch) "MATCH: YES" else "MATCH: NO",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            DiagnosticFieldItem(label = "Package:", value = packageName)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(label = "Runtime SHA-1:", value = runtimeSha1, isHighlight = true)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(label = "Runtime SHA-256:", value = runtimeSha256)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(label = "Registered SHA-1:", value = expectedSha1)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(
+                label = "SHA-1 MATCH:",
+                value = if (isMatch) "YES" else "NO",
+                valueColor = if (isMatch) Color(0xFF00E676) else Color(0xFFFF5252)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(label = "Web Client ID:", value = webClientId)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DiagnosticFieldItem(label = "Android OAuth Client ID:", value = androidClientId)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Clearly visible button: "Copy Runtime SHA-1"
+            GradientButton(
+                text = "Copy Runtime SHA-1",
+                icon = Icons.Default.ContentCopy,
+                isLoading = false,
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Runtime SHA-1", runtimeSha1)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "Runtime SHA-1 copied to clipboard!", Toast.LENGTH_SHORT).show()
+                },
+                gradientColors = listOf(Color(0xFFFF9800), Color(0xFFF57C00)),
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "copy_runtime_sha1_button"
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticFieldItem(
+    label: String,
+    value: String,
+    isHighlight: Boolean = false,
+    valueColor: Color = TextWhite
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            ),
+            color = PrimaryPurpleLight
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp,
+                fontWeight = if (isHighlight) FontWeight.Bold else FontWeight.Normal
+            ),
+            color = valueColor,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

@@ -10,11 +10,33 @@ import java.security.MessageDigest
 object GoogleAuthDiagnostics {
     const val TAG_RUNTIME = "GOOGLE_AUTH_RUNTIME"
     const val TAG_FLOW = "GOOGLE_AUTH_FLOW"
+    const val TAG_CERT_CHECK = "GOOGLE_RUNTIME_CERT_CHECK"
 
     const val EXPECTED_PACKAGE_NAME = "com.aistudio.brainquizai.app"
+    const val EXPECTED_SHA1 = "2F:6C:2A:71:67:C4:06:2A:DB:5D:7B:C8:AF:DD:62:E4:4B:AF:E4:7A"
     const val EXPECTED_SERVER_CLIENT_ID = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
+    const val ANDROID_CLIENT_ID = "106236832575-ssbispc69k5d64vm3c5772l6lctgvv7t.apps.googleusercontent.com"
     const val FIREBASE_PROJECT_ID = "brainquiz-ai-app"
     const val FIREBASE_APP_ID = "1:106236832575:android:8bb30cbfcabc48ffdfc18a"
+
+    fun logRuntimeCertCheck(context: Context) {
+        val packageName = context.packageName
+        val (sha1, sha256) = getRuntimeSigningCertificates(context)
+        val defaultWebClientId = getDefaultWebClientId(context)
+        val isMatching = sha1.equals(EXPECTED_SHA1, ignoreCase = true)
+
+        val certLog = StringBuilder().apply {
+            append("packageName=$packageName")
+            append(" | firebaseProjectId=$FIREBASE_PROJECT_ID")
+            append(" | installedApkSha1=$sha1")
+            append(" | installedApkSha256=$sha256")
+            append(" | expectedRegisteredSha1=$EXPECTED_SHA1")
+            append(" | isSha1Matching=$isMatching")
+            append(" | defaultWebClientId=$defaultWebClientId")
+        }.toString()
+
+        Log.i(TAG_CERT_CHECK, certLog)
+    }
 
     fun getRuntimeSigningCertificates(context: Context): Pair<String, String> {
         return try {
@@ -32,7 +54,14 @@ object GoogleAuthDiagnostics {
             }
 
             val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.signingInfo?.apkContentsSigners
+                val signingInfo = packageInfo.signingInfo
+                if (signingInfo != null) {
+                    if (signingInfo.hasMultipleSigners()) {
+                        signingInfo.apkContentsSigners
+                    } else {
+                        signingInfo.signingCertificateHistory
+                    }
+                } else null
             } else {
                 @Suppress("DEPRECATION")
                 packageInfo.signatures
