@@ -13,24 +13,33 @@ object GoogleAuthDiagnostics {
     const val TAG_CERT_CHECK = "GOOGLE_RUNTIME_CERT_CHECK"
 
     const val EXPECTED_PACKAGE_NAME = "com.aistudio.brainquizai.app"
-    const val EXPECTED_SHA1 = "2F:6C:2A:71:67:C4:06:2A:DB:5D:7B:C8:AF:DD:62:E4:4B:AF:E4:7A"
+    const val EXPECTED_SHA1_PHYSICAL = "0D:2B:E1:91:3D:48:06:7B:B3:DE:87:4D:BA:AB:70:99:72:87:AC:3E"
+    const val EXPECTED_SHA1_CLOUD = "2F:6C:2A:71:67:C4:06:2A:DB:5D:7B:C8:AF:DD:62:E4:4B:AF:E4:7A"
+    val REGISTERED_SHA1_LIST = listOf(EXPECTED_SHA1_PHYSICAL, EXPECTED_SHA1_CLOUD)
+
     const val EXPECTED_SERVER_CLIENT_ID = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
-    const val ANDROID_CLIENT_ID = "106236832575-ssbispc69k5d64vm3c5772l6lctgvv7t.apps.googleusercontent.com"
+    const val ANDROID_CLIENT_ID_PHYSICAL = "106236832575-dqo1vgdar02ab2e5e1pksea13fpv4q6l.apps.googleusercontent.com"
+    const val ANDROID_CLIENT_ID_CLOUD = "106236832575-ssbispc69k5d64vm3c5772l6lctgvv7t.apps.googleusercontent.com"
+    const val ANDROID_CLIENT_ID = ANDROID_CLIENT_ID_PHYSICAL
     const val FIREBASE_PROJECT_ID = "brainquiz-ai-app"
     const val FIREBASE_APP_ID = "1:106236832575:android:8bb30cbfcabc48ffdfc18a"
+
+    fun isSha1Matching(runtimeSha1: String): Boolean {
+        return REGISTERED_SHA1_LIST.any { it.equals(runtimeSha1, ignoreCase = true) }
+    }
 
     fun logRuntimeCertCheck(context: Context) {
         val packageName = context.packageName
         val (sha1, sha256) = getRuntimeSigningCertificates(context)
         val defaultWebClientId = getDefaultWebClientId(context)
-        val isMatching = sha1.equals(EXPECTED_SHA1, ignoreCase = true)
+        val isMatching = isSha1Matching(sha1)
 
         val certLog = StringBuilder().apply {
             append("packageName=$packageName")
             append(" | firebaseProjectId=$FIREBASE_PROJECT_ID")
             append(" | installedApkSha1=$sha1")
             append(" | installedApkSha256=$sha256")
-            append(" | expectedRegisteredSha1=$EXPECTED_SHA1")
+            append(" | registeredSha1s=${REGISTERED_SHA1_LIST.joinToString(",")}")
             append(" | isSha1Matching=$isMatching")
             append(" | defaultWebClientId=$defaultWebClientId")
         }.toString()

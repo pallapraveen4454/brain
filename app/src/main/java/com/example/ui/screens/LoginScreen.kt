@@ -1026,10 +1026,11 @@ fun RuntimeCertificateDiagnosticCard(
 ) {
     val context = LocalContext.current
     val (runtimeSha1, runtimeSha256) = remember { GoogleAuthDiagnostics.getRuntimeSigningCertificates(context) }
-    val expectedSha1 = GoogleAuthDiagnostics.EXPECTED_SHA1
-    val isMatch = runtimeSha1.equals(expectedSha1, ignoreCase = true)
+    val isMatch = GoogleAuthDiagnostics.isSha1Matching(runtimeSha1)
+    val registeredSha1s = GoogleAuthDiagnostics.REGISTERED_SHA1_LIST.joinToString("\n")
     val webClientId = GoogleAuthDiagnostics.getDefaultWebClientId(context)
-    val androidClientId = GoogleAuthDiagnostics.ANDROID_CLIENT_ID
+    val androidClientIdPhysical = GoogleAuthDiagnostics.ANDROID_CLIENT_ID_PHYSICAL
+    val androidClientIdCloud = GoogleAuthDiagnostics.ANDROID_CLIENT_ID_CLOUD
     val packageName = context.packageName
 
     GlassCard(
@@ -1087,20 +1088,23 @@ fun RuntimeCertificateDiagnosticCard(
             DiagnosticFieldItem(label = "Runtime SHA-256:", value = runtimeSha256)
             Spacer(modifier = Modifier.height(8.dp))
 
-            DiagnosticFieldItem(label = "Registered SHA-1:", value = expectedSha1)
+            DiagnosticFieldItem(label = "Registered SHA-1(s):", value = registeredSha1s)
             Spacer(modifier = Modifier.height(8.dp))
 
             DiagnosticFieldItem(
                 label = "SHA-1 MATCH:",
-                value = if (isMatch) "YES" else "NO",
+                value = if (isMatch) "YES (Authorized in Firebase)" else "NO (Mismatch)",
                 valueColor = if (isMatch) Color(0xFF00E676) else Color(0xFFFF5252)
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            DiagnosticFieldItem(label = "Web Client ID:", value = webClientId)
+            DiagnosticFieldItem(label = "Web Client ID (serverClientId):", value = webClientId)
             Spacer(modifier = Modifier.height(8.dp))
 
-            DiagnosticFieldItem(label = "Android OAuth Client ID:", value = androidClientId)
+            DiagnosticFieldItem(
+                label = "Android OAuth Client IDs:",
+                value = "$androidClientIdPhysical (Physical)\n$androidClientIdCloud (Cloud)"
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
