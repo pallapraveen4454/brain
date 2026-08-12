@@ -104,9 +104,9 @@ class UserProfileStore(
         setGuestActive(true)
         val guestId = getGuestId()
         
-        // Recover current progress if existing guest profile exists
+        // Recover existing guest profile from keyGuestProfileJson ONLY (never fallback to Google/auth profile)
         val currentJson = try {
-            val jsonStr = getPrefs()?.getString(keyGuestProfileJson, "") ?: getPrefs()?.getString(keyProfileJson, "") ?: ""
+            val jsonStr = getPrefs()?.getString(keyGuestProfileJson, "") ?: ""
             if (jsonStr.isNotBlank()) profileFromJson(JSONObject(jsonStr)) else null
         } catch (e: Exception) { null }
 
@@ -116,7 +116,8 @@ class UserProfileStore(
         val guestLongestStreak = maxOf(currentJson?.longestStreak ?: 0, guestStreak)
         val guestHistory = currentJson?.quizHistory ?: emptyList()
         val guestAvatar = currentJson?.avatarId?.ifBlank { "brain" } ?: "brain"
-        val guestName = if (currentJson?.name?.isNotBlank() == true && currentJson.name != "Player" && currentJson.name != "Guest Player") currentJson.name else "Guest"
+        val rawName = currentJson?.name ?: ""
+        val guestName = if (rawName.isNotBlank() && rawName != "Player" && rawName != "Guest Player" && !rawName.contains("@")) rawName else "Guest"
         val guestActiveDate = currentJson?.lastActiveDate ?: ""
 
         val guestProfile = UserProfile(
@@ -140,9 +141,7 @@ class UserProfileStore(
         
         getPrefs()?.edit()
             ?.putString(keyGuestProfileJson, profileToJson(guestProfile).toString())
-            ?.putString(keyProfileJson, profileToJson(guestProfile).toString())
             ?.apply()
-        syncLegacyPrefs(guestProfile)
         return guestProfile
     }
 
@@ -217,7 +216,7 @@ class UserProfileStore(
 
     fun saveProfile(profile: UserProfile): UserProfile {
         try {
-            val isGuestTarget = profile.uid.startsWith("guest_") || (isGuestActive() && profile.uid.isBlank())
+            val isGuestTarget = profile.uid.startsWith("guest_") || isGuestActive() || profile.email == "Guest Account"
             val targetKey = if (isGuestTarget) keyGuestProfileJson else keyAuthProfileJson
 
             // Point 6: At the beginning of UserProfileStore.saveProfile

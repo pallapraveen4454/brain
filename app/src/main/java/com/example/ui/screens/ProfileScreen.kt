@@ -385,12 +385,15 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(18.dp))
 
                         // Player Name & Edit Icon Button
+                        val formattedName = if (playerName.isBlank() || playerName == "Player" || playerName == "Guest Player") "Guest" else playerName
+                        val formattedEmail = if (playerEmail.isBlank() || playerEmail == "Guest Account" || playerEmail == "guest@brainquiz.ai") "Guest Account" else playerEmail
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = playerName,
+                                text = formattedName,
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 22.sp
@@ -420,7 +423,7 @@ fun ProfileScreen(
                         }
 
                         Text(
-                            text = playerEmail.ifBlank { "Guest Account" },
+                            text = formattedEmail,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                             modifier = Modifier.testTag("profile_player_email")

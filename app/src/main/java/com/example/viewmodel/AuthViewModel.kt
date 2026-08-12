@@ -49,6 +49,9 @@ data class AuthUiState(
     val isSignUpMode: Boolean = false,
     val rememberMe: Boolean = true,
     val isLoading: Boolean = false,
+    val isEmailSignInLoading: Boolean = false,
+    val isGoogleSignInLoading: Boolean = false,
+    val isGuestLoading: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val isLoggedIn: Boolean = false,
@@ -78,8 +81,9 @@ class AuthViewModel(
                 _uiState.update { it.copy(isLoading = true) }
                 autoLoginJob = viewModelScope.launch {
                     try {
+                        val isGuest = authRepository.isGuestSessionActive()
                         val savedProfile = authRepository.getPersistentGuestProfile()
-                        val user = authRepository.currentUser
+                        val user = if (isGuest) null else authRepository.currentUser
                         val profileToUse = if (user != null) {
                             val fetched = authRepository.fetchUserProfile(user.uid)
                             fetched ?: UserProfile(
@@ -93,7 +97,11 @@ class AuthViewModel(
                                 rank = "Beginner"
                             )
                         } else {
-                            savedProfile
+                            val sanitizedName = if (savedProfile.name.isBlank() || savedProfile.name == "Player" || savedProfile.name == "Guest Player") "Guest" else savedProfile.name
+                            savedProfile.copy(
+                                name = sanitizedName,
+                                email = "Guest Account"
+                            )
                         }
 
                         if (authRepository.hasSavedUserSession()) {
@@ -204,6 +212,9 @@ class AuthViewModel(
             it.copy(
                 errorMessage = msg, 
                 isLoading = false,
+                isEmailSignInLoading = false,
+                isGoogleSignInLoading = false,
+                isGuestLoading = false,
                 shakeTrigger = it.shakeTrigger + 1
             ) 
         }
@@ -293,7 +304,15 @@ class AuthViewModel(
             }
         }
 
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { 
+            it.copy(
+                isEmailSignInLoading = true,
+                isGoogleSignInLoading = false,
+                isGuestLoading = false,
+                isLoading = true,
+                errorMessage = null
+            ) 
+        }
 
         viewModelScope.launch {
             val startTime = System.currentTimeMillis()
@@ -309,6 +328,7 @@ class AuthViewModel(
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
+                                        isEmailSignInLoading = false,
                                         isLoggedIn = true,
                                         currentUserProfile = profile,
                                         successMessage = null,
@@ -346,6 +366,7 @@ class AuthViewModel(
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
+                                        isEmailSignInLoading = false,
                                         isLoggedIn = true,
                                         currentUserProfile = profile,
                                         successMessage = null,
@@ -368,6 +389,7 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isEmailSignInLoading = false,
                         errorMessage = "Request timed out. Please try again."
                     )
                 }
@@ -377,29 +399,60 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isEmailSignInLoading = false,
                         errorMessage = getFriendlyErrorMessage(e)
                     )
                 }
             } finally {
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { 
+                    it.copy(
+                        isLoading = false,
+                        isEmailSignInLoading = false
+                    ) 
+                }
             }
         }
     }
 
     fun signInAsGuest(onSuccess: () -> Unit) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { 
+            it.copy(
+                isGuestLoading = true,
+                isEmailSignInLoading = false,
+                isGoogleSignInLoading = false,
+                isLoading = true,
+                errorMessage = null
+            ) 
+        }
         viewModelScope.launch {
-            val result = authRepository.signInAsGuestProfile()
-            val guestProfile = result.getOrElse { authRepository.createOrGetGuestProfile() }
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isLoggedIn = true,
-                    errorMessage = null,
-                    currentUserProfile = guestProfile
+            try {
+                val result = authRepository.signInAsGuestProfile()
+                val rawProfile = result.getOrElse { authRepository.createOrGetGuestProfile() }
+                val sanitizedName = if (rawProfile.name.isBlank() || rawProfile.name == "Player" || rawProfile.name == "Guest Player") "Guest" else rawProfile.name
+                val guestProfile = rawProfile.copy(
+                    name = sanitizedName,
+                    email = "Guest Account"
                 )
+                _uiState.update {
+                    it.copy(
+                        isGuestLoading = false,
+                        isLoading = false,
+                        isLoggedIn = true,
+                        errorMessage = null,
+                        currentUserProfile = guestProfile
+                    )
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Error in signInAsGuest", e)
+                _uiState.update {
+                    it.copy(
+                        isGuestLoading = false,
+                        isLoading = false,
+                        errorMessage = getFriendlyErrorMessage(e)
+                    )
+                }
             }
-            onSuccess()
         }
     }
 
@@ -413,7 +466,15 @@ class AuthViewModel(
     }
 
     fun setAuthError(message: String?) {
-        _uiState.update { it.copy(isLoading = false, errorMessage = message) }
+        _uiState.update { 
+            it.copy(
+                isLoading = false,
+                isEmailSignInLoading = false,
+                isGoogleSignInLoading = false,
+                isGuestLoading = false,
+                errorMessage = message
+            ) 
+        }
     }
 
     fun signInWithGoogleIdToken(
@@ -423,7 +484,15 @@ class AuthViewModel(
         context: Context? = null,
         onSuccess: () -> Unit
     ) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { 
+            it.copy(
+                isGoogleSignInLoading = true,
+                isEmailSignInLoading = false,
+                isGuestLoading = false,
+                isLoading = true,
+                errorMessage = null
+            ) 
+        }
         viewModelScope.launch {
             if (context != null) {
                 GoogleAuthDiagnostics.logEvent(
@@ -461,6 +530,7 @@ class AuthViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            isGoogleSignInLoading = false,
                             isLoggedIn = true,
                             currentUserProfile = profile,
                             errorMessage = null
@@ -486,6 +556,7 @@ class AuthViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            isGoogleSignInLoading = false,
                             errorMessage = "Firebase Authentication Failed [$exClass]: $exMsg"
                         )
                     }
@@ -499,7 +570,15 @@ class AuthViewModel(
         name: String,
         onSuccess: () -> Unit
     ) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { 
+            it.copy(
+                isGoogleSignInLoading = true,
+                isEmailSignInLoading = false,
+                isGuestLoading = false,
+                isLoading = true,
+                errorMessage = null
+            ) 
+        }
         viewModelScope.launch {
             Log.d("AUTH_AUDIT", "[LOCAL_GOOGLE_FALLBACK] Logging in with Google Account Email: $email")
             val profile = authRepository.createOrGetLocalEmailProfile(email, name.ifBlank { "Google User" })
@@ -507,6 +586,7 @@ class AuthViewModel(
             _uiState.update {
                 it.copy(
                     isLoading = false,
+                    isGoogleSignInLoading = false,
                     isLoggedIn = true,
                     currentUserProfile = profile,
                     errorMessage = null
@@ -522,7 +602,16 @@ class AuthViewModel(
         onSuccess: () -> Unit
     ) {
         Log.d("GOOGLE_AUTH_FLOW", "STEP 1 button clicked")
-        _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+        _uiState.update { 
+            it.copy(
+                isGoogleSignInLoading = true,
+                isEmailSignInLoading = false,
+                isGuestLoading = false,
+                isLoading = true,
+                errorMessage = null,
+                successMessage = null
+            ) 
+        }
 
         viewModelScope.launch {
             val activityContext = context.findActivity()
@@ -536,6 +625,7 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isGoogleSignInLoading = false,
                         errorMessage = "Unable to launch Google Sign-In. Please try again."
                     )
                 }
@@ -595,6 +685,7 @@ class AuthViewModel(
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
+                                    isGoogleSignInLoading = false,
                                     errorMessage = "Google Sign-In launch failed: ${e.message}"
                                 )
                             }
@@ -610,6 +701,7 @@ class AuthViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            isGoogleSignInLoading = false,
                             errorMessage = "No Google account credentials found on device. Please sign in to Google in device Settings."
                         )
                     }
@@ -647,7 +739,7 @@ class AuthViewModel(
                     exception = e,
                     serverClientId = webClientId
                 )
-                _uiState.update { it.copy(isLoading = false, errorMessage = null) }
+                _uiState.update { it.copy(isLoading = false, isGoogleSignInLoading = false, errorMessage = null) }
                 return@launch
             } catch (e: NoCredentialException) {
                 GoogleAuthDiagnostics.logEvent(

@@ -177,6 +177,13 @@ class HomeViewModel(
             val accuracy = if (questionsAnswered > 0) ((correctAnswers.toDouble() / questionsAnswered.toDouble()) * 100).toInt() else 0
             val history = if (profile.quizHistory.isNotEmpty()) profile.quizHistory else quizResultRepository.getLocalQuizResultsList()
 
+            val displayName = if (isGuest) {
+                if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name
+            } else {
+                if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Player" else profile.name
+            }
+            val displayEmail = if (isGuest) "Guest Account" else profile.email.ifBlank { "Guest Account" }
+
             _uiState.update {
                 it.copy(
                     xp = profile.xp,
@@ -184,8 +191,8 @@ class HomeViewModel(
                     coins = updatedCoins,
                     streakDays = localStreak,
                     rank = computedRank,
-                    playerName = if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name,
-                    playerEmail = profile.email.ifBlank { "Guest Account" },
+                    playerName = displayName,
+                    playerEmail = displayEmail,
                     avatarId = profile.avatarId.ifBlank { "brain" },
                     unlockedAvatars = if (profile.unlockedAvatars.isNotEmpty()) profile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
                     totalQuizzesPlayed = quizzesPlayed,
@@ -223,7 +230,7 @@ class HomeViewModel(
                 authRepository.saveUserProfileToFirestore(updatedProfile)
 
                 // Load recent quiz results from persistent history if authenticated
-                val currentUserId = authRepository.currentUser?.uid ?: profile.uid
+                val currentUserId = if (isGuest) profile.uid else (authRepository.currentUser?.uid ?: profile.uid)
                 val recentResults = quizResultRepository.getRecentQuizResults(currentUserId)
                 if (recentResults.isNotEmpty()) {
                     val latest = recentResults.first()
@@ -239,38 +246,40 @@ class HomeViewModel(
                     }
                 }
 
-                // Sync remote profile if authenticated
-                val user = authRepository.currentUser
-                if (user != null) {
-                    try {
-                        val remoteProfile = authRepository.fetchUserProfile(user.uid)
-                        if (remoteProfile != null) {
-                            val userRank = RankUtils.getRankForXp(remoteProfile.xp)
-                            val userName = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player" && remoteProfile.name != "Guest Player") remoteProfile.name else (user.displayName ?: user.email?.substringBefore("@") ?: "Player")
-                            val userEmail = user.email ?: remoteProfile.email
+                // Sync remote profile ONLY if authenticated and NOT in guest mode
+                if (!isGuest) {
+                    val user = authRepository.currentUser
+                    if (user != null) {
+                        try {
+                            val remoteProfile = authRepository.fetchUserProfile(user.uid)
+                            if (remoteProfile != null) {
+                                val userRank = RankUtils.getRankForXp(remoteProfile.xp)
+                                val userName = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player" && remoteProfile.name != "Guest Player") remoteProfile.name else (user.displayName ?: user.email?.substringBefore("@") ?: "Player")
+                                val userEmail = user.email ?: remoteProfile.email
 
-                            _uiState.update {
-                                it.copy(
-                                    playerName = userName,
-                                    playerEmail = userEmail,
-                                    avatarId = remoteProfile.avatarId.ifBlank { "brain" },
-                                    xp = remoteProfile.xp,
-                                    level = maxOf(1, (remoteProfile.xp / 500) + 1),
-                                    coins = remoteProfile.coins,
-                                    streakDays = remoteProfile.streak,
-                                    rank = userRank,
-                                    unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
-                                    totalQuizzesPlayed = remoteProfile.totalQuizzesPlayed,
-                                    totalQuestionsAnswered = remoteProfile.totalQuestionsAnswered,
-                                    totalCorrectAnswers = remoteProfile.totalCorrectAnswers,
-                                    bestScore = remoteProfile.bestScore,
-                                    longestStreak = remoteProfile.longestStreak,
-                                    quizHistory = remoteProfile.quizHistory
-                                )
+                                _uiState.update {
+                                    it.copy(
+                                        playerName = userName,
+                                        playerEmail = userEmail,
+                                        avatarId = remoteProfile.avatarId.ifBlank { "brain" },
+                                        xp = remoteProfile.xp,
+                                        level = maxOf(1, (remoteProfile.xp / 500) + 1),
+                                        coins = remoteProfile.coins,
+                                        streakDays = remoteProfile.streak,
+                                        rank = userRank,
+                                        unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
+                                        totalQuizzesPlayed = remoteProfile.totalQuizzesPlayed,
+                                        totalQuestionsAnswered = remoteProfile.totalQuestionsAnswered,
+                                        totalCorrectAnswers = remoteProfile.totalCorrectAnswers,
+                                        bestScore = remoteProfile.bestScore,
+                                        longestStreak = remoteProfile.longestStreak,
+                                        quizHistory = remoteProfile.quizHistory
+                                    )
+                                }
                             }
+                        } catch (e: Exception) {
+                            Log.e("HomeViewModel", "Error fetching remote profile", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e("HomeViewModel", "Error fetching remote profile", e)
                     }
                 }
             }

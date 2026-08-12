@@ -907,14 +907,16 @@ fun LoginScreen(
                     // Primary Auth Action Button
                     GradientButton(
                         text = if (uiState.isSignUpMode) "Create Free Account" else "Sign In with Email",
-                        isLoading = uiState.isLoading,
+                        isLoading = uiState.isEmailSignInLoading,
                         onClick = {
-                            SoundEffects.playClickSound(context)
-                            VibrationUtils.vibrateClick(context)
-                            viewModel.submitEmailAuth {
-                                VibrationUtils.vibrateCorrect(context)
-                                SoundEffects.playCorrectSound(context)
-                                onNavigateToHome()
+                            if (!uiState.isEmailSignInLoading && !uiState.isGoogleSignInLoading && !uiState.isGuestLoading) {
+                                SoundEffects.playClickSound(context)
+                                VibrationUtils.vibrateClick(context)
+                                viewModel.submitEmailAuth {
+                                    VibrationUtils.vibrateCorrect(context)
+                                    SoundEffects.playCorrectSound(context)
+                                    onNavigateToHome()
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -954,21 +956,23 @@ fun LoginScreen(
                     GradientButton(
                         text = "Continue with Google",
                         icon = Icons.Default.GTranslate,
-                        isLoading = uiState.isLoading,
+                        isLoading = uiState.isGoogleSignInLoading,
                         onClick = {
-                            SoundEffects.playClickSound(context)
-                            VibrationUtils.vibrateClick(context)
-                            viewModel.signInWithGoogle(
-                                context = context,
-                                onFallbackToGoogleSignInClient = { intent ->
-                                    googleSignInLauncher.launch(intent)
-                                },
-                                onSuccess = {
-                                    VibrationUtils.vibrateCorrect(context)
-                                    SoundEffects.playCorrectSound(context)
-                                    onNavigateToHome()
-                                }
-                            )
+                            if (!uiState.isEmailSignInLoading && !uiState.isGoogleSignInLoading && !uiState.isGuestLoading) {
+                                SoundEffects.playClickSound(context)
+                                VibrationUtils.vibrateClick(context)
+                                viewModel.signInWithGoogle(
+                                    context = context,
+                                    onFallbackToGoogleSignInClient = { intent ->
+                                        googleSignInLauncher.launch(intent)
+                                    },
+                                    onSuccess = {
+                                        VibrationUtils.vibrateCorrect(context)
+                                        SoundEffects.playCorrectSound(context)
+                                        onNavigateToHome()
+                                    }
+                                )
+                            }
                         },
                         isOutlined = true,
                         outlineColor = GlassBorder,
@@ -983,14 +987,16 @@ fun LoginScreen(
                     GradientButton(
                         text = "Play as Guest",
                         icon = Icons.Default.PersonOutline,
-                        isLoading = false,
+                        isLoading = uiState.isGuestLoading,
                         onClick = {
-                            SoundEffects.playClickSound(context)
-                            VibrationUtils.vibrateClick(context)
-                            viewModel.signInAsGuest {
-                                VibrationUtils.vibrateCorrect(context)
-                                SoundEffects.playCorrectSound(context)
-                                onNavigateToHome()
+                            if (!uiState.isEmailSignInLoading && !uiState.isGoogleSignInLoading && !uiState.isGuestLoading) {
+                                SoundEffects.playClickSound(context)
+                                VibrationUtils.vibrateClick(context)
+                                viewModel.signInAsGuest {
+                                    VibrationUtils.vibrateCorrect(context)
+                                    SoundEffects.playCorrectSound(context)
+                                    onNavigateToHome()
+                                }
                             }
                         },
                         gradientColors = listOf(Color(0xFF232A46), Color(0xFF181E36)),

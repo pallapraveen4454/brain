@@ -83,7 +83,9 @@ class AuthRepository(
     }
 
     val currentUser: FirebaseUser?
-        get() = try { getAuth()?.currentUser } catch (e: Exception) { null }
+        get() = try {
+            if (isGuestSessionActive()) null else getAuth()?.currentUser
+        } catch (e: Exception) { null }
 
     fun getOrCreateGuestId(): String {
         return userProfileStore.getGuestId()
@@ -101,7 +103,7 @@ class AuthRepository(
     }
 
     fun hasSavedUserSession(): Boolean {
-        return (currentUser != null) || userProfileStore.isLoggedIn()
+        return if (isGuestSessionActive()) true else (currentUser != null || userProfileStore.isLoggedIn())
     }
 
     fun isUserLoggedIn(): Boolean {
