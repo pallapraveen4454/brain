@@ -233,6 +233,7 @@ fun BrainQuizNavGraph(
                 oobCode = oobCode,
                 authViewModel = authViewModel,
                 onNavigateToLogin = {
+                    authViewModel.clearResetPasswordState()
                     navController.navigate(ScreenRoute.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }

@@ -451,7 +451,8 @@ class AuthViewModel(
                             it.copy(
                                 isConfirmingResetPassword = false,
                                 resetPasswordSuccess = true,
-                                resetPasswordScreenError = null
+                                resetPasswordScreenError = null,
+                                resetPasswordCode = ""
                             )
                         }
                     },
@@ -481,6 +482,25 @@ class AuthViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun clearResetPasswordState() {
+        _uiState.update {
+            it.copy(
+                resetPasswordCode = "",
+                resetPasswordEmail = "",
+                isVerifyingResetCode = false,
+                isResetCodeValid = false,
+                resetCodeError = null,
+                newPasswordInput = "",
+                resetConfirmPasswordInput = "",
+                isNewPasswordVisible = false,
+                isResetConfirmPasswordVisible = false,
+                isConfirmingResetPassword = false,
+                resetPasswordSuccess = false,
+                resetPasswordScreenError = null
+            )
         }
     }
 
