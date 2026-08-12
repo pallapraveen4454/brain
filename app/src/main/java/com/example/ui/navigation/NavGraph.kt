@@ -19,6 +19,7 @@ import com.example.ui.screens.AvatarShopScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.QuizScreen
+import com.example.ui.screens.ResetPasswordScreen
 import com.example.ui.screens.SplashScreen
 import com.example.viewmodel.AuthViewModel
 import com.example.viewmodel.HomeViewModel
@@ -207,6 +208,34 @@ fun BrainQuizNavGraph(
                 onNavigateBack = {
                     homeViewModel.loadUserProfile()
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = ScreenRoute.ResetPassword.route,
+            arguments = listOf(navArgument("oobCode") { type = NavType.StringType }),
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(400)
+                ) + fadeIn(animationSpec = tween(400))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(400)
+                ) + fadeOut(animationSpec = tween(400))
+            }
+        ) { backStackEntry ->
+            val oobCode = backStackEntry.arguments?.getString("oobCode") ?: ""
+            ResetPasswordScreen(
+                oobCode = oobCode,
+                authViewModel = authViewModel,
+                onNavigateToLogin = {
+                    navController.navigate(ScreenRoute.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }

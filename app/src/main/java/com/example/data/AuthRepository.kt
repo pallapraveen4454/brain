@@ -8,6 +8,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.actionCodeSettings
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -347,11 +348,46 @@ class AuthRepository(
         return try {
             val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
             Log.d("AuthRepository", "Calling FirebaseAuth.sendPasswordResetEmail(email='$email')...")
-            auth.sendPasswordResetEmail(email).await()
-            Log.d("AuthRepository", "FirebaseAuth.sendPasswordResetEmail SUCCESS -> email='$email'")
+            
+            try {
+                val settings = actionCodeSettings {
+                    url = "https://brainquiz-ai-app.firebaseapp.com/reset-password"
+                    handleCodeInApp = true
+                    setAndroidPackageName("com.aistudio.brainquizai.app", true, "24")
+                }
+                auth.sendPasswordResetEmail(email, settings).await()
+                Log.d("AuthRepository", "FirebaseAuth.sendPasswordResetEmail with ActionCodeSettings SUCCESS -> email='$email'")
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "ActionCodeSettings reset email failed (${e.message}), falling back to standard reset email")
+                auth.sendPasswordResetEmail(email).await()
+                Log.d("AuthRepository", "FirebaseAuth.sendPasswordResetEmail fallback SUCCESS -> email='$email'")
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("AuthRepository", "FirebaseAuth.sendPasswordResetEmail FAILED -> [${e.javaClass.name}] ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun verifyPasswordResetCode(code: String): Result<String> {
+        return try {
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
+            val email = auth.verifyPasswordResetCode(code).await()
+            Result.success(email)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "verifyPasswordResetCode FAILED", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun confirmPasswordReset(code: String, newPassword: String): Result<Unit> {
+        return try {
+            val auth = getAuth() ?: throw Exception("Firebase Authentication service is unavailable.")
+            auth.confirmPasswordReset(code, newPassword).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "confirmPasswordReset FAILED", e)
             Result.failure(e)
         }
     }

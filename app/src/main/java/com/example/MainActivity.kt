@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        deepLinkDestination.value = intent?.getStringExtra("navigate_to")
+        deepLinkDestination.value = processDeepLinkIntent(intent)
 
         setContent {
             CompositionLocalProvider(
@@ -44,10 +44,12 @@ class MainActivity : ComponentActivity() {
                     val targetRoute = deepLinkDestination.value
                     LaunchedEffect(targetRoute) {
                         if (targetRoute != null) {
-                            when (targetRoute) {
-                                "daily_challenge" -> navController.navigate(ScreenRoute.Quiz.createRoute("daily"))
-                                "quiz" -> navController.navigate(ScreenRoute.Quiz.createRoute("quick"))
-                                "achievements" -> navController.navigate(ScreenRoute.Home.route)
+                            when {
+                                targetRoute.startsWith("reset_password_screen") -> navController.navigate(targetRoute)
+                                targetRoute == "daily_challenge" -> navController.navigate(ScreenRoute.Quiz.createRoute("daily"))
+                                targetRoute == "quiz" -> navController.navigate(ScreenRoute.Quiz.createRoute("quick"))
+                                targetRoute == "achievements" -> navController.navigate(ScreenRoute.Home.route)
+                                else -> navController.navigate(targetRoute)
                             }
                             deepLinkDestination.value = null
                         }
@@ -91,9 +93,38 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val navigateTo = intent.getStringExtra("navigate_to")
-        if (navigateTo != null) {
-            deepLinkDestination.value = navigateTo
+        val dest = processDeepLinkIntent(intent)
+        if (dest != null) {
+            deepLinkDestination.value = dest
         }
+    }
+
+    private fun processDeepLinkIntent(intent: Intent?): String? {
+        if (intent == null) return null
+
+        val navigateToExtra = intent.getStringExtra("navigate_to")
+        if (navigateToExtra != null) return navigateToExtra
+
+        val data: android.net.Uri = intent.data ?: return null
+
+        var mode = data.getQueryParameter("mode")
+        var oobCode = data.getQueryParameter("oobCode")
+
+        if (oobCode.isNullOrBlank()) {
+            val nestedLink = data.getQueryParameter("link")
+            if (!nestedLink.isNullOrBlank()) {
+                val nestedUri = android.net.Uri.parse(nestedLink)
+                mode = mode ?: nestedUri.getQueryParameter("mode")
+                oobCode = nestedUri.getQueryParameter("oobCode")
+            }
+        }
+
+        if (!oobCode.isNullOrBlank()) {
+            if (mode == null || mode == "resetPassword") {
+                return ScreenRoute.ResetPassword.createRoute(oobCode)
+            }
+        }
+
+        return null
     }
 }

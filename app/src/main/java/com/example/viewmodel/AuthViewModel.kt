@@ -63,6 +63,18 @@ data class AuthUiState(
     val resetPasswordError: String? = null,
     val showResetPasswordSuccess: Boolean = false,
     val resetPasswordSuccessEmail: String = "",
+    val resetPasswordCode: String = "",
+    val resetPasswordEmail: String = "",
+    val isVerifyingResetCode: Boolean = false,
+    val isResetCodeValid: Boolean = false,
+    val resetCodeError: String? = null,
+    val newPasswordInput: String = "",
+    val resetConfirmPasswordInput: String = "",
+    val isNewPasswordVisible: Boolean = false,
+    val isResetConfirmPasswordVisible: Boolean = false,
+    val isConfirmingResetPassword: Boolean = false,
+    val resetPasswordSuccess: Boolean = false,
+    val resetPasswordScreenError: String? = null,
     val shakeTrigger: Int = 0
 )
 
@@ -301,6 +313,175 @@ class AuthViewModel(
 
     fun dismissResetPasswordNotice() {
         _uiState.update { it.copy(showResetPasswordNotice = false) }
+    }
+
+    // Full In-App Password Reset Flow Methods
+    fun initResetPasswordFlow(oobCode: String) {
+        val trimmedCode = oobCode.trim()
+        _uiState.update {
+            it.copy(
+                resetPasswordCode = trimmedCode,
+                isVerifyingResetCode = true,
+                isResetCodeValid = false,
+                resetCodeError = null,
+                newPasswordInput = "",
+                resetConfirmPasswordInput = "",
+                isNewPasswordVisible = false,
+                isResetConfirmPasswordVisible = false,
+                isConfirmingResetPassword = false,
+                resetPasswordSuccess = false,
+                resetPasswordScreenError = null
+            )
+        }
+
+        if (trimmedCode.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    isVerifyingResetCode = false,
+                    resetCodeError = "This password reset link is invalid or has expired. Please request a new reset link."
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val result = authRepository.verifyPasswordResetCode(trimmedCode)
+                result.fold(
+                    onSuccess = { email ->
+                        _uiState.update {
+                            it.copy(
+                                isVerifyingResetCode = false,
+                                isResetCodeValid = true,
+                                resetPasswordEmail = email,
+                                resetCodeError = null
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        val friendlyMsg = if (error is com.google.firebase.auth.FirebaseAuthActionCodeException ||
+                            error.message?.contains("invalid", ignoreCase = true) == true ||
+                            error.message?.contains("expired", ignoreCase = true) == true
+                        ) {
+                            "This password reset link is invalid or has expired. Please request a new reset link."
+                        } else {
+                            getFriendlyErrorMessage(error)
+                        }
+
+                        _uiState.update {
+                            it.copy(
+                                isVerifyingResetCode = false,
+                                isResetCodeValid = false,
+                                resetCodeError = friendlyMsg
+                            )
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isVerifyingResetCode = false,
+                        isResetCodeValid = false,
+                        resetCodeError = getFriendlyErrorMessage(e)
+                    )
+                }
+            }
+        }
+    }
+
+    fun onNewPasswordInputChanged(password: String) {
+        _uiState.update { it.copy(newPasswordInput = password, resetPasswordScreenError = null) }
+    }
+
+    fun onResetConfirmPasswordInputChanged(password: String) {
+        _uiState.update { it.copy(resetConfirmPasswordInput = password, resetPasswordScreenError = null) }
+    }
+
+    fun toggleNewPasswordVisibility() {
+        _uiState.update { it.copy(isNewPasswordVisible = !it.isNewPasswordVisible) }
+    }
+
+    fun toggleResetConfirmPasswordVisibility() {
+        _uiState.update { it.copy(isResetConfirmPasswordVisible = !it.isResetConfirmPasswordVisible) }
+    }
+
+    fun submitNewPassword() {
+        val newPassword = _uiState.value.newPasswordInput
+        val confirmPassword = _uiState.value.resetConfirmPasswordInput
+        val code = _uiState.value.resetPasswordCode
+
+        if (newPassword.isBlank()) {
+            _uiState.update { it.copy(resetPasswordScreenError = "Please enter a new password.") }
+            return
+        }
+
+        if (!isPasswordMinLength(newPassword)) {
+            _uiState.update { it.copy(resetPasswordScreenError = "Password must be at least 6 characters.") }
+            return
+        }
+
+        if (confirmPassword.isBlank()) {
+            _uiState.update { it.copy(resetPasswordScreenError = "Please confirm your password.") }
+            return
+        }
+
+        if (newPassword != confirmPassword) {
+            _uiState.update { it.copy(resetPasswordScreenError = "Passwords do not match.") }
+            return
+        }
+
+        if (code.isBlank()) {
+            _uiState.update { it.copy(resetPasswordScreenError = "This password reset link is invalid or has expired. Please request a new reset link.") }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isConfirmingResetPassword = true,
+                resetPasswordScreenError = null
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                val result = authRepository.confirmPasswordReset(code, newPassword)
+                result.fold(
+                    onSuccess = {
+                        _uiState.update {
+                            it.copy(
+                                isConfirmingResetPassword = false,
+                                resetPasswordSuccess = true,
+                                resetPasswordScreenError = null
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        val friendlyMsg = if (error is com.google.firebase.auth.FirebaseAuthActionCodeException ||
+                            error.message?.contains("invalid", ignoreCase = true) == true ||
+                            error.message?.contains("expired", ignoreCase = true) == true
+                        ) {
+                            "This password reset link is invalid or has expired. Please request a new reset link."
+                        } else {
+                            getFriendlyErrorMessage(error)
+                        }
+
+                        _uiState.update {
+                            it.copy(
+                                isConfirmingResetPassword = false,
+                                resetPasswordScreenError = friendlyMsg
+                            )
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isConfirmingResetPassword = false,
+                        resetPasswordScreenError = getFriendlyErrorMessage(e)
+                    )
+                }
+            }
+        }
     }
 
     private fun triggerError(msg: String) {

@@ -27,12 +27,33 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:label="@string/app_name"
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link / App Link handler for Firebase Password Reset -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Firebase Auth default action domain -->
+                <data
+                    android:scheme="https"
+                    android:host="brainquiz-ai-app.firebaseapp.com" />
+                <data
+                    android:scheme="https"
+                    android:host="brainquiz-ai-app.web.app" />
+                <!-- Custom scheme deep link -->
+                <data
+                    android:scheme="brainquizai"
+                    android:host="reset-password" />
             </intent-filter>
         </activity>
 
