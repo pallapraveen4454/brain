@@ -578,7 +578,7 @@ fun QuizActiveView(
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // 4. Question Content with Animated Smooth Transition
         AnimatedContent(
@@ -615,7 +615,7 @@ fun QuizActiveView(
                                         )
                                     )
                                 )
-                                .padding(22.dp)
+                                .padding(16.dp)
                         ) {
                             Column {
                                 Row(
@@ -661,14 +661,14 @@ fun QuizActiveView(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 Text(
                                     text = question.questionText,
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 20.sp,
-                                        lineHeight = 28.sp
+                                        fontSize = 18.sp,
+                                        lineHeight = 25.sp
                                     ),
                                     color = TextWhite,
                                     modifier = Modifier.testTag("question_text")
@@ -677,7 +677,7 @@ fun QuizActiveView(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Option Buttons
                     val optionLabels = listOf("A", "B", "C", "D")
@@ -699,7 +699,7 @@ fun QuizActiveView(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // 💡 Compact Bottom-Right Hint Control
                     Row(
@@ -777,7 +777,7 @@ fun QuizActiveView(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 5. Success / Error Banner with Slide & Fade Animation
         var lastFeedbackText by remember { mutableStateOf("") }
@@ -801,10 +801,10 @@ fun QuizActiveView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(feedbackBg)
-                    .border(1.5.dp, feedbackBorder, RoundedCornerShape(18.dp))
-                    .padding(vertical = 14.dp, horizontal = 18.dp)
+                    .border(1.5.dp, feedbackBorder, RoundedCornerShape(16.dp))
+                    .padding(vertical = 10.dp, horizontal = 16.dp)
                     .testTag("quiz_feedback_banner"),
                 contentAlignment = Alignment.Center
             ) {
@@ -813,14 +813,14 @@ fun QuizActiveView(
                         imageVector = if (lastIsCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
                         contentDescription = null,
                         tint = feedbackBorder,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = lastFeedbackText,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp
+                            fontSize = 15.sp
                         ),
                         color = feedbackBorder
                     )
@@ -828,7 +828,7 @@ fun QuizActiveView(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 
@@ -916,15 +916,15 @@ fun QuizOptionItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
+            .padding(vertical = 3.dp)
             .graphicsLayer {
                 translationX = shakeOffset.value
                 scaleX = correctPulseScale.value
                 scaleY = correctPulseScale.value
             }
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(18.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
             .bounceClick(scaleDown = 0.97f) {
                 if (!isAnswerSubmitted) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -938,7 +938,7 @@ fun QuizOptionItem(
                 enabled = !isAnswerSubmitted,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 15.dp)
+            .padding(horizontal = 14.dp, vertical = 11.dp)
             .testTag("option_button_$index")
     ) {
         Row(
@@ -1871,8 +1871,8 @@ fun HintButton(
         Box(
             modifier = Modifier
                 .background(bgBrush)
-                .border(1.2.dp, borderColor, RoundedCornerShape(16.dp))
-                .padding(vertical = 8.dp, horizontal = 14.dp),
+                .border(1.2.dp, borderColor, RoundedCornerShape(14.dp))
+                .padding(vertical = 5.dp, horizontal = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(

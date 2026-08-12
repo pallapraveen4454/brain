@@ -57,6 +57,12 @@ data class AuthUiState(
     val isLoggedIn: Boolean = false,
     val currentUserProfile: UserProfile? = null,
     val showResetPasswordNotice: Boolean = false,
+    val showForgotPasswordDialog: Boolean = false,
+    val resetPasswordEmailInput: String = "",
+    val isResetPasswordLoading: Boolean = false,
+    val resetPasswordError: String? = null,
+    val showResetPasswordSuccess: Boolean = false,
+    val resetPasswordSuccessEmail: String = "",
     val shakeTrigger: Int = 0
 )
 
@@ -194,13 +200,103 @@ class AuthViewModel(
     }
 
     fun onForgotPasswordClicked() {
-        val email = _uiState.value.emailInput
-        if (email.isNotBlank() && isEmailValid(email)) {
-            viewModelScope.launch {
-                authRepository.sendPasswordResetEmail(email)
+        openForgotPasswordDialog()
+    }
+
+    fun openForgotPasswordDialog() {
+        _uiState.update { 
+            it.copy(
+                showForgotPasswordDialog = true,
+                resetPasswordEmailInput = it.emailInput,
+                resetPasswordError = null,
+                isResetPasswordLoading = false,
+                showResetPasswordSuccess = false
+            ) 
+        }
+    }
+
+    fun onResetPasswordEmailChanged(email: String) {
+        _uiState.update {
+            it.copy(
+                resetPasswordEmailInput = email,
+                resetPasswordError = null
+            )
+        }
+    }
+
+    fun dismissForgotPasswordDialog() {
+        _uiState.update {
+            it.copy(
+                showForgotPasswordDialog = false,
+                isResetPasswordLoading = false,
+                resetPasswordError = null
+            )
+        }
+    }
+
+    fun dismissResetPasswordSuccessDialog() {
+        _uiState.update {
+            it.copy(
+                showResetPasswordSuccess = false,
+                resetPasswordSuccessEmail = ""
+            )
+        }
+    }
+
+    fun submitPasswordResetRequest(emailToReset: String? = null) {
+        val targetEmail = (emailToReset ?: _uiState.value.resetPasswordEmailInput).trim()
+        
+        if (targetEmail.isBlank()) {
+            _uiState.update { it.copy(resetPasswordError = "Please enter your email address.") }
+            return
+        }
+        if (!isEmailValid(targetEmail)) {
+            _uiState.update { it.copy(resetPasswordError = "Please enter a valid email address.") }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isResetPasswordLoading = true,
+                resetPasswordError = null
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                val result = authRepository.sendPasswordResetEmail(targetEmail)
+                result.fold(
+                    onSuccess = {
+                        _uiState.update {
+                            it.copy(
+                                isResetPasswordLoading = false,
+                                showForgotPasswordDialog = false,
+                                showResetPasswordSuccess = true,
+                                resetPasswordSuccessEmail = targetEmail,
+                                resetPasswordError = null
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        val friendlyMsg = getFriendlyErrorMessage(error)
+                        _uiState.update {
+                            it.copy(
+                                isResetPasswordLoading = false,
+                                resetPasswordError = friendlyMsg
+                            )
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                val friendlyMsg = getFriendlyErrorMessage(e)
+                _uiState.update {
+                    it.copy(
+                        isResetPasswordLoading = false,
+                        resetPasswordError = friendlyMsg
+                    )
+                }
             }
         }
-        _uiState.update { it.copy(showResetPasswordNotice = true) }
     }
 
     fun dismissResetPasswordNotice() {
@@ -527,6 +623,8 @@ class AuthViewModel(
                     Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
 
                     authRepository.setGuestSessionActive(false)
+                    authRepository.saveUserProfileToFirestore(profile)
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -557,7 +655,7 @@ class AuthViewModel(
                         it.copy(
                             isLoading = false,
                             isGoogleSignInLoading = false,
-                            errorMessage = "Firebase Authentication Failed [$exClass]: $exMsg"
+                            errorMessage = getFriendlyErrorMessage(error)
                         )
                     }
                 }
@@ -869,38 +967,55 @@ class AuthViewModel(
         val rawMsg = throwable.message ?: throwable.localizedMessage ?: "Unknown authentication error"
         Log.e("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg", throwable)
 
-        return when (throwable) {
-            is TimeoutCancellationException ->
-                "Request timed out. Please try again."
-            is FirebaseAuthUserCollisionException ->
+        return when {
+            throwable is FirebaseNetworkException || 
+            throwable is java.net.UnknownHostException || 
+            throwable is java.net.ConnectException || 
+            throwable is java.net.SocketTimeoutException ||
+            throwable is java.io.IOException ||
+            rawMsg.contains("network error", ignoreCase = true) ||
+            rawMsg.contains("unreachable host", ignoreCase = true) ||
+            rawMsg.contains("interrupted connection", ignoreCase = true) ||
+            rawMsg.contains("NO_NETWORK", ignoreCase = true) ||
+            rawMsg.contains("FirebaseNetworkException", ignoreCase = true) ->
+                "No internet connection. Please check your connection and try again."
+
+            throwable is TimeoutCancellationException ||
+            rawMsg.contains("timed out", ignoreCase = true) ||
+            rawMsg.contains("Timeout", ignoreCase = true) ->
+                "Network issue. Please try again later."
+
+            throwable is FirebaseAuthUserCollisionException ||
+            rawMsg.contains("email-already-in-use", ignoreCase = true) ||
+            rawMsg.contains("already exists", ignoreCase = true) ->
                 "An account with this email address already exists. Please sign in instead."
-            is FirebaseAuthInvalidCredentialsException ->
-                "Invalid email or password. Please verify your login credentials."
-            is FirebaseAuthInvalidUserException ->
-                "No account found with this email. Please check your entry or create an account."
-            is FirebaseAuthWeakPasswordException ->
-                "Password is too weak. Please use at least 6 characters."
-            is FirebaseNetworkException ->
-                "No internet connection. Please verify your network connection and try again."
-            else -> {
-                when {
-                    rawMsg.contains("timed out", ignoreCase = true) || rawMsg.contains("Timeout", ignoreCase = true) ->
-                        "Request timed out. Please try again."
-                    rawMsg.contains("badly formatted", ignoreCase = true) || rawMsg.contains("invalid email", ignoreCase = true) ->
-                        "Invalid email format ($rawMsg)"
-                    rawMsg.contains("user-not-found", ignoreCase = true) ->
-                        "No account found matching this email address ($rawMsg)"
-                    rawMsg.contains("wrong-password", ignoreCase = true) ->
-                        "Incorrect password ($rawMsg)"
-                    rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
-                        "Too many failed login attempts ($rawMsg)"
-                    rawMsg.contains("blocked", ignoreCase = true) || rawMsg.contains("identitytoolkit", ignoreCase = true) ->
-                        "Requests to Identity Toolkit API are blocked in GCP project. Please enable Identity Toolkit API and check API key restrictions."
-                    rawMsg.contains("API key", ignoreCase = true) || rawMsg.contains("restricted", ignoreCase = true) ->
-                        "Firebase Auth API key restriction error: Please check API key restrictions in Google Cloud Console."
-                    else -> "[$exClass] $rawMsg"
+
+            throwable is FirebaseAuthInvalidCredentialsException -> {
+                if (rawMsg.contains("invalid email", ignoreCase = true) || rawMsg.contains("badly formatted", ignoreCase = true)) {
+                    "Please enter a valid email address."
+                } else {
+                    "Invalid email or password. Please verify your login credentials."
                 }
             }
+
+            throwable is FirebaseAuthInvalidUserException ||
+            rawMsg.contains("user-not-found", ignoreCase = true) ->
+                "No account found with this email. Please check your entry or create an account."
+
+            throwable is FirebaseAuthWeakPasswordException ->
+                "Password is too weak. Please use at least 6 characters."
+
+            rawMsg.contains("badly formatted", ignoreCase = true) || rawMsg.contains("invalid email", ignoreCase = true) ->
+                "Please enter a valid email address."
+
+            rawMsg.contains("wrong-password", ignoreCase = true) ->
+                "Incorrect password. Please try again."
+
+            rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
+                "Too many failed login attempts. Please try again later."
+
+            else ->
+                "Authentication failed. Please check your connection and try again."
         }
     }
 }

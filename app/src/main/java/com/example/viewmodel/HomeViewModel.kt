@@ -177,12 +177,29 @@ class HomeViewModel(
             val accuracy = if (questionsAnswered > 0) ((correctAnswers.toDouble() / questionsAnswered.toDouble()) * 100).toInt() else 0
             val history = if (profile.quizHistory.isNotEmpty()) profile.quizHistory else quizResultRepository.getLocalQuizResultsList()
 
+            val currentUser = if (!isGuest) authRepository.currentUser else null
+            val authEmail = currentUser?.email ?: ""
+            val authName = currentUser?.displayName ?: authEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+
             val displayName = if (isGuest) {
                 if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name
             } else {
-                if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Player" else profile.name
+                when {
+                    profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player" && profile.name != "Guest" -> profile.name
+                    authName.isNotBlank() && authName != "Player" -> authName
+                    else -> "Player"
+                }
             }
-            val displayEmail = if (isGuest) "Guest Account" else profile.email.ifBlank { "Guest Account" }
+
+            val displayEmail = if (isGuest) {
+                "Guest Account"
+            } else {
+                when {
+                    profile.email.isNotBlank() && profile.email != "Guest Account" && profile.email != "guest@brainquiz.ai" -> profile.email
+                    authEmail.isNotBlank() -> authEmail
+                    else -> ""
+                }
+            }
 
             _uiState.update {
                 it.copy(

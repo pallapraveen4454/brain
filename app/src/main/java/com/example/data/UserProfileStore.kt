@@ -188,10 +188,17 @@ class UserProfileStore(
             return createOrGetGuestProfile()
         }
 
+        val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+        val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
+        val fbUser = auth?.currentUser
+
+        val defaultName = fbUser?.displayName ?: fbUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Player"
+        val defaultEmail = fbUser?.email ?: ""
+
         val defaultProfile = UserProfile(
-            uid = "",
-            name = "Player",
-            email = "",
+            uid = fbUser?.uid ?: "",
+            name = defaultName,
+            email = defaultEmail,
             avatarId = "brain",
             xp = 0,
             level = 1,

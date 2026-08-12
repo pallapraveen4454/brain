@@ -58,6 +58,11 @@ import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -252,12 +257,10 @@ fun LoginScreen(
                         statusCode = e.statusCode
                     )
                     val statusExplanation = when (e.statusCode) {
-                        10 -> "Developer error / SHA-1 or OAuth Client ID mismatch (Code 10)"
-                        12500 -> "Sign-in failed (Code 12500)"
-                        7 -> "Network error (Code 7)"
-                        else -> "Status code ${e.statusCode}"
+                        7 -> "No internet connection. Please check your connection and try again."
+                        else -> "Google Sign-In failed. Please check your connection and try again."
                     }
-                    viewModel.setAuthError("Google Sign-In failed: $statusExplanation. ${e.message ?: ""}")
+                    viewModel.setAuthError(statusExplanation)
                 }
             }
         } else {
@@ -285,16 +288,23 @@ fun LoginScreen(
         }
     }
 
-    // Dialog for Reset Password Notice
-    if (uiState.showResetPasswordNotice) {
-        ComingSoonDialog(
-            featureTitle = "Password Reset Link Dispatched",
-            featureDescription = if (uiState.emailInput.isNotBlank()) 
-                "We have dispatched a password reset email to ${uiState.emailInput}. Please check your inbox and spam folder."
-            else 
-                "Please enter your email address in the field above to receive a password reset link.",
-            onDismiss = { viewModel.dismissResetPasswordNotice() },
-            testTag = "reset_password_dialog"
+    // Reset Password Input Dialog
+    if (uiState.showForgotPasswordDialog) {
+        ResetPasswordDialog(
+            email = uiState.resetPasswordEmailInput,
+            onEmailChange = { viewModel.onResetPasswordEmailChanged(it) },
+            isLoading = uiState.isResetPasswordLoading,
+            errorMessage = uiState.resetPasswordError,
+            onDismiss = { viewModel.dismissForgotPasswordDialog() },
+            onSubmit = { viewModel.submitPasswordResetRequest() }
+        )
+    }
+
+    // Reset Password Success Dialog
+    if (uiState.showResetPasswordSuccess) {
+        ResetPasswordSuccessDialog(
+            email = uiState.resetPasswordSuccessEmail,
+            onDismiss = { viewModel.dismissResetPasswordSuccessDialog() }
         )
     }
 
@@ -1180,6 +1190,243 @@ fun RequirementItem(label: String, isMet: Boolean) {
             color = if (isMet) TextWhite else TextMuted,
             fontWeight = if (isMet) FontWeight.SemiBold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+fun ResetPasswordDialog(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Dialog(onDismissRequest = { if (!isLoading) onDismiss() }) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("reset_password_dialog"),
+            shape = RoundedCornerShape(24.dp),
+            color = DarkCardSurface,
+            border = BorderStroke(1.dp, GlassBorder)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LockReset,
+                        contentDescription = "Reset Password",
+                        tint = TextWhite,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Reset Password",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    ),
+                    color = TextWhite,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Enter your email address and we'll send you a password reset link.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    ),
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("reset_password_email_input"),
+                    label = { Text("Email Address", color = TextMuted) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = "Email",
+                            tint = PrimaryPurpleLight
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryPurpleLight,
+                        unfocusedBorderColor = GlassBorder,
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        cursorColor = PrimaryPurpleLight,
+                        focusedContainerColor = DarkBackground.copy(alpha = 0.5f),
+                        unfocusedContainerColor = DarkBackground.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                if (!errorMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF3E1212))
+                            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = "Error",
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = errorMessage,
+                            color = Color(0xFFFF8A80),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(22.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isLoading,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    GradientButton(
+                        text = "Send Reset Link",
+                        isLoading = isLoading,
+                        onClick = onSubmit,
+                        gradientColors = listOf(PrimaryPurple, PrimaryPurpleLight),
+                        modifier = Modifier.weight(1.5f),
+                        testTag = "send_reset_link_button"
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResetPasswordSuccessDialog(
+    email: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("reset_password_success_dialog"),
+            shape = RoundedCornerShape(24.dp),
+            color = DarkCardSurface,
+            border = BorderStroke(1.dp, GlassBorder)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(Color(0xFF00E676), Color(0xFF1B5E20))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Success",
+                        tint = TextWhite,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Password Reset Link Sent",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    ),
+                    color = TextWhite,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "We've sent a password reset link to $email. Please check your inbox and spam folder.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    ),
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                GradientButton(
+                    text = "Got It!",
+                    isLoading = false,
+                    onClick = onDismiss,
+                    gradientColors = listOf(Color(0xFF00E676), Color(0xFF1B5E20)),
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "reset_password_got_it_button"
+                )
+            }
+        }
     }
 }
 

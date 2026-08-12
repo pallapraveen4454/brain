@@ -385,8 +385,17 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(18.dp))
 
                         // Player Name & Edit Icon Button
-                        val formattedName = if (playerName.isBlank() || playerName == "Player" || playerName == "Guest Player") "Guest" else playerName
-                        val formattedEmail = if (playerEmail.isBlank() || playerEmail == "Guest Account" || playerEmail == "guest@brainquiz.ai") "Guest Account" else playerEmail
+                        val isGuestSession = (playerEmail == "Guest Account" || playerEmail == "guest@brainquiz.ai") || (playerName == "Guest")
+                        val formattedName = if (isGuestSession) {
+                            if (playerName.isBlank() || playerName == "Player" || playerName == "Guest Player") "Guest" else playerName
+                        } else {
+                            when {
+                                playerName.isNotBlank() && playerName != "Player" && playerName != "Guest Player" && playerName != "Guest" -> playerName
+                                playerEmail.isNotBlank() -> playerEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                else -> "Player"
+                            }
+                        }
+                        val formattedEmail = if (isGuestSession) "Guest Account" else playerEmail
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

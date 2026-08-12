@@ -321,6 +321,19 @@ class AuthRepository(
             Log.d("GOOGLE_AUTH_FLOW", "AuthRepository: FirebaseAuth.signInWithCredential SUCCESS -> user.uid=${user.uid}, email=${user.email}")
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
+
+            // Immediately construct and save local auth profile so UI picks up Google user immediately
+            val googleName = user.displayName?.ifBlank { null }
+                ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                ?: "Google User"
+            val googleEmail = user.email ?: ""
+            val initialProfile = UserProfile(
+                uid = user.uid,
+                name = googleName,
+                email = googleEmail
+            )
+            userProfileStore.saveProfile(initialProfile)
+
             ensureUserProfileExists(user)
             Result.success(user)
         } catch (e: Exception) {
