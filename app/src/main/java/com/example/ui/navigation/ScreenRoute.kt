@@ -9,6 +9,7 @@ sealed class ScreenRoute(val route: String) {
     object Quiz : ScreenRoute("quiz_screen/{categoryId}") {
         fun createRoute(categoryId: String) = "quiz_screen/$categoryId"
     }
+    object ForgotPassword : ScreenRoute("forgot_password_screen")
     object ResetPassword : ScreenRoute("reset_password_screen/{oobCode}") {
         fun createRoute(oobCode: String) = "reset_password_screen/$oobCode"
     }

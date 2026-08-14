@@ -183,6 +183,7 @@ fun AnimatedParticleBackground() {
 fun LoginScreen(
     onNavigateToHome: () -> Unit,
     viewModel: AuthViewModel,
+    onNavigateToForgotPassword: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -286,26 +287,6 @@ fun LoginScreen(
             VibrationUtils.vibrateWrong(context)
             SoundEffects.playWrongSound(context)
         }
-    }
-
-    // Reset Password Input Dialog
-    if (uiState.showForgotPasswordDialog) {
-        ResetPasswordDialog(
-            email = uiState.resetPasswordEmailInput,
-            onEmailChange = { viewModel.onResetPasswordEmailChanged(it) },
-            isLoading = uiState.isResetPasswordLoading,
-            errorMessage = uiState.resetPasswordError,
-            onDismiss = { viewModel.dismissForgotPasswordDialog() },
-            onSubmit = { viewModel.submitPasswordResetRequest() }
-        )
-    }
-
-    // Reset Password Success Dialog
-    if (uiState.showResetPasswordSuccess) {
-        ResetPasswordSuccessDialog(
-            email = uiState.resetPasswordSuccessEmail,
-            onDismiss = { viewModel.dismissResetPasswordSuccessDialog() }
-        )
     }
 
     Box(
@@ -905,7 +886,7 @@ fun LoginScreen(
                                     .clickable {
                                         SoundEffects.playClickSound(context)
                                         VibrationUtils.vibrateClick(context)
-                                        viewModel.onForgotPasswordClicked()
+                                        onNavigateToForgotPassword()
                                     }
                                     .padding(vertical = 4.dp)
                             )

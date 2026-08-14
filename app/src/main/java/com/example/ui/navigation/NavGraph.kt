@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.ui.screens.AiQuizGeneratorScreen
 import com.example.ui.screens.AvatarShopScreen
+import com.example.ui.screens.ForgotPasswordScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.QuizScreen
@@ -79,6 +80,38 @@ fun BrainQuizNavGraph(
                 onNavigateToHome = {
                     homeViewModel.loadUserProfile()
                     navController.navigate(ScreenRoute.Home.route) {
+                        popUpTo(ScreenRoute.Login.route) { inclusive = true }
+                    }
+                },
+                onNavigateToForgotPassword = {
+                    navController.navigate(ScreenRoute.ForgotPassword.route)
+                }
+            )
+        }
+
+        composable(
+            route = ScreenRoute.ForgotPassword.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(400)
+                ) + fadeIn(animationSpec = tween(400))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(400)
+                ) + fadeOut(animationSpec = tween(400))
+            }
+        ) {
+            ForgotPasswordScreen(
+                authViewModel = authViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToLogin = {
+                    authViewModel.dismissResetPasswordSuccessDialog()
+                    navController.navigate(ScreenRoute.Login.route) {
                         popUpTo(ScreenRoute.Login.route) { inclusive = true }
                     }
                 }
