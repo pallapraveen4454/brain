@@ -54,6 +54,9 @@
                 <data
                     android:scheme="brainquizai"
                     android:host="reset-password" />
+                <data
+                    android:scheme="brainquizai"
+                    android:host="login" />
             </intent-filter>
         </activity>
 

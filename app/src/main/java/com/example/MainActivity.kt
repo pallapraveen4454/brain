@@ -107,6 +107,15 @@ class MainActivity : ComponentActivity() {
 
         val data: android.net.Uri = intent.data ?: return null
 
+        // Check for explicit post-reset success or login redirect
+        val isPostReset = data.getBooleanQueryParameter("postReset", false) ||
+                data.getQueryParameter("postReset") == "true" ||
+                data.getQueryParameter("status") == "success"
+
+        if (isPostReset || data.host == "login") {
+            return ScreenRoute.Login.route
+        }
+
         var mode = data.getQueryParameter("mode")
         var oobCode = data.getQueryParameter("oobCode")
 
@@ -114,6 +123,11 @@ class MainActivity : ComponentActivity() {
             val nestedLink = data.getQueryParameter("link")
             if (!nestedLink.isNullOrBlank()) {
                 val nestedUri = android.net.Uri.parse(nestedLink)
+                if (nestedUri.getBooleanQueryParameter("postReset", false) ||
+                    nestedUri.getQueryParameter("postReset") == "true" ||
+                    nestedUri.getQueryParameter("status") == "success") {
+                    return ScreenRoute.Login.route
+                }
                 mode = mode ?: nestedUri.getQueryParameter("mode")
                 oobCode = nestedUri.getQueryParameter("oobCode")
             }
@@ -123,6 +137,10 @@ class MainActivity : ComponentActivity() {
             if (mode == null || mode == "resetPassword") {
                 return ScreenRoute.ResetPassword.createRoute(oobCode)
             }
+        }
+
+        if (data.scheme == "brainquizai") {
+            return ScreenRoute.Login.route
         }
 
         return null

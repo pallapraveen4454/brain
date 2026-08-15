@@ -351,7 +351,7 @@ class AuthRepository(
             
             try {
                 val settings = actionCodeSettings {
-                    url = "https://brainquiz-ai-app.web.app/reset-password/"
+                    url = "https://brainquiz-ai-app.web.app/reset-password/?postReset=true"
                     handleCodeInApp = true
                     setAndroidPackageName("com.aistudio.brainquizai.app", true, "24")
                 }

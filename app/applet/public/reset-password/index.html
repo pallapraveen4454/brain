@@ -43,6 +43,30 @@
             margin-bottom: 20px;
             box-shadow: 0 8px 16px rgba(124, 77, 255, 0.3);
         }
+        .icon-badge-success {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #00C853 0%, #69F0AE 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(0, 200, 83, 0.3);
+        }
+        .icon-badge-error {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #D50000 0%, #FF5252 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(213, 0, 0, 0.3);
+        }
         h1 {
             font-size: 24px;
             font-weight: 700;
@@ -74,6 +98,13 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(124, 77, 255, 0.5);
         }
+        .btn-secondary {
+            background: linear-gradient(135deg, #424242 0%, #212121 100%);
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
         .footer {
             margin-top: 24px;
             font-size: 12px;
@@ -83,41 +114,72 @@
 </head>
 <body>
     <div class="container">
-        <div class="logo">🧠</div>
-        <h1>BrainQuizAI</h1>
-        <div id="valid-state">
+        <!-- State 1: Successful Post-Password Reset -->
+        <div id="success-state" style="display: none;">
+            <div class="icon-badge-success">✓</div>
+            <h1>Password Reset Complete</h1>
+            <p>Your password has been changed successfully. You can now sign in to BrainQuizAI with your new password.</p>
+            <a id="success-app-button" href="brainquizai://reset-password?postReset=true" class="btn">Open BrainQuizAI & Sign In</a>
+        </div>
+
+        <!-- State 2: Fresh Valid Reset Link with oobCode -->
+        <div id="valid-state" style="display: none;">
+            <div class="logo">🧠</div>
+            <h1>BrainQuizAI</h1>
             <p id="message">Password reset code detected. Tap below to continue resetting your password in the BrainQuizAI mobile app.</p>
             <a id="app-button" href="brainquizai://reset-password" class="btn">Open BrainQuizAI App</a>
         </div>
+
+        <!-- State 3: Invalid or Expired Reset Link -->
         <div id="invalid-state" style="display: none;">
+            <div class="icon-badge-error">✕</div>
+            <h1>Invalid Reset Link</h1>
             <p style="color: #FF8A80;">This password reset link is invalid or has expired. Please request a new password reset link from the BrainQuizAI mobile app.</p>
-            <a href="brainquizai://reset-password" class="btn" style="background: linear-gradient(135deg, #424242 0%, #212121 100%); box-shadow: none;">Open BrainQuizAI App</a>
+            <a href="brainquizai://reset-password" class="btn btn-secondary">Open BrainQuizAI App</a>
         </div>
+
         <div class="footer">&copy; BrainQuizAI. All rights reserved.</div>
     </div>
 
     <script>
-        function getOobCode() {
+        function parseQueryParams() {
             const urlParams = new URLSearchParams(window.location.search);
             let code = urlParams.get('oobCode');
             let mode = urlParams.get('mode') || 'resetPassword';
+            let isPostReset = urlParams.get('postReset') === 'true' || urlParams.get('status') === 'success';
 
-            if (!code) {
+            if (!code && !isPostReset) {
                 const nestedLink = urlParams.get('link');
                 if (nestedLink) {
                     try {
                         const nestedUri = new URL(nestedLink);
                         code = nestedUri.searchParams.get('oobCode');
                         mode = nestedUri.searchParams.get('mode') || mode;
+                        if (nestedUri.searchParams.get('postReset') === 'true' || nestedUri.searchParams.get('status') === 'success') {
+                            isPostReset = true;
+                        }
                     } catch (e) {}
                 }
             }
-            return { code, mode };
+            return { code, mode, isPostReset };
         }
 
-        const { code, mode } = getOobCode();
+        const { code, mode, isPostReset } = parseQueryParams();
 
-        if (code) {
+        if (isPostReset) {
+            // User successfully changed their password on the web page and was redirected here
+            document.getElementById('success-state').style.display = 'block';
+            document.getElementById('valid-state').style.display = 'none';
+            document.getElementById('invalid-state').style.display = 'none';
+
+            const successUrl = 'brainquizai://reset-password?postReset=true';
+            document.getElementById('success-app-button').setAttribute('href', successUrl);
+
+            // Auto redirect back to app on mobile browsers
+            window.location.href = successUrl;
+        } else if (code) {
+            // Fresh unconsumed reset code detected
+            document.getElementById('success-state').style.display = 'none';
             document.getElementById('valid-state').style.display = 'block';
             document.getElementById('invalid-state').style.display = 'none';
 
@@ -127,6 +189,8 @@
             // Auto redirect to deep link on mobile browsers
             window.location.href = appUrl;
         } else {
+            // Truly invalid, expired, or missing reset parameters
+            document.getElementById('success-state').style.display = 'none';
             document.getElementById('valid-state').style.display = 'none';
             document.getElementById('invalid-state').style.display = 'block';
         }
