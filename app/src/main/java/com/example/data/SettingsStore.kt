@@ -10,7 +10,6 @@ data class UserSettings(
     val isDarkMode: Boolean = true,
     val soundEffectsEnabled: Boolean = true,
     val vibrationEnabled: Boolean = true,
-    val bgMusicEnabled: Boolean = true,
     val dailyChallengeReminder: Boolean = true,
     val streakReminder: Boolean = true,
     val achievementNotifications: Boolean = true,
@@ -34,7 +33,6 @@ class SettingsStore(
             isDarkMode = prefs.getBoolean("is_dark_mode", true),
             soundEffectsEnabled = prefs.getBoolean("sound_effects", true),
             vibrationEnabled = prefs.getBoolean("vibration", true),
-            bgMusicEnabled = prefs.getBoolean("bg_music", true),
             dailyChallengeReminder = prefs.getBoolean("daily_reminder", true),
             streakReminder = prefs.getBoolean("streak_reminder", true),
             achievementNotifications = prefs.getBoolean("achievement_notifs", true),
@@ -48,7 +46,7 @@ class SettingsStore(
             putBoolean("is_dark_mode", settings.isDarkMode)
             putBoolean("sound_effects", settings.soundEffectsEnabled)
             putBoolean("vibration", settings.vibrationEnabled)
-            putBoolean("bg_music", settings.bgMusicEnabled)
+            remove("bg_music")
             putBoolean("daily_reminder", settings.dailyChallengeReminder)
             putBoolean("streak_reminder", settings.streakReminder)
             putBoolean("achievement_notifs", settings.achievementNotifications)

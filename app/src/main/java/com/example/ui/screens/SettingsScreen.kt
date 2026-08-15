@@ -151,6 +151,8 @@ fun SettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showGooglePasswordInfoDialog by remember { mutableStateOf(false) }
+    var showGuestPasswordInfoDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     var showRateAppDialog by remember { mutableStateOf(false) }
@@ -158,10 +160,15 @@ fun SettingsScreen(
     var showRestoreDataDialog by remember { mutableStateOf(false) }
     var showPermissionRequiredDialog by remember { mutableStateOf(false) }
 
+    val authRepo = remember { com.example.data.AuthRepository(context) }
+
     // Text inputs & feedback state
     var newUsernameInput by remember { mutableStateOf(playerName) }
+    var currentPasswordInput by remember { mutableStateOf("") }
     var newPasswordInput by remember { mutableStateOf("") }
     var confirmPasswordInput by remember { mutableStateOf("") }
+    var isChangingPassword by remember { mutableStateOf(false) }
+    var changePasswordErrorMessage by remember { mutableStateOf<String?>(null) }
     var ratingStars by remember { mutableIntStateOf(5) }
     var ratingFeedback by remember { mutableStateOf("") }
 
@@ -173,7 +180,6 @@ fun SettingsScreen(
     fun updateSettings(newSettings: UserSettings) {
         userSettings = newSettings
         settingsStore.saveSettings(newSettings)
-        com.example.utils.BackgroundMusicPlayer.updateMusicState(context)
         com.example.utils.NotificationHelper.syncReminders(context)
     }
 
@@ -224,43 +230,22 @@ fun SettingsScreen(
                 borderColor = GlassBorder,
                 elevation = 6.dp
             ) {
-                Column {
-                    SettingsToggleRow(
-                        title = strings.soundEffects,
-                        subtitle = strings.soundEffectsSubtitle,
-                        icon = if (userSettings.soundEffectsEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                        checked = userSettings.soundEffectsEnabled,
-                        testTag = "sound_effects_switch",
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                SoundEffects.playCoinSound()
-                            }
-                            if (userSettings.vibrationEnabled) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                            updateSettings(userSettings.copy(soundEffectsEnabled = checked))
+                SettingsToggleRow(
+                    title = strings.soundEffects,
+                    subtitle = strings.soundEffectsSubtitle,
+                    icon = if (userSettings.soundEffectsEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                    checked = userSettings.soundEffectsEnabled,
+                    testTag = "sound_effects_switch",
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            SoundEffects.playCoinSound()
                         }
-                    )
-
-                    SettingsGroupDivider()
-
-                    SettingsToggleRow(
-                        title = strings.bgMusic,
-                        subtitle = strings.bgMusicSubtitle,
-                        icon = Icons.Default.MusicNote,
-                        checked = userSettings.bgMusicEnabled,
-                        testTag = "bg_music_switch",
-                        onCheckedChange = { checked ->
-                            if (userSettings.vibrationEnabled) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                            if (userSettings.soundEffectsEnabled) {
-                                SoundEffects.playCoinSound()
-                            }
-                            updateSettings(userSettings.copy(bgMusicEnabled = checked))
+                        if (userSettings.vibrationEnabled) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
-                    )
-                }
+                        updateSettings(userSettings.copy(soundEffectsEnabled = checked))
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -413,9 +398,21 @@ fun SettingsScreen(
                         testTag = "change_password_button",
                         onClick = {
                             if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            newPasswordInput = ""
-                            confirmPasswordInput = ""
-                            showChangePasswordDialog = true
+                            when (authRepo.getAccountAuthType()) {
+                                com.example.data.AuthRepository.AccountAuthType.GOOGLE_SIGN_IN -> {
+                                    showGooglePasswordInfoDialog = true
+                                }
+                                com.example.data.AuthRepository.AccountAuthType.GUEST -> {
+                                    showGuestPasswordInfoDialog = true
+                                }
+                                com.example.data.AuthRepository.AccountAuthType.EMAIL_PASSWORD -> {
+                                    currentPasswordInput = ""
+                                    newPasswordInput = ""
+                                    confirmPasswordInput = ""
+                                    changePasswordErrorMessage = null
+                                    showChangePasswordDialog = true
+                                }
+                            }
                         }
                     )
 
@@ -889,7 +886,7 @@ fun SettingsScreen(
     // 4. Change Password Dialog
     if (showChangePasswordDialog) {
         AlertDialog(
-            onDismissRequest = { showChangePasswordDialog = false },
+            onDismissRequest = { if (!isChangingPassword) showChangePasswordDialog = false },
             containerColor = DarkBackground,
             title = {
                 Text("Change Password", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
@@ -897,9 +894,9 @@ fun SettingsScreen(
             text = {
                 Column {
                     OutlinedTextField(
-                        value = newPasswordInput,
-                        onValueChange = { newPasswordInput = it },
-                        label = { Text("New Password", color = TextSecondary) },
+                        value = currentPasswordInput,
+                        onValueChange = { currentPasswordInput = it },
+                        label = { Text("Current Password (optional)", color = TextSecondary) },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextWhite,
@@ -907,7 +904,21 @@ fun SettingsScreen(
                             focusedBorderColor = PrimaryPurple,
                             unfocusedBorderColor = DarkCardBorder
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("current_password_input")
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = newPasswordInput,
+                        onValueChange = { newPasswordInput = it },
+                        label = { Text("New Password (min 6 chars)", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            focusedBorderColor = PrimaryPurple,
+                            unfocusedBorderColor = DarkCardBorder
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("new_password_input")
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
@@ -921,31 +932,120 @@ fun SettingsScreen(
                             focusedBorderColor = PrimaryPurple,
                             unfocusedBorderColor = DarkCardBorder
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("confirm_password_input")
                     )
+                    if (changePasswordErrorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = changePasswordErrorMessage ?: "",
+                            color = Color(0xFFFF5252),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newPasswordInput.length >= 6 && newPasswordInput == confirmPasswordInput) {
-                            showChangePasswordDialog = false
-                            if (userSettings.soundEffectsEnabled) SoundEffects.playCoinSound()
-                            Toast.makeText(context, "Password updated successfully!", Toast.LENGTH_SHORT).show()
+                        if (newPasswordInput.length < 6) {
+                            changePasswordErrorMessage = "Password must be at least 6 characters"
                         } else if (newPasswordInput != confirmPasswordInput) {
-                            Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
+                            changePasswordErrorMessage = "Passwords do not match"
                         } else {
-                            Toast.makeText(context, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                isChangingPassword = true
+                                changePasswordErrorMessage = null
+                                val result = authRepo.changePassword(
+                                    currentPassword = currentPasswordInput.takeIf { it.isNotBlank() },
+                                    newPassword = newPasswordInput
+                                )
+                                isChangingPassword = false
+                                result.fold(
+                                    onSuccess = {
+                                        showChangePasswordDialog = false
+                                        if (userSettings.soundEffectsEnabled) SoundEffects.playCoinSound()
+                                        Toast.makeText(context, "Password updated successfully!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFailure = { err ->
+                                        changePasswordErrorMessage = err.message ?: "Failed to update password. Please verify credentials."
+                                    }
+                                )
+                            }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                    enabled = !isChangingPassword,
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
+                    modifier = Modifier.testTag("submit_change_password_button")
                 ) {
-                    Text("Update Password", color = TextWhite)
+                    if (isChangingPassword) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = TextWhite,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Update Password", color = TextWhite)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showChangePasswordDialog = false }) {
+                TextButton(
+                    onClick = { showChangePasswordDialog = false },
+                    enabled = !isChangingPassword
+                ) {
                     Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 4b. Google Sign-In Password Info Dialog
+    if (showGooglePasswordInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showGooglePasswordInfoDialog = false },
+            containerColor = DarkBackground,
+            title = {
+                Text("Google Account Security", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
+            },
+            text = {
+                Text(
+                    text = "Your account is authenticated securely with Google Sign-In. Password updates and security credentials are managed directly within your Google Account settings.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showGooglePasswordInfoDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                ) {
+                    Text("Got It", color = TextWhite)
+                }
+            }
+        )
+    }
+
+    // 4c. Guest Account Password Info Dialog
+    if (showGuestPasswordInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showGuestPasswordInfoDialog = false },
+            containerColor = DarkBackground,
+            title = {
+                Text("Guest Account", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
+            },
+            text = {
+                Text(
+                    text = "You are currently playing as a Guest. Guest accounts do not use a password. Log in or create an email account to enable password protection and cloud syncing.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showGuestPasswordInfoDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                ) {
+                    Text("Understood", color = TextWhite)
                 }
             }
         )
@@ -1144,7 +1244,7 @@ fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to reset your account? All local XP, coins, and quiz history will be erased. This action cannot be undone.",
+                    text = "Are you sure you want to reset your account? This action cannot be undone.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )

@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.BrainQuizApplication
 import com.example.data.model.QuizResult
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -388,6 +389,54 @@ class AuthRepository(
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("AuthRepository", "confirmPasswordReset FAILED", e)
+            Result.failure(e)
+        }
+    }
+
+    enum class AccountAuthType {
+        EMAIL_PASSWORD,
+        GOOGLE_SIGN_IN,
+        GUEST
+    }
+
+    fun getAccountAuthType(): AccountAuthType {
+        if (isGuestSessionActive()) return AccountAuthType.GUEST
+        val user = currentUser ?: return AccountAuthType.GUEST
+        if (user.isAnonymous) return AccountAuthType.GUEST
+        val providers = user.providerData.map { it.providerId }
+        return when {
+            providers.contains("google.com") && !providers.contains("password") -> AccountAuthType.GOOGLE_SIGN_IN
+            providers.contains("password") -> AccountAuthType.EMAIL_PASSWORD
+            else -> AccountAuthType.EMAIL_PASSWORD
+        }
+    }
+
+    suspend fun changePassword(currentPassword: String?, newPassword: String): Result<Unit> {
+        val user = currentUser
+        if (user == null || isGuestSessionActive() || user.isAnonymous) {
+            return Result.failure(Exception("Guest accounts do not use a password."))
+        }
+
+        val providers = user.providerData.map { it.providerId }
+        if (providers.contains("google.com") && !providers.contains("password")) {
+            return Result.failure(Exception("This account is signed in with Google. Passwords are managed via your Google Account."))
+        }
+
+        if (newPassword.length < 6) {
+            return Result.failure(Exception("Password must be at least 6 characters long."))
+        }
+
+        return try {
+            val email = user.email
+            if (!currentPassword.isNullOrBlank() && !email.isNullOrBlank()) {
+                val credential = EmailAuthProvider.getCredential(email, currentPassword)
+                user.reauthenticate(credential).await()
+            }
+            user.updatePassword(newPassword).await()
+            Log.d("AuthRepository", "Password updated successfully for user ${user.uid}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Failed to update password: [${e.javaClass.name}] ${e.message}")
             Result.failure(e)
         }
     }

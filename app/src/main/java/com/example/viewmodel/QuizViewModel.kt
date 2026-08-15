@@ -529,7 +529,9 @@ class QuizViewModel(
                 achievementRepository.recordQuizCompletion(
                     scoreOutOfTen = scoreOutOfTen,
                     questionCount = questionsCount,
-                    isAiCustom = isAiCustom
+                    isAiCustom = isAiCustom,
+                    categoryId = if (isAiCustom) "ai_custom" else categoryName,
+                    correctCount = scoreOutOfTen
                 )
 
                 // 4. Check and unlock achievements

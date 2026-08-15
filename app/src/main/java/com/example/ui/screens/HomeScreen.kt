@@ -293,6 +293,7 @@ fun HomeScreen(
                         bestScore = uiState.bestScore,
                         longestStreak = uiState.longestStreak,
                         quizHistory = uiState.quizHistory,
+                        achievements = uiState.achievements,
                         onEditUsername = { viewModel.setShowEditUsernameDialog(true) },
                         onOpenAvatarShop = onNavigateToAvatarShop,
                         onResetAccount = { viewModel.resetGuestAccount() },

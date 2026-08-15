@@ -20,7 +20,6 @@ import com.example.ui.localization.LocalAppStrings
 import com.example.ui.navigation.BrainQuizNavGraph
 import com.example.ui.navigation.ScreenRoute
 import com.example.ui.theme.BrainQuizAITheme
-import com.example.utils.BackgroundMusicPlayer
 import com.example.utils.NotificationHelper
 import com.example.utils.RewardedAdManager
 
@@ -66,28 +65,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        BackgroundMusicPlayer.updateMusicState(this)
         RewardedAdManager.preloadRewardedAd(this)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        BackgroundMusicPlayer.resume(this)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        BackgroundMusicPlayer.pause()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        BackgroundMusicPlayer.pause()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        BackgroundMusicPlayer.release()
     }
 
     override fun onNewIntent(intent: Intent) {

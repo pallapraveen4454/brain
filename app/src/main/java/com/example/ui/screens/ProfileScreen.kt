@@ -97,6 +97,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.AchievementRepository
+import com.example.data.model.Achievement
 import com.example.data.model.QuizResult
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
@@ -140,6 +142,7 @@ fun ProfileScreen(
     bestScore: Int = 0,
     longestStreak: Int = 0,
     quizHistory: List<QuizResult> = emptyList(),
+    achievements: List<Achievement> = emptyList(),
     onEditUsername: () -> Unit = {},
     onOpenAvatarShop: () -> Unit = {},
     onResetAccount: () -> Unit = {},
@@ -769,21 +772,28 @@ fun ProfileScreen(
                     elevation = 6.dp
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        val sampleBadges = listOf(
-                            Triple("Brain Starter", "🧠", unlockedAchievementsCount >= 1),
-                            Triple("Quiz Master", "🏆", unlockedAchievementsCount >= 2),
-                            Triple("Streak Scholar", "🔥", streakDays >= 3),
-                            Triple("Speed Demon", "⚡", totalCorrectAnswers >= 10),
-                            Triple("Perfectionist", "🎯", accuracyPercentage >= 80),
-                            Triple("Master Mind", "💎", xp >= 500)
+                        val showcaseList = remember(achievements, xp, streakDays) {
+                            val all = if (achievements.isNotEmpty()) achievements else AchievementRepository().getAllAchievements(xp, coins, streakDays)
+                            val keyIds = listOf("first_step", "getting_started", "quiz_warrior", "accuracy_pro", "perfect_10", "streak_3_day")
+                            keyIds.mapNotNull { id -> all.find { it.id == id } }
+                        }
+
+                        val badgeEmojis = mapOf(
+                            "first_step" to "🌱",
+                            "getting_started" to "🚀",
+                            "quiz_warrior" to "⚔️",
+                            "accuracy_pro" to "🎯",
+                            "perfect_10" to "🌟",
+                            "streak_3_day" to "🔥"
                         )
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            sampleBadges.take(3).forEach { (name, emoji, isUnlocked) ->
-                                AchievementBadgeItem(name, emoji, isUnlocked)
+                            for (ach in showcaseList.take(3)) {
+                                val emoji = badgeEmojis[ach.id] ?: "🏆"
+                                AchievementBadgeItem(ach.title, emoji, ach.isUnlocked)
                             }
                         }
 
@@ -793,8 +803,9 @@ fun ProfileScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            sampleBadges.drop(3).forEach { (name, emoji, isUnlocked) ->
-                                AchievementBadgeItem(name, emoji, isUnlocked)
+                            for (ach in showcaseList.drop(3).take(3)) {
+                                val emoji = badgeEmojis[ach.id] ?: "🏆"
+                                AchievementBadgeItem(ach.title, emoji, ach.isUnlocked)
                             }
                         }
                     }
@@ -899,7 +910,7 @@ fun ProfileScreen(
                             onOpenSettings()
                             showSettingsScreen = true
                         },
-                        testTag = "settings_option_row"
+                        testTag = "settings_button"
                     )
 
                     ProfileOptionRow(

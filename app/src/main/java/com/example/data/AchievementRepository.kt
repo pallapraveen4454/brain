@@ -11,8 +11,13 @@ import java.util.Locale
 data class AchievementStats(
     val totalQuizzesCompleted: Int = 0,
     val totalQuestionsAnswered: Int = 0,
+    val totalCorrectAnswers: Int = 0,
+    val totalPerfectQuizzes: Int = 0,
+    val consecutivePerfectQuizzes: Int = 0,
+    val maxConsecutivePerfectQuizzes: Int = 0,
     val maxScoreOutOfTen: Int = 0,
-    val hasCompletedAiQuiz: Boolean = false
+    val hasCompletedAiQuiz: Boolean = false,
+    val categoryQuestionCounts: Map<String, Int> = emptyMap()
 )
 
 data class AchievementCheckResult(
@@ -30,27 +35,65 @@ class AchievementRepository(
 
     fun getStats(): AchievementStats {
         val prefs = getSharedPreferences() ?: return AchievementStats()
+        val allPrefs = prefs.all
+        val catMap = mutableMapOf<String, Int>()
+        for ((key, value) in allPrefs) {
+            if (key.startsWith("stat_cat_questions_") && value is Int) {
+                val catKey = key.removePrefix("stat_cat_questions_")
+                catMap[catKey] = value
+            }
+        }
+
         return AchievementStats(
             totalQuizzesCompleted = prefs.getInt("stat_total_quizzes", 0),
             totalQuestionsAnswered = prefs.getInt("stat_total_questions", 0),
+            totalCorrectAnswers = prefs.getInt("stat_total_correct", 0),
+            totalPerfectQuizzes = prefs.getInt("stat_total_perfect", 0),
+            consecutivePerfectQuizzes = prefs.getInt("stat_consecutive_perfect", 0),
+            maxConsecutivePerfectQuizzes = prefs.getInt("stat_max_consecutive_perfect", 0),
             maxScoreOutOfTen = prefs.getInt("stat_max_score", 0),
-            hasCompletedAiQuiz = prefs.getBoolean("stat_ai_completed", false)
+            hasCompletedAiQuiz = prefs.getBoolean("stat_ai_completed", false),
+            categoryQuestionCounts = catMap
         )
     }
 
-    fun recordQuizCompletion(scoreOutOfTen: Int, questionCount: Int, isAiCustom: Boolean) {
+    fun recordQuizCompletion(
+        scoreOutOfTen: Int,
+        questionCount: Int,
+        isAiCustom: Boolean,
+        categoryId: String = "",
+        correctCount: Int = scoreOutOfTen
+    ) {
         val prefs = getSharedPreferences() ?: return
         val currentQuizzes = prefs.getInt("stat_total_quizzes", 0)
         val currentQuestions = prefs.getInt("stat_total_questions", 0)
+        val currentCorrect = prefs.getInt("stat_total_correct", 0)
         val currentMaxScore = prefs.getInt("stat_max_score", 0)
-        val aiDone = prefs.getBoolean("stat_ai_completed", false)
+        val currentPerfect = prefs.getInt("stat_total_perfect", 0)
+        val currentConsecutive = prefs.getInt("stat_consecutive_perfect", 0)
+        val currentMaxConsecutive = prefs.getInt("stat_max_consecutive_perfect", 0)
+
+        val isPerfect = (scoreOutOfTen == 10)
+        val newConsecutive = if (isPerfect) currentConsecutive + 1 else 0
+        val newMaxConsecutive = maxOf(currentMaxConsecutive, newConsecutive)
+        val newPerfectTotal = if (isPerfect) currentPerfect + 1 else currentPerfect
+
+        val normalizedCat = normalizeCategoryKey(categoryId)
 
         prefs.edit().apply {
             putInt("stat_total_quizzes", currentQuizzes + 1)
             putInt("stat_total_questions", currentQuestions + questionCount)
+            putInt("stat_total_correct", currentCorrect + correctCount)
             putInt("stat_max_score", maxOf(currentMaxScore, scoreOutOfTen))
+            putInt("stat_total_perfect", newPerfectTotal)
+            putInt("stat_consecutive_perfect", newConsecutive)
+            putInt("stat_max_consecutive_perfect", newMaxConsecutive)
             if (isAiCustom) {
                 putBoolean("stat_ai_completed", true)
+            }
+            if (normalizedCat.isNotBlank()) {
+                val existingCatCount = prefs.getInt("stat_cat_questions_$normalizedCat", 0)
+                putInt("stat_cat_questions_$normalizedCat", existingCatCount + questionCount)
             }
             apply()
         }
@@ -67,12 +110,25 @@ class AchievementRepository(
         val profile = userProfileStore.getProfile()
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
+        // Merge accumulated stats from profile for existing users
+        val effectiveQuizzes = maxOf(stats.totalQuizzesCompleted, profile.totalQuizzesPlayed, profile.quizHistory.size)
+        val effectiveQuestions = maxOf(stats.totalQuestionsAnswered, profile.totalQuestionsAnswered, effectiveQuizzes * 10)
+        val effectiveCorrect = maxOf(stats.totalCorrectAnswers, profile.totalCorrectAnswers)
+        val effectiveMaxScore = maxOf(stats.maxScoreOutOfTen, profile.bestScore)
+
+        val mergedStats = stats.copy(
+            totalQuizzesCompleted = effectiveQuizzes,
+            totalQuestionsAnswered = effectiveQuestions,
+            totalCorrectAnswers = effectiveCorrect,
+            maxScoreOutOfTen = effectiveMaxScore
+        )
+
         return initialList.map { ach ->
             val isUnlockedInPrefs = (prefs?.getBoolean("ach_unlocked_${ach.id}", false) ?: false) || profile.unlockedAchievements.contains(ach.id)
             val unlockDateInPrefs = prefs?.getString("ach_date_${ach.id}", "") ?: ""
             val isClaimedInPrefs = (prefs?.getBoolean("ach_claimed_${ach.id}", false) ?: false) || profile.claimedRewards.contains(ach.id)
 
-            val progress = calculateProgress(ach.id, totalXp, totalCoins, currentStreak, stats)
+            val progress = calculateProgress(ach.id, totalXp, totalCoins, currentStreak, mergedStats)
             val isUnlocked = isUnlockedInPrefs || progress >= ach.targetProgress
 
             val finalUnlockDate = if (isUnlocked) {
@@ -156,93 +212,182 @@ class AchievementRepository(
         currentStreak: Int,
         stats: AchievementStats
     ): Int {
+        val questions = stats.totalQuestionsAnswered
+        val correct = stats.totalCorrectAnswers
+        val accuracy = if (questions > 0) ((correct.toDouble() / questions.toDouble()) * 100).toInt() else 0
+        val maxCatQuestions = if (stats.categoryQuestionCounts.isNotEmpty()) {
+            stats.categoryQuestionCounts.values.maxOrNull() ?: 0
+        } else 0
+
         return when (id) {
-            "first_quiz" -> stats.totalQuizzesCompleted
-            "first_10_q" -> stats.totalQuestionsAnswered
+            // Progression
+            "first_step", "first_quiz" -> stats.totalQuizzesCompleted
+            "getting_started" -> stats.totalQuizzesCompleted
+            "quiz_warrior" -> stats.totalQuizzesCompleted
+            "sharp_mind" -> stats.totalQuizzesCompleted
+            "dedicated_player", "quiz_master" -> stats.totalQuizzesCompleted
+            "mastermind" -> stats.totalQuizzesCompleted
+            "quiz_legend" -> stats.totalQuizzesCompleted
+
+            // Accuracy
+            "accuracy_pro" -> if (questions >= 50 && accuracy >= 80) 80 else if (questions >= 50) accuracy else (questions * 80 / 50)
+            "accuracy_expert" -> if (questions >= 100 && accuracy >= 90) 90 else if (questions >= 100) accuracy else (questions * 90 / 100)
+            "accuracy_master" -> if (questions >= 250 && accuracy >= 95) 95 else if (questions >= 250) accuracy else (questions * 95 / 250)
+
+            // Perfect Score
+            "perfect_10", "perfect_score" -> if (stats.maxScoreOutOfTen >= 10 || stats.totalPerfectQuizzes >= 1) 1 else 0
+            "perfect_run" -> maxOf(stats.consecutivePerfectQuizzes, stats.maxConsecutivePerfectQuizzes)
+            "perfectionist" -> stats.totalPerfectQuizzes
+
+            // Daily Streak
+            "streak_3_day" -> currentStreak
+            "streak_7_day" -> currentStreak
+            "streak_30_day" -> currentStreak
+
+            // Category Mastery
+            "category_explorer" -> maxCatQuestions
+            "category_specialist" -> maxCatQuestions
+            "category_expert" -> maxCatQuestions
+            "category_master" -> maxCatQuestions
+
+            // Extras preserved
             "xp_starter", "xp_master", "xp_legend" -> totalXp
-            "perfect_score" -> stats.maxScoreOutOfTen
-            "quiz_player", "quiz_master" -> stats.totalQuizzesCompleted
-            "streak_3_day", "streak_7_day", "streak_30_day" -> currentStreak
             "coin_collector", "coin_master" -> totalCoins
             "ai_pioneer" -> if (stats.hasCompletedAiQuiz) 1 else 0
             else -> 0
         }
     }
 
+    private fun normalizeCategoryKey(rawCategory: String): String {
+        return rawCategory.lowercase(Locale.ROOT).trim().replace(" ", "_").replace("-", "_")
+    }
+
     private fun getInitialAchievementsList(): List<Achievement> {
         return listOf(
+            // 1. PROGRESSION
             Achievement(
-                id = "first_quiz",
-                title = "First Quiz",
-                description = "Complete your first quiz",
-                category = "Beginner",
-                iconName = "first_quiz",
+                id = "first_step",
+                title = "First Step",
+                description = "Complete 1 quiz",
+                category = "Progression",
+                iconName = "first_step",
                 targetProgress = 1,
                 rewardCoins = 50
             ),
             Achievement(
-                id = "first_10_q",
-                title = "First 10 Questions",
-                description = "Answer 10 questions total",
-                category = "Beginner",
-                iconName = "first_10_q",
-                targetProgress = 10,
-                rewardCoins = 50
+                id = "getting_started",
+                title = "Getting Started",
+                description = "Complete 5 quizzes",
+                category = "Progression",
+                iconName = "getting_started",
+                targetProgress = 5,
+                rewardCoins = 75
             ),
             Achievement(
-                id = "xp_starter",
-                title = "XP Starter",
-                description = "Earn 100 XP total",
-                category = "XP",
-                iconName = "xp_starter",
-                targetProgress = 100,
-                rewardCoins = 50
-            ),
-            Achievement(
-                id = "xp_master",
-                title = "XP Master",
-                description = "Earn 500 XP total",
-                category = "XP",
-                iconName = "xp_master",
-                targetProgress = 500,
-                rewardCoins = 100
-            ),
-            Achievement(
-                id = "xp_legend",
-                title = "XP Legend",
-                description = "Earn 1000 XP total",
-                category = "XP",
-                iconName = "xp_legend",
-                targetProgress = 1000,
-                rewardCoins = 200
-            ),
-            Achievement(
-                id = "perfect_score",
-                title = "Perfect Score",
-                description = "Get a perfect 10/10 score in a quiz",
-                category = "Quiz",
-                iconName = "perfect_score",
-                targetProgress = 10,
-                rewardCoins = 100
-            ),
-            Achievement(
-                id = "quiz_player",
-                title = "Quiz Player",
-                description = "Complete 10 quizzes",
-                category = "Quiz",
-                iconName = "quiz_player",
-                targetProgress = 10,
+                id = "quiz_warrior",
+                title = "Quiz Warrior",
+                description = "Complete 25 quizzes",
+                category = "Progression",
+                iconName = "quiz_warrior",
+                targetProgress = 25,
                 rewardCoins = 150
             ),
             Achievement(
-                id = "quiz_master",
-                title = "Quiz Master",
+                id = "sharp_mind",
+                title = "Sharp Mind",
+                description = "Complete 50 quizzes",
+                category = "Progression",
+                iconName = "sharp_mind",
+                targetProgress = 50,
+                rewardCoins = 250
+            ),
+            Achievement(
+                id = "dedicated_player",
+                title = "Dedicated Player",
                 description = "Complete 100 quizzes",
-                category = "Quiz",
-                iconName = "quiz_master",
+                category = "Progression",
+                iconName = "dedicated_player",
                 targetProgress = 100,
                 rewardCoins = 500
             ),
+            Achievement(
+                id = "mastermind",
+                title = "Mastermind",
+                description = "Complete 250 quizzes",
+                category = "Progression",
+                iconName = "mastermind",
+                targetProgress = 250,
+                rewardCoins = 1000
+            ),
+            Achievement(
+                id = "quiz_legend",
+                title = "Quiz Legend",
+                description = "Complete 500 quizzes",
+                category = "Progression",
+                iconName = "quiz_legend",
+                targetProgress = 500,
+                rewardCoins = 2000
+            ),
+
+            // 2. ACCURACY
+            Achievement(
+                id = "accuracy_pro",
+                title = "Accuracy Pro",
+                description = "Answer min 50 questions with >= 80% accuracy",
+                category = "Accuracy",
+                iconName = "accuracy_pro",
+                targetProgress = 80,
+                rewardCoins = 150
+            ),
+            Achievement(
+                id = "accuracy_expert",
+                title = "Accuracy Expert",
+                description = "Answer min 100 questions with >= 90% accuracy",
+                category = "Accuracy",
+                iconName = "accuracy_expert",
+                targetProgress = 90,
+                rewardCoins = 300
+            ),
+            Achievement(
+                id = "accuracy_master",
+                title = "Accuracy Master",
+                description = "Answer min 250 questions with >= 95% accuracy",
+                category = "Accuracy",
+                iconName = "accuracy_master",
+                targetProgress = 95,
+                rewardCoins = 600
+            ),
+
+            // 3. PERFECT SCORE
+            Achievement(
+                id = "perfect_10",
+                title = "Perfect 10",
+                description = "Score a perfect 10/10 in 1 quiz",
+                category = "Perfect",
+                iconName = "perfect_10",
+                targetProgress = 1,
+                rewardCoins = 100
+            ),
+            Achievement(
+                id = "perfect_run",
+                title = "Perfect Run",
+                description = "Score 10/10 in 3 consecutive quizzes",
+                category = "Perfect",
+                iconName = "perfect_run",
+                targetProgress = 3,
+                rewardCoins = 350
+            ),
+            Achievement(
+                id = "perfectionist",
+                title = "Perfectionist",
+                description = "Score 10/10 in 10 total quizzes",
+                category = "Perfect",
+                iconName = "perfectionist",
+                targetProgress = 10,
+                rewardCoins = 500
+            ),
+
+            // 4. DAILY STREAK (Preserved without modifying StreakCalculator)
             Achievement(
                 id = "streak_3_day",
                 title = "3 Day Warrior",
@@ -270,24 +415,46 @@ class AchievementRepository(
                 targetProgress = 30,
                 rewardCoins = 500
             ),
+
+            // 5. CATEGORY MASTERY
             Achievement(
-                id = "coin_collector",
-                title = "Coin Collector",
-                description = "Accumulate 1000 coins",
-                category = "Coins",
-                iconName = "coin_collector",
-                targetProgress = 1000,
+                id = "category_explorer",
+                title = "Category Explorer",
+                description = "Answer 25 questions in a single category",
+                category = "Category",
+                iconName = "category_explorer",
+                targetProgress = 25,
+                rewardCoins = 100
+            ),
+            Achievement(
+                id = "category_specialist",
+                title = "Category Specialist",
+                description = "Answer 50 questions in a single category",
+                category = "Category",
+                iconName = "category_specialist",
+                targetProgress = 50,
                 rewardCoins = 200
             ),
             Achievement(
-                id = "coin_master",
-                title = "Coin Master",
-                description = "Accumulate 5000 coins",
-                category = "Coins",
-                iconName = "coin_master",
-                targetProgress = 5000,
-                rewardCoins = 500
+                id = "category_expert",
+                title = "Category Expert",
+                description = "Answer 100 questions in a single category",
+                category = "Category",
+                iconName = "category_expert",
+                targetProgress = 100,
+                rewardCoins = 350
             ),
+            Achievement(
+                id = "category_master",
+                title = "Category Master",
+                description = "Answer 250 questions in a single category",
+                category = "Category",
+                iconName = "category_master",
+                targetProgress = 250,
+                rewardCoins = 750
+            ),
+
+            // 6. AI PIONEER
             Achievement(
                 id = "ai_pioneer",
                 title = "Gemini AI Pioneer",
@@ -300,3 +467,4 @@ class AchievementRepository(
         )
     }
 }
+

@@ -348,17 +348,32 @@ private fun AchievementItemCard(achievement: Achievement) {
 
 private fun getAchievementIcon(iconName: String): ImageVector {
     return when (iconName) {
-        "first_quiz" -> Icons.Default.Psychology
-        "first_10_q" -> Icons.Default.CheckCircle
-        "xp_starter" -> Icons.Default.Bolt
-        "xp_master" -> Icons.Default.MilitaryTech
-        "xp_legend" -> Icons.Default.WorkspacePremium
-        "perfect_score" -> Icons.Default.EmojiEvents
-        "quiz_player" -> Icons.Default.School
-        "quiz_master" -> Icons.Default.Stars
+        // Progression
+        "first_step", "first_quiz" -> Icons.Default.Psychology
+        "getting_started" -> Icons.Default.CheckCircle
+        "quiz_warrior" -> Icons.Default.Bolt
+        "sharp_mind" -> Icons.Default.MilitaryTech
+        "dedicated_player", "quiz_master" -> Icons.Default.WorkspacePremium
+        "mastermind" -> Icons.Default.Stars
+        "quiz_legend" -> Icons.Default.EmojiEvents
+
+        // Accuracy
+        "accuracy_pro", "accuracy_expert", "accuracy_master" -> Icons.Default.MilitaryTech
+
+        // Perfect
+        "perfect_10", "perfect_score" -> Icons.Default.EmojiEvents
+        "perfect_run" -> Icons.Default.Bolt
+        "perfectionist" -> Icons.Default.Stars
+
+        // Streak
         "streak_3_day", "streak_7_day", "streak_30_day" -> Icons.Default.LocalFireDepartment
-        "coin_collector", "coin_master" -> Icons.Default.MonetizationOn
+
+        // Category Mastery
+        "category_explorer", "category_specialist", "category_expert", "category_master" -> Icons.Default.School
+
+        // AI
         "ai_pioneer" -> Icons.Default.AutoAwesome
+
         else -> Icons.Default.EmojiEvents
     }
 }

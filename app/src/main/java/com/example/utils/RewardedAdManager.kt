@@ -105,8 +105,6 @@ object RewardedAdManager {
                     isAdActive = false
                     // Preload the next ad in background
                     preloadRewardedAd(activity)
-                    // Resume background music if enabled
-                    BackgroundMusicPlayer.resume(activity)
 
                     if (!rewardEarned) {
                         onAdClosedWithoutReward()
@@ -118,13 +116,11 @@ object RewardedAdManager {
                     isAdActive = false
                     preloadedAd = null
                     preloadRewardedAd(activity)
-                    BackgroundMusicPlayer.resume(activity)
                     onError("Hint unavailable right now. Please try again.")
                 }
 
                 override fun onAdShowedFullScreenContent() {
                     Log.d(TAG, "Rewarded Ad is now showing full screen")
-                    BackgroundMusicPlayer.pause()
                 }
             }
 
