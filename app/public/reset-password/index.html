@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BrainQuizAI - Password Reset</title>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -18,9 +20,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 20px;
         }
-        .container {
+        .card {
             max-width: 440px;
             width: 100%;
             background: rgba(255, 255, 255, 0.05);
@@ -31,7 +33,7 @@
             text-align: center;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
-        .logo {
+        .logo-badge {
             width: 64px;
             height: 64px;
             background: linear-gradient(135deg, #7C4DFF 0%, #B388FF 100%);
@@ -42,6 +44,30 @@
             font-size: 28px;
             margin-bottom: 20px;
             box-shadow: 0 8px 16px rgba(124, 77, 255, 0.3);
+        }
+        .icon-badge-success {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #00C853 0%, #69F0AE 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(0, 200, 83, 0.3);
+        }
+        .icon-badge-error {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #D50000 0%, #FF5252 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(213, 0, 0, 0.3);
         }
         h1 {
             font-size: 24px;
@@ -55,7 +81,29 @@
             font-size: 15px;
             color: rgba(255, 255, 255, 0.7);
             line-height: 1.5;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
+        }
+        .email-display {
+            color: #D1C4E9;
+            font-size: 14px;
+            margin-bottom: 16px;
+            word-break: break-word;
+        }
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.07);
+            color: white;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            border-color: #B388FF;
+            background: rgba(255, 255, 255, 0.1);
         }
         .btn {
             display: inline-block;
@@ -66,7 +114,9 @@
             font-weight: 600;
             font-size: 16px;
             text-decoration: none;
+            border: none;
             border-radius: 14px;
+            cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
             box-shadow: 0 4px 12px rgba(124, 77, 255, 0.4);
         }
@@ -74,61 +124,204 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(124, 77, 255, 0.5);
         }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #424242 0%, #212121 100%);
+            box-shadow: none;
+            margin-top: 10px;
+        }
+        .btn-secondary:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .form-message {
+            margin-top: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .form-message.error {
+            color: #FF8A80;
+        }
+        .form-message.success {
+            color: #69F0AE;
+        }
         .footer {
             margin-top: 24px;
             font-size: 12px;
             color: rgba(255, 255, 255, 0.4);
         }
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">🧠</div>
-        <h1>BrainQuizAI</h1>
-        <div id="valid-state">
-            <p id="message">Password reset code detected. Tap below to continue resetting your password in the BrainQuizAI mobile app.</p>
-            <a id="app-button" href="brainquizai://reset-password" class="btn">Open BrainQuizAI App</a>
+    <div class="card">
+        <!-- STATE 1: Success State (Post Reset) -->
+        <div id="successState" class="hidden">
+            <div class="icon-badge-success">✓</div>
+            <h1>Password Reset Complete</h1>
+            <p>Your password has been changed successfully. You can now sign in to BrainQuizAI with your new password.</p>
+            <a id="successAppButton" href="brainquizai://reset-password?postReset=true" class="btn">Open BrainQuizAI & Sign In</a>
         </div>
-        <div id="invalid-state" style="display: none;">
+
+        <!-- STATE 2: Web Form Reset (When code + apiKey present) -->
+        <div id="webResetState" class="hidden">
+            <div class="logo-badge">🧠</div>
+            <h1>Reset Your Password</h1>
+            <p id="resetIntro">Enter your new password below for BrainQuizAI.</p>
+            <div id="emailDisplay" class="email-display"></div>
+            <input id="newPassword" type="password" placeholder="New password (min 6 chars)" autocomplete="new-password" />
+            <input id="confirmPassword" type="password" placeholder="Confirm new password" autocomplete="new-password" />
+            <button id="resetSubmitBtn" class="btn">Save New Password</button>
+            <a id="openAppDirectBtn" href="brainquizai://reset-password" class="btn btn-secondary">Open in Mobile App</a>
+            <div id="formMsg" class="form-message"></div>
+        </div>
+
+        <!-- STATE 3: Loading / Code Verification -->
+        <div id="loadingState" class="hidden">
+            <div class="logo-badge">🧠</div>
+            <h1>BrainQuizAI</h1>
+            <p>Verifying password reset link...</p>
+        </div>
+
+        <!-- STATE 4: App Deep Link Prompt (Code without apiKey) -->
+        <div id="appRedirectState" class="hidden">
+            <div class="logo-badge">🧠</div>
+            <h1>BrainQuizAI</h1>
+            <p>Password reset code detected. Tap below to continue resetting your password in the BrainQuizAI mobile app.</p>
+            <a id="appRedirectBtn" href="brainquizai://reset-password" class="btn">Open BrainQuizAI App</a>
+        </div>
+
+        <!-- STATE 5: Invalid or Expired State -->
+        <div id="invalidState" class="hidden">
+            <div class="icon-badge-error">✕</div>
+            <h1>Invalid Reset Link</h1>
             <p style="color: #FF8A80;">This password reset link is invalid or has expired. Please request a new password reset link from the BrainQuizAI mobile app.</p>
-            <a href="brainquizai://reset-password" class="btn" style="background: linear-gradient(135deg, #424242 0%, #212121 100%); box-shadow: none;">Open BrainQuizAI App</a>
+            <a href="brainquizai://login" class="btn btn-secondary">Open BrainQuizAI App</a>
         </div>
+
         <div class="footer">&copy; BrainQuizAI. All rights reserved.</div>
     </div>
 
     <script>
-        function getOobCode() {
+        function parseParameters() {
             const urlParams = new URLSearchParams(window.location.search);
             let code = urlParams.get('oobCode');
             let mode = urlParams.get('mode') || 'resetPassword';
+            let apiKey = urlParams.get('apiKey');
+            let isPostReset = urlParams.get('postReset') === 'true' || urlParams.get('status') === 'success';
 
-            if (!code) {
+            if (!code && !isPostReset) {
                 const nestedLink = urlParams.get('link');
                 if (nestedLink) {
                     try {
                         const nestedUri = new URL(nestedLink);
                         code = nestedUri.searchParams.get('oobCode');
                         mode = nestedUri.searchParams.get('mode') || mode;
+                        apiKey = nestedUri.searchParams.get('apiKey') || apiKey;
+                        if (nestedUri.searchParams.get('postReset') === 'true' || nestedUri.searchParams.get('status') === 'success') {
+                            isPostReset = true;
+                        }
                     } catch (e) {}
                 }
             }
-            return { code, mode };
+            return { code, mode, apiKey, isPostReset };
         }
 
-        const { code, mode } = getOobCode();
+        const { code, mode, apiKey, isPostReset } = parseParameters();
 
-        if (code) {
-            document.getElementById('valid-state').style.display = 'block';
-            document.getElementById('invalid-state').style.display = 'none';
+        function showState(elementId) {
+            ['successState', 'webResetState', 'loadingState', 'appRedirectState', 'invalidState'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const activeEl = document.getElementById(elementId);
+            if (activeEl) activeEl.classList.remove('hidden');
+        }
 
+        if (isPostReset) {
+            // SUCCESS STATE: User completed reset
+            showState('successState');
+            const successUrl = 'brainquizai://reset-password?postReset=true';
+            document.getElementById('successAppButton').setAttribute('href', successUrl);
+            window.location.href = successUrl;
+        } else if (code && apiKey && typeof firebase !== 'undefined') {
+            // WEB RESET STATE: Direct reset with Firebase Auth JS SDK
+            showState('loadingState');
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp({ apiKey: apiKey });
+                }
+                const auth = firebase.auth();
+                auth.verifyPasswordResetCode(code).then(email => {
+                    showState('webResetState');
+                    if (email) {
+                        document.getElementById('emailDisplay').textContent = 'Resetting password for: ' + email;
+                    }
+                    const appDeepLink = `brainquizai://reset-password?oobCode=${encodeURIComponent(code)}&mode=${encodeURIComponent(mode)}`;
+                    document.getElementById('openAppDirectBtn').setAttribute('href', appDeepLink);
+                }).catch(err => {
+                    console.error('verifyPasswordResetCode error:', err);
+                    showState('invalidState');
+                });
+            } catch (e) {
+                console.error(e);
+                showState('appRedirectState');
+            }
+        } else if (code) {
+            // APP REDIRECT STATE: Fresh code, route to app
+            showState('appRedirectState');
             const appUrl = `brainquizai://reset-password?oobCode=${encodeURIComponent(code)}&mode=${encodeURIComponent(mode)}`;
-            document.getElementById('app-button').setAttribute('href', appUrl);
-            
-            // Auto redirect to deep link on mobile browsers
+            document.getElementById('appRedirectBtn').setAttribute('href', appUrl);
             window.location.href = appUrl;
         } else {
-            document.getElementById('valid-state').style.display = 'none';
-            document.getElementById('invalid-state').style.display = 'block';
+            // INVALID STATE
+            showState('invalidState');
+        }
+
+        // Web Reset Button Click Listener
+        const resetSubmitBtn = document.getElementById('resetSubmitBtn');
+        if (resetSubmitBtn) {
+            resetSubmitBtn.addEventListener('click', function() {
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const formMsg = document.getElementById('formMsg');
+                formMsg.textContent = '';
+                formMsg.className = 'form-message';
+
+                if (newPassword.length < 6) {
+                    formMsg.textContent = 'Password must be at least 6 characters.';
+                    formMsg.classList.add('error');
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    formMsg.textContent = 'Passwords do not match.';
+                    formMsg.classList.add('error');
+                    return;
+                }
+
+                resetSubmitBtn.disabled = true;
+                resetSubmitBtn.textContent = 'Saving password...';
+
+                firebase.auth().confirmPasswordReset(code, newPassword)
+                    .then(function() {
+                        showState('successState');
+                        const successUrl = 'brainquizai://reset-password?postReset=true';
+                        document.getElementById('successAppButton').setAttribute('href', successUrl);
+                        window.location.href = successUrl;
+                    })
+                    .catch(function(error) {
+                        resetSubmitBtn.disabled = false;
+                        resetSubmitBtn.textContent = 'Save New Password';
+                        formMsg.textContent = 'Unable to reset password. The link may have expired.';
+                        formMsg.classList.add('error');
+                        console.error(error);
+                    });
+            });
         }
     </script>
 </body>

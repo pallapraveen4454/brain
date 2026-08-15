@@ -842,12 +842,12 @@ fun LoginScreen(
                         }
                     }
 
-                    // Remember Me & Forgot Password Row (Sign In mode)
+                    // Remember Me Row (Sign In mode) - Forgot Password option temporarily removed for Version 1
                     if (!uiState.isSignUpMode) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
@@ -873,23 +873,6 @@ fun LoginScreen(
                                     color = TextSecondary
                                 )
                             }
-
-                            Text(
-                                text = "Forgot Password?",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = PrimaryPurpleLight,
-                                modifier = Modifier
-                                    .testTag("forgot_password_button")
-                                    .clickable {
-                                        SoundEffects.playClickSound(context)
-                                        VibrationUtils.vibrateClick(context)
-                                        onNavigateToForgotPassword()
-                                    }
-                                    .padding(vertical = 4.dp)
-                            )
                         }
                     }
 
