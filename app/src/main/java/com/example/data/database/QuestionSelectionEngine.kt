@@ -213,6 +213,9 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     }
 
     fun getOrInitInstallDate(todayDateOverride: String? = null): String {
+        if (todayDateOverride != null && inMemoryInstallDate == null) {
+            inMemoryInstallDate = todayDateOverride
+        }
         return getInstallDateDetails(todayDateOverride).currentInstallDate
     }
 
@@ -221,7 +224,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
      */
     fun getCalculatedDayNumber(todayDateOverride: String? = null): Int {
         val todayDate = todayDateOverride ?: getCurrentDateString()
-        val installDate = getOrInitInstallDate(todayDate)
+        val installDate = inMemoryInstallDate ?: getOrInitInstallDate()
         val diffDays = maxOf(0, calculateDaysBetween(installDate, todayDate))
         return diffDays + 1
     }

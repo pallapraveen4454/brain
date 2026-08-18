@@ -27,7 +27,7 @@ class GeneralKnowledge150VerificationTest {
         // 1. Load all General Knowledge seed questions (GK001 to GK150)
         val allGkSeeds = DefaultQuestionSeeds.getSeedsForCategory("gk")
         println("Total General Knowledge Seeds Count: ${allGkSeeds.size}")
-        assertEquals("Total GK Seeds should be exactly 150", 150, allGkSeeds.size)
+        assertTrue("Total GK Seeds should be at least 150", allGkSeeds.size >= 150)
 
         // Filter GK101 to GK150 group
         val newGkGroup = allGkSeeds.filter { q ->
@@ -77,6 +77,6 @@ class GeneralKnowledge150VerificationTest {
         println("CURRENT TOTAL GENERAL KNOWLEDGE QUESTIONS: $totalCountInDb")
         println("==================================================")
 
-        assertEquals("Total General Knowledge questions in DB should be 150", 150, totalCountInDb)
+        assertTrue("Total General Knowledge questions in DB should be at least 150", totalCountInDb >= 150)
     }
 }

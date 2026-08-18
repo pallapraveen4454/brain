@@ -43,7 +43,7 @@ class GeneralKnowledgeImportTest {
         val gkCount = selectionEngine.getQuestionCountForCategory("gk")
         assertTrue("GK Question count should be at least 10", gkCount >= 10)
 
-        val retrievedQuestions = selectionEngine.getQuestionsForCategory("gk", requestedCount = 50)
+        val retrievedQuestions = selectionEngine.getQuestionsForCategory("gk", requestedCount = gkCount)
         assertNotNull(retrievedQuestions)
         assertTrue("Retrieved questions should contain imported GK questions", retrievedQuestions.isNotEmpty())
 

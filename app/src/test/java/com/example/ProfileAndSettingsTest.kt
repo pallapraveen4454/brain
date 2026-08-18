@@ -72,11 +72,31 @@ class ProfileAndSettingsTest {
         composeTestRule.onNodeWithTag("reset_account_button").performScrollTo().performClick()
 
         // Verify Confirmation Dialog with exact text
-        composeTestRule.onNodeWithText("Are you sure you want to reset your account? This action cannot be undone.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Are you sure you want to reset your game progress (XP, streak, score history, and coins)? Your account identity will remain active.").assertIsDisplayed()
 
         // Click Confirm
         composeTestRule.onNodeWithTag("confirm_reset_account_button").performClick()
 
         assertTrue("onResetAccount should be executed after confirmation", resetCalled)
+    }
+
+    @Test
+    fun testSettingsScreenDeleteAccountDialog() {
+        composeTestRule.setContent {
+            SettingsScreen(
+                playerName = "Test User",
+                playerEmail = "test@brainquiz.ai",
+                onDeleteAccount = {},
+                onBackClick = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("delete_account_button").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("delete_account_button").performScrollTo().performClick()
+
+        // Verify Delete Account Dialog elements
+        composeTestRule.onNodeWithTag("cancel_delete_account_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("confirm_delete_account_button").assertIsDisplayed()
     }
 }

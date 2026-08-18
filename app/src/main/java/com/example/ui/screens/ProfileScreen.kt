@@ -1364,7 +1364,7 @@ fun HelpSupportDialog(onDismiss: () -> Unit) {
                 Text(
                     text = "• How to earn coins: Complete daily quizzes, quick quizzes, or AI custom quizzes.\n" +
                            "• How to unlock avatars: Visit the Avatar Shop from your Profile tab.\n" +
-                           "• Need assistance? Contact our team at support@brainquiz.ai",
+                           "• Need assistance? Contact our team at pallapraveen4454@gmail.com",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     lineHeight = 18.sp

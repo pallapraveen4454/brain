@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Account - BrainQuizAI</title>
+    <style>
+        :root {
+            --primary: #7C4DFF;
+            --primary-dark: #651FFF;
+            --primary-light: #B388FF;
+            --danger: #FF5252;
+            --danger-bg: rgba(255, 82, 82, 0.1);
+            --bg: #0F0913;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #F3F0F7;
+            --text-muted: #B3A8C2;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0F0913 0%, #1A0B2E 50%, #12002B 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 44px 36px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 28px 20px;
+                border-radius: 18px;
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 36px;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 28px;
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--danger) 0%, #FF8A80 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 20px rgba(255, 82, 82, 0.35);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFCDD2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: var(--text-muted);
+        }
+
+        .nav-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            color: var(--primary-light);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: rgba(124, 77, 255, 0.12);
+            border: 1px solid rgba(124, 77, 255, 0.25);
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(124, 77, 255, 0.25);
+            color: #FFFFFF;
+        }
+
+        .warning-card {
+            background: var(--danger-bg);
+            border: 1px solid rgba(255, 82, 82, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+
+        .warning-card h3 {
+            color: #FF8A80;
+            font-size: 17px;
+            margin-bottom: 8px;
+        }
+
+        .warning-card p {
+            color: #FFEAEA;
+            font-size: 14px;
+            margin-bottom: 0;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-top: 32px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 20px;
+            background: var(--danger);
+            border-radius: 2px;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            font-size: 15px;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+            font-size: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        li strong {
+            color: var(--text-main);
+        }
+
+        .method-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+
+        .method-box h3 {
+            font-size: 16px;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+
+        .btn-delete {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #FF5252 0%, #D50000 100%);
+            color: #FFFFFF;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 12px;
+            margin-top: 10px;
+            box-shadow: 0 4px 14px rgba(255, 82, 82, 0.4);
+            transition: transform 0.2s;
+        }
+
+        .btn-delete:hover {
+            transform: translateY(-2px);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            color: #FFFFFF;
+            font-size: 15px;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .footer {
+            margin-top: 48px;
+            text-align: center;
+            border-top: 1px solid var(--card-border);
+            padding-top: 24px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        a {
+            color: var(--primary-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🗑️</div>
+            <h1>Delete Account & Data</h1>
+            <div class="subtitle">BrainQuizAI User Data Management & Deletion Policy</div>
+            <div class="nav-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms & Conditions</a>
+                <a href="delete-account.html">Delete Account</a>
+            </div>
+        </div>
+
+        <div class="warning-card">
+            <h3>⚠️ Important Warning Regarding Account Deletion</h3>
+            <p>Deleting your BrainQuizAI account is permanent and irreversible. Once deleted, all your accumulated Experience Points (XP), virtual coins, daily challenge streaks, earned badges, category mastery stats, and leaderboard rankings cannot be restored.</p>
+        </div>
+
+        <h2>1. Data That Will Be Deleted</h2>
+        <p>Upon receiving and confirming an account deletion request, the following data is permanently purged from Google Firebase Authentication and Google Cloud Firestore:</p>
+        <ul>
+            <li><strong>Authentication Profile:</strong> Your Firebase User ID (UID), registered email address, authentication timestamps, and display name.</li>
+            <li><strong>Gameplay & Progress Statistics:</strong> All recorded XP, level progress, virtual coins balance, historical quiz logs, and daily challenge streak counts.</li>
+            <li><strong>Achievements & Custom Content:</strong> Unlocked achievement badges and AI custom quiz history.</li>
+            <li><strong>Leaderboard Entries:</strong> Your user profile entry is permanently removed from all global and category leaderboards.</li>
+        </ul>
+
+        <h2>2. Data Retention Notice</h2>
+        <p>We do not retain personal user information after account deletion. Non-identifying crash logs or aggregated operational metrics that cannot be linked to any user may be retained for temporary technical diagnostics as permitted by law.</p>
+
+        <h2>3. How to Delete Your Account</h2>
+
+        <div class="method-box">
+            <h3>Method 1: Instant In-App Deletion (Fastest)</h3>
+            <p>You can instantly delete your account directly from your Android device:</p>
+            <ol style="margin-left: 20px; color: var(--text-muted); font-size: 14px;">
+                <li>Open the <strong>BrainQuizAI</strong> application on your Android device.</li>
+                <li>Navigate to the <strong>Settings</strong> screen (gear icon in the bottom navigation).</li>
+                <li>Scroll down to the <strong>Danger Zone</strong> section.</li>
+                <li>Tap <strong>Delete Account</strong> and confirm your choice in the confirmation dialog.</li>
+            </ol>
+        </div>
+
+        <div class="method-box">
+            <h3>Method 2: Submit a Web Deletion Request</h3>
+            <p>If you no longer have access to the app or prefer to request deletion via the web, submit your registered account details below:</p>
+            
+            <form onsubmit="handleDeletionSubmit(event)">
+                <div class="form-group">
+                    <label for="email">Registered Account Email Address *</label>
+                    <input type="email" id="email" required placeholder="your.email@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="reason">Optional Reason for Deletion</label>
+                    <textarea id="reason" rows="3" placeholder="Tell us why you are deleting your account (optional)"></textarea>
+                </div>
+                <button type="submit" class="btn-delete">Submit Deletion Request</button>
+            </form>
+
+            <div id="confirmation-msg" style="display: none; margin-top: 16px; padding: 14px; background: rgba(0, 230, 118, 0.1); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 10px; color: #B9F6CA; font-size: 14px;">
+                ✓ Deletion request initiated! Please check your email client or contact <a href="mailto:pallapraveen4454@gmail.com" style="color: #00E676;">pallapraveen4454@gmail.com</a> to complete the verification.
+            </div>
+        </div>
+
+        <div class="method-box">
+            <h3>Method 3: Direct Email Request</h3>
+            <p>You may also email us directly with the subject line <strong>[BrainQuizAI] Account Deletion Request</strong>:</p>
+            <p><strong>Support Email:</strong> <a href="mailto:pallapraveen4454@gmail.com?subject=[BrainQuizAI]%20Account%20Deletion%20Request">pallapraveen4454@gmail.com</a></p>
+            <p>Web and email deletion requests are processed within 24 to 48 business hours.</p>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 BrainQuizAI. All rights reserved. | <a href="privacy.html">Privacy</a> | <a href="terms.html">Terms</a> | <a href="delete-account.html">Delete Account</a>
+        </div>
+    </div>
+
+    <script>
+        function handleDeletionSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const reason = document.getElementById('reason').value;
+            const subject = encodeURIComponent("[BrainQuizAI] Account Deletion Request - " + email);
+            const body = encodeURIComponent("Please delete my BrainQuizAI account and all associated cloud data.\n\nAccount Email: " + email + "\nReason: " + (reason || "N/A"));
+            window.location.href = "mailto:pallapraveen4454@gmail.com?subject=" + subject + "&body=" + body;
+            document.getElementById('confirmation-msg').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

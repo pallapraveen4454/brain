@@ -49,7 +49,8 @@ object RewardedAdManager {
      * Preloads a Rewarded Ad in the background so it can be presented immediately when requested.
      */
     fun preloadRewardedAd(context: Context) {
-        ensureMobileAdsInitialized(context)
+        val appContext = context.applicationContext ?: context
+        ensureMobileAdsInitialized(appContext)
         if (preloadedAd != null || isPreloading) return
         isPreloading = true
 
@@ -57,7 +58,7 @@ object RewardedAdManager {
         Log.d(TAG, "Preloading Rewarded Ad...")
 
         RewardedAd.load(
-            context,
+            appContext,
             TEST_REWARDED_AD_UNIT_ID,
             adRequest,
             object : RewardedAdLoadCallback() {

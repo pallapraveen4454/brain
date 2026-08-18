@@ -184,19 +184,18 @@ class UserProfileStore(
             Log.e("UserProfileStore", "Error loading profile from JSON", e)
         }
 
-        if (isGuest) {
-            return createOrGetGuestProfile()
-        }
-
-        val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
         val fbUser = auth?.currentUser
 
-        val defaultName = fbUser?.displayName ?: fbUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Player"
-        val defaultEmail = fbUser?.email ?: ""
+        if (isGuest || fbUser == null) {
+            return createOrGetGuestProfile()
+        }
+
+        val defaultName = fbUser.displayName ?: fbUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Player"
+        val defaultEmail = fbUser.email ?: ""
 
         val defaultProfile = UserProfile(
-            uid = fbUser?.uid ?: "",
+            uid = fbUser.uid,
             name = defaultName,
             email = defaultEmail,
             avatarId = "brain",

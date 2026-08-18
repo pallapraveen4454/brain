@@ -71,6 +71,12 @@ class BrainQuizApplication : Application() {
         }
 
         try {
+            com.example.utils.RewardedAdManager.ensureMobileAdsInitialized(this)
+        } catch (e: Exception) {
+            Log.e("BrainQuizApplication", "Failed to initialize MobileAds", e)
+        }
+
+        try {
             com.example.utils.NotificationHelper.createChannels(this)
             com.example.utils.NotificationHelper.syncReminders(this)
         } catch (e: Exception) {

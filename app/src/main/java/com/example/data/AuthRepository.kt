@@ -589,6 +589,131 @@ class AuthRepository(
         }
     }
 
+    suspend fun syncUserData(): Result<Unit> {
+        return try {
+            if (isGuestSessionActive() || currentUser == null) {
+                return Result.failure(Exception("Cloud sync is available for signed-in accounts. Please sign in to sync your progress."))
+            }
+            val user = currentUser ?: return Result.failure(Exception("Not signed in"))
+            val localProfile = userProfileStore.getProfile()
+            val firestore = getFirestore() ?: return Result.failure(Exception("Database connection unavailable"))
+
+            val doc = firestore.collection("users").document(user.uid).get().await()
+            val remoteProfile = doc.toObject(UserProfile::class.java)
+
+            val mergedProfile = if (remoteProfile != null) {
+                localProfile.copy(
+                    uid = user.uid,
+                    email = user.email ?: "",
+                    xp = maxOf(localProfile.xp, remoteProfile.xp),
+                    coins = maxOf(localProfile.coins, remoteProfile.coins),
+                    streak = maxOf(localProfile.streak, remoteProfile.streak),
+                    bestScore = maxOf(localProfile.bestScore, remoteProfile.bestScore),
+                    totalQuizzesPlayed = maxOf(localProfile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                    totalQuestionsAnswered = maxOf(localProfile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
+                    totalCorrectAnswers = maxOf(localProfile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
+                    unlockedAchievements = (localProfile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                    unlockedAvatars = (localProfile.unlockedAvatars + remoteProfile.unlockedAvatars).distinct(),
+                    name = if (localProfile.name.isNotBlank() && localProfile.name != "Player") localProfile.name else remoteProfile.name,
+                    avatarId = if (localProfile.avatarId.isNotBlank()) localProfile.avatarId else remoteProfile.avatarId
+                )
+            } else {
+                localProfile.copy(uid = user.uid, email = user.email ?: "")
+            }
+
+            userProfileStore.saveProfile(mergedProfile)
+            firestore.collection("users").document(user.uid).set(mergedProfile).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error during cloud sync", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun backupUserData(): Result<Unit> {
+        return try {
+            if (isGuestSessionActive() || currentUser == null) {
+                return Result.failure(Exception("Cloud backup is available for signed-in accounts. Please sign in to backup."))
+            }
+            val user = currentUser ?: return Result.failure(Exception("Not signed in"))
+            val firestore = getFirestore() ?: return Result.failure(Exception("Database connection unavailable"))
+            val profile = userProfileStore.getProfile().copy(uid = user.uid, email = user.email ?: "")
+
+            firestore.collection("users").document(user.uid)
+                .collection("backups").document("latest")
+                .set(profile)
+                .await()
+            firestore.collection("users").document(user.uid).set(profile).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error during cloud backup", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun restoreUserData(): Result<Unit> {
+        return try {
+            if (isGuestSessionActive() || currentUser == null) {
+                return Result.failure(Exception("Cloud restore is available for signed-in accounts. Please sign in to restore."))
+            }
+            val user = currentUser ?: return Result.failure(Exception("Not signed in"))
+            val firestore = getFirestore() ?: return Result.failure(Exception("Database connection unavailable"))
+
+            var doc = firestore.collection("users").document(user.uid)
+                .collection("backups").document("latest").get().await()
+            if (!doc.exists()) {
+                doc = firestore.collection("users").document(user.uid).get().await()
+            }
+            if (!doc.exists()) {
+                return Result.failure(Exception("No backup found in cloud for this account."))
+            }
+            val restoredProfile = doc.toObject(UserProfile::class.java)
+                ?: return Result.failure(Exception("Failed to parse backup profile."))
+            userProfileStore.saveProfile(restoredProfile)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error during cloud restore", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAccount(currentPassword: String? = null): Result<Unit> {
+        return try {
+            if (isGuestSessionActive()) {
+                userProfileStore.resetGuestAccount()
+                signOut()
+                return Result.success(Unit)
+            }
+            val user = currentUser ?: return Result.failure(Exception("No active account session found to delete."))
+            val email = user.email
+
+            // Re-authenticate if password is provided
+            if (!currentPassword.isNullOrBlank() && !email.isNullOrBlank()) {
+                val credential = EmailAuthProvider.getCredential(email, currentPassword)
+                user.reauthenticate(credential).await()
+            }
+
+            // Delete Firestore user data
+            try {
+                val firestore = getFirestore()
+                firestore?.collection("users")?.document(user.uid)?.delete()?.await()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed to delete firestore user document: ${e.message}")
+            }
+
+            // Delete Firebase user
+            user.delete().await()
+
+            // Clear local storage and sign out
+            userProfileStore.resetGuestAccount()
+            signOut()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error deleting account", e)
+            Result.failure(e)
+        }
+    }
+
     fun signOut() {
         try {
             userProfileStore.setGuestActive(false)

@@ -71,7 +71,7 @@ class QuestionDatabaseManagementTest {
         assertEquals("Science question count should dynamically update", initialScienceCount + 2, updatedScienceCount)
 
         // 3. Verify Question Selection Engine automatically fetches new questions
-        val fetchedQuestions = selectionEngine.getQuestionsForCategory("science", requestedCount = 100)
+        val fetchedQuestions = selectionEngine.getQuestionsForCategory("science", requestedCount = updatedScienceCount)
         assertTrue("Newly inserted question sci_new_101 must be available", fetchedQuestions.any { it.id == "sci_new_101" })
         assertTrue("Newly inserted question sci_new_102 must be available", fetchedQuestions.any { it.id == "sci_new_102" })
     }

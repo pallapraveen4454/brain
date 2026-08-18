@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
@@ -121,6 +122,7 @@ import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.AppConfig
 import com.example.utils.SoundEffects
 import com.example.utils.bounceClick
 import kotlinx.coroutines.delay
@@ -136,6 +138,7 @@ fun SettingsScreen(
     onEditUsername: ((String) -> Unit)? = null,
     onResetAccount: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onDeleteAccount: () -> Unit = onSignOut,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -150,6 +153,7 @@ fun SettingsScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showGooglePasswordInfoDialog by remember { mutableStateOf(false) }
     var showGuestPasswordInfoDialog by remember { mutableStateOf(false) }
@@ -167,8 +171,11 @@ fun SettingsScreen(
     var currentPasswordInput by remember { mutableStateOf("") }
     var newPasswordInput by remember { mutableStateOf("") }
     var confirmPasswordInput by remember { mutableStateOf("") }
+    var deleteAccountPasswordInput by remember { mutableStateOf("") }
     var isChangingPassword by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
     var changePasswordErrorMessage by remember { mutableStateOf<String?>(null) }
+    var deleteAccountErrorMessage by remember { mutableStateOf<String?>(null) }
     var ratingStars by remember { mutableIntStateOf(5) }
     var ratingFeedback by remember { mutableStateOf("") }
 
@@ -462,12 +469,20 @@ fun SettingsScreen(
                                 if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 scope.launch {
                                     isSyncing = true
-                                    delay(1200)
-                                    val now = System.currentTimeMillis()
-                                    updateSettings(userSettings.copy(lastSyncTimestamp = now))
+                                    val result = authRepo.syncUserData()
                                     isSyncing = false
-                                    if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
-                                    Toast.makeText(context, strings.syncSuccess, Toast.LENGTH_SHORT).show()
+                                    result.fold(
+                                        onSuccess = {
+                                            val now = System.currentTimeMillis()
+                                            updateSettings(userSettings.copy(lastSyncTimestamp = now))
+                                            if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
+                                            Toast.makeText(context, strings.syncSuccess, Toast.LENGTH_SHORT).show()
+                                        },
+                                        onFailure = { error ->
+                                            val msg = error.message ?: "Cloud sync failed. Please check your network connection."
+                                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -490,12 +505,20 @@ fun SettingsScreen(
                                 if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 scope.launch {
                                     isBackingUp = true
-                                    delay(1000)
-                                    val now = System.currentTimeMillis()
-                                    updateSettings(userSettings.copy(lastBackupTimestamp = now))
+                                    val result = authRepo.backupUserData()
                                     isBackingUp = false
-                                    if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
-                                    Toast.makeText(context, strings.backupSuccess, Toast.LENGTH_SHORT).show()
+                                    result.fold(
+                                        onSuccess = {
+                                            val now = System.currentTimeMillis()
+                                            updateSettings(userSettings.copy(lastBackupTimestamp = now))
+                                            if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
+                                            Toast.makeText(context, strings.backupSuccess, Toast.LENGTH_SHORT).show()
+                                        },
+                                        onFailure = { error ->
+                                            val msg = error.message ?: "Cloud backup failed."
+                                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -603,7 +626,7 @@ fun SettingsScreen(
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_SUBJECT, strings.appName)
-                                putExtra(Intent.EXTRA_TEXT, "Check out ${strings.appName}! Train your brain and level up your knowledge: https://brainquiz.ai")
+                                putExtra(Intent.EXTRA_TEXT, "Check out ${strings.appName}! Train your brain and level up your trivia knowledge: ${AppConfig.BASE_WEB_URL}")
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Share ${strings.appName} via"))
                         }
@@ -636,58 +659,42 @@ fun SettingsScreen(
             )
 
             GlassCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("reset_account_button"),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 backgroundColor = Color(0xFF2C1318),
                 borderColor = Color(0xFFEF5350).copy(alpha = 0.5f),
-                elevation = 6.dp,
-                onClick = {
-                    if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showResetConfirmDialog = true
-                }
+                elevation = 6.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFD32F2F).copy(alpha = 0.22f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = strings.resetAccount,
-                            tint = Color(0xFFEF5350),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                Column {
+                    // Reset Account Progress
+                    SettingsActionRow(
+                        title = strings.resetAccount,
+                        subtitle = strings.resetSubtitle,
+                        icon = Icons.Default.Warning,
+                        iconTint = Color(0xFFEF5350),
+                        testTag = "reset_account_button",
+                        onClick = {
+                            if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showResetConfirmDialog = true
+                        }
+                    )
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                    SettingsGroupDivider()
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = strings.resetAccount,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.sp
-                            ),
-                            color = Color(0xFFEF5350)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = strings.resetSubtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
+                    // Delete Account Permanently
+                    SettingsActionRow(
+                        title = "Delete Account",
+                        subtitle = "Permanently delete account, cloud data, and all quiz history",
+                        icon = Icons.Default.DeleteForever,
+                        iconTint = Color(0xFFFF3B30),
+                        testTag = "delete_account_button",
+                        onClick = {
+                            if (userSettings.vibrationEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            deleteAccountPasswordInput = ""
+                            deleteAccountErrorMessage = null
+                            showDeleteAccountDialog = true
+                        }
+                    )
                 }
             }
 
@@ -850,7 +857,7 @@ fun SettingsScreen(
     // 3. Restore Data Confirmation Dialog
     if (showRestoreDataDialog) {
         AlertDialog(
-            onDismissRequest = { showRestoreDataDialog = false },
+            onDismissRequest = { if (!isRestoring) showRestoreDataDialog = false },
             containerColor = DarkBackground,
             title = {
                 Text(strings.restoreData, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
@@ -864,19 +871,31 @@ fun SettingsScreen(
                         showRestoreDataDialog = false
                         scope.launch {
                             isRestoring = true
-                            delay(1200)
+                            val result = authRepo.restoreUserData()
                             isRestoring = false
-                            if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
-                            Toast.makeText(context, strings.restoreSuccess, Toast.LENGTH_SHORT).show()
+                            result.fold(
+                                onSuccess = {
+                                    if (userSettings.soundEffectsEnabled) SoundEffects.playCompleteSound()
+                                    Toast.makeText(context, strings.restoreSuccess, Toast.LENGTH_SHORT).show()
+                                },
+                                onFailure = { error ->
+                                    val msg = error.message ?: "Failed to restore data from cloud."
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
+                            )
                         }
                     },
+                    enabled = !isRestoring,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
                 ) {
                     Text(strings.restoreData, color = TextWhite)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRestoreDataDialog = false }) {
+                TextButton(
+                    onClick = { showRestoreDataDialog = false },
+                    enabled = !isRestoring
+                ) {
                     Text(strings.cancel, color = TextSecondary)
                 }
             }
@@ -1057,16 +1076,20 @@ fun SettingsScreen(
             onDismissRequest = { showPrivacyPolicyDialog = false },
             containerColor = DarkBackground,
             title = {
-                Text("Privacy Policy", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
+                Text("Privacy Policy 🔒", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
             },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        text = "Brain Quiz AI values your privacy. Here is how your data is handled:\n\n" +
-                                "1. Information Collection: We collect account email, display name, quiz scores, XP, and streak progress to provide interactive leaderboards and sync across devices.\n\n" +
-                                "2. Local Storage: All settings, audio preferences, and offline quiz progress are stored securely on your device.\n\n" +
-                                "3. Cloud Synchronization: When logged in, your progress is synced with Firebase Firestore.\n\n" +
-                                "4. No Data Sharing: We do not sell or share your personal data with third-party advertisers.",
+                        text = "Brain Quiz AI Privacy Highlights\n\n" +
+                                "Brain Quiz AI is committed to protecting your privacy. Below is an overview of how your data is handled:\n\n" +
+                                "1. Account & Authentication: We use Firebase Authentication to securely manage your login credentials (email and display name). Guest accounts are assigned a private anonymous identifier.\n\n" +
+                                "2. Cloud Storage & Leaderboards: We use Google Cloud Firestore to sync your quiz scores, level, XP, coins, streaks, and achievements so you can access your progress across devices and compete on leaderboards.\n\n" +
+                                "3. Advertisements: We integrate Google Mobile Ads (AdMob) to provide optional rewarded video ads for extra hints and coins. AdMob may process anonymized device identifiers in accordance with Google's Privacy Policy.\n\n" +
+                                "4. On-Device Storage: Sound, music, vibration, and notification settings are stored locally on your device.\n\n" +
+                                "5. AI Features: Custom AI trivia topics are generated anonymously without linking prompts to your identity.\n\n" +
+                                "6. Account Deletion: You can permanently delete your account and all associated data anytime in Settings or online at:\n${AppConfig.ACCOUNT_DELETION_URL}\n\n" +
+                                "Full Web Policy: ${AppConfig.PRIVACY_POLICY_URL}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
@@ -1089,16 +1112,17 @@ fun SettingsScreen(
             onDismissRequest = { showTermsDialog = false },
             containerColor = DarkBackground,
             title = {
-                Text("Terms & Conditions", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
+                Text("Terms & Conditions 📜", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
             },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        text = "Terms of Service for Brain Quiz AI:\n\n" +
-                                "1. Usage Agreement: By using Brain Quiz AI, you agree to engage respectfully with trivia content and community leaderboards.\n\n" +
-                                "2. Fair Play: Automation, bots, or unauthorized manipulation of quiz scores and XP is strictly prohibited.\n\n" +
-                                "3. Virtual Currency: Coins and XP earned in Brain Quiz AI have no monetary value and cannot be exchanged for cash.\n\n" +
-                                "4. Modifications: Brain Quiz AI reserves the right to adjust question content and game balance to ensure a fair experience.",
+                        text = "Terms of Service for Brain Quiz AI\n\n" +
+                                "1. Acceptance of Terms: By downloading or using Brain Quiz AI, you agree to these Terms and our Privacy Policy.\n\n" +
+                                "2. Fair Play & Integrity: Any use of bots, exploits, automated scripts, or leaderboard manipulation is prohibited.\n\n" +
+                                "3. Virtual Items & Currency: Coins, XP, and avatar skins earned in the app are virtual items with no real-world monetary value.\n\n" +
+                                "4. Service Availability: We strive to provide reliable service availability but do not guarantee uninterrupted access.\n\n" +
+                                "Online Terms: ${AppConfig.TERMS_OF_SERVICE_URL}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
@@ -1190,14 +1214,17 @@ fun SettingsScreen(
             onDismissRequest = { showContactSupportDialog = false },
             containerColor = DarkBackground,
             title = {
-                Text("Contact Support", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
+                Text("Contact Support 📞", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = TextWhite)
             },
             text = {
                 Column {
-                    Text("Need help or want to suggest a question topic?", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                    Text("Have a question, feedback, or need help with your account?", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Support Email:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    Text("support@brainquiz.ai", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = PrimaryPurpleLight)
+                    Text(AppConfig.SUPPORT_EMAIL, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = PrimaryPurpleLight)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Web Support Portal:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Text(AppConfig.HELP_SUPPORT_URL, style = MaterialTheme.typography.bodySmall, color = PrimaryPurpleLight)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Average response time: Within 24 hours", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 }
@@ -1205,15 +1232,14 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val emailIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "message/rfc822"
-                            putExtra(Intent.EXTRA_EMAIL, arrayOf("support@brainquiz.ai"))
+                        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = android.net.Uri.parse("mailto:${AppConfig.SUPPORT_EMAIL}")
                             putExtra(Intent.EXTRA_SUBJECT, "Brain Quiz AI Support Request")
                         }
                         try {
                             context.startActivity(Intent.createChooser(emailIntent, "Send email using..."))
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Support email: support@brainquiz.ai", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Support email: ${AppConfig.SUPPORT_EMAIL}", Toast.LENGTH_LONG).show()
                         }
                         showContactSupportDialog = false
                     },
@@ -1230,7 +1256,7 @@ fun SettingsScreen(
         )
     }
 
-    // 9. Reset Account Confirmation Dialog
+    // 9. Reset Account Progress Confirmation Dialog
     if (showResetConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showResetConfirmDialog = false },
@@ -1244,7 +1270,7 @@ fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to reset your account? This action cannot be undone.",
+                    text = "Are you sure you want to reset your game progress (XP, streak, score history, and coins)? Your account identity will remain active.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
@@ -1258,13 +1284,156 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
                     modifier = Modifier.testTag("confirm_reset_account_button")
                 ) {
-                    Text("Reset Account", color = TextWhite)
+                    Text("Reset Progress", color = TextWhite)
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showResetConfirmDialog = false },
                     modifier = Modifier.testTag("cancel_reset_account_button")
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 10. Delete Account Permanently Dialog
+    if (showDeleteAccountDialog) {
+        val authType = authRepo.getAccountAuthType()
+        val isEmailUser = authType == com.example.data.AuthRepository.AccountAuthType.EMAIL_PASSWORD
+
+        AlertDialog(
+            onDismissRequest = { if (!isDeletingAccount) showDeleteAccountDialog = false },
+            containerColor = DarkBackground,
+            title = {
+                Text(
+                    text = "Delete Account Permanently",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFFFF5252)
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = "This will permanently delete your account and all associated data:",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "• All quiz scores, XP, coins, and levels\n" +
+                                "• All unlocked achievements and custom avatars\n" +
+                                "• Your cloud profile and leaderboard records\n" +
+                                "• Your login credentials and authentication data",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "This action CANNOT be undone.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Color(0xFFFF5252)
+                    )
+
+                    if (isEmailUser) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Please enter your password to confirm deletion:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextWhite
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = deleteAccountPasswordInput,
+                            onValueChange = {
+                                deleteAccountPasswordInput = it
+                                deleteAccountErrorMessage = null
+                            },
+                            label = { Text("Account Password", color = TextSecondary) },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = Color(0xFFFF5252),
+                                unfocusedBorderColor = DarkCardBorder
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("delete_account_password_input")
+                        )
+                    }
+
+                    if (deleteAccountErrorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = deleteAccountErrorMessage ?: "",
+                            color = Color(0xFFFF5252),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Web deletion request available at:\n${AppConfig.ACCOUNT_DELETION_URL}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (isEmailUser && deleteAccountPasswordInput.isBlank()) {
+                            deleteAccountErrorMessage = "Please enter your password to confirm account deletion."
+                            return@Button
+                        }
+                        isDeletingAccount = true
+                        deleteAccountErrorMessage = null
+                        scope.launch {
+                            val result = authRepo.deleteAccount(
+                                currentPassword = if (isEmailUser) deleteAccountPasswordInput else null
+                            )
+                            isDeletingAccount = false
+                            result.fold(
+                                onSuccess = {
+                                    showDeleteAccountDialog = false
+                                    Toast.makeText(context, "Account deleted successfully.", Toast.LENGTH_LONG).show()
+                                    onDeleteAccount()
+                                },
+                                onFailure = { error ->
+                                    val raw = error.message ?: ""
+                                    deleteAccountErrorMessage = when {
+                                        raw.contains("recent-login", ignoreCase = true) || raw.contains("requires-recent-login", ignoreCase = true) ->
+                                            "Security requirement: Please sign in again before deleting your account."
+                                        raw.contains("wrong-password", ignoreCase = true) || raw.contains("invalid-credential", ignoreCase = true) ->
+                                            "Incorrect password. Please enter your valid account password."
+                                        else ->
+                                            "Failed to delete account: ${error.localizedMessage ?: "Unknown error"}"
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                    enabled = !isDeletingAccount,
+                    modifier = Modifier.testTag("confirm_delete_account_button")
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = TextWhite,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Delete Account Permanently", color = TextWhite)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountDialog = false },
+                    enabled = !isDeletingAccount,
+                    modifier = Modifier.testTag("cancel_delete_account_button")
                 ) {
                     Text("Cancel", color = TextSecondary)
                 }

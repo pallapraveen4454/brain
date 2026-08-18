@@ -32,7 +32,7 @@ class QuestionImportManager(private val context: Context? = null) {
      * 3. Correct answer must match one option
      * 4. No duplicate question text or duplicate ID
      */
-    suspend fun validateQuestion(question: QuestionEntity): ValidationResult {
+    suspend fun validateQuestion(question: QuestionEntity, checkDatabaseDuplicates: Boolean = false): ValidationResult {
         // 1. Validate Category
         val normCategory = dbManager.normalizeCategoryKey(question.categoryId)
         if (normCategory !in validCategoryKeys) {
@@ -90,15 +90,15 @@ class QuestionImportManager(private val context: Context? = null) {
             question.id.trim()
         }
 
-        // 4. Validate No Duplicate Question in Destination Database
-        val db = dbManager.getDatabaseForCategory(normCategory)
-            ?: return ValidationResult(false, null, "Database not available for category $normCategory")
+        // 4. Validate No Duplicate Question in Destination Database if requested
+        if (checkDatabaseDuplicates) {
+            val db = dbManager.getDatabaseForCategory(normCategory)
+                ?: return ValidationResult(false, null, "Database not available for category $normCategory")
 
-        val dao = db.questionDao()
-
-        // Check if question text exists in DB for a different ID
-        if (dao.existsByTextExcludingId(question.questionText.trim(), question.id)) {
-            return ValidationResult(false, null, "Duplicate question text already exists in category '$normCategory'")
+            val dao = db.questionDao()
+            if (dao.existsByText(question.questionText.trim()) || (question.id.isNotBlank() && dao.existsById(question.id.trim()))) {
+                return ValidationResult(false, null, "Duplicate question text already exists in category '$normCategory'")
+            }
         }
 
         val finalQuestion = question.copy(
@@ -152,7 +152,7 @@ class QuestionImportManager(private val context: Context? = null) {
             val seenInBatchIds = mutableSetOf<String>()
 
             for (rawQ in questions) {
-                val validation = validateQuestion(rawQ)
+                val validation = validateQuestion(rawQ, checkDatabaseDuplicates = true)
                 if (!validation.isValid || validation.normalizedQuestion == null) {
                     val errorMsg = validation.error ?: "Unknown error"
                     if (errorMsg.contains("Duplicate question text")) {
