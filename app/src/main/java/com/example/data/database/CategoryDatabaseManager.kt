@@ -46,7 +46,7 @@ class CategoryDatabaseManager(private val context: Context? = null) {
                 CategoryDatabase::class.java,
                 dbName
             )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .allowMainThreadQueries() // Allows fast synchronous count lookup during UI setup
             .build()
 

@@ -32,12 +32,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -100,6 +102,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AchievementUnlockedDialog
+import com.example.ui.components.AdMobBanner
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientButton
 import com.example.ui.components.StatCard
@@ -310,525 +313,553 @@ fun QuizActiveView(
         }
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-            .verticalScroll(scrollState)
     ) {
-        // 1. Premium Header Bar
-        GlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            backgroundColor = DarkCardSurface.copy(alpha = 0.9f),
-            borderColor = GlassBorder,
-            elevation = 6.dp
+        val screenHeight = maxHeight
+        val isCompactScreen = screenHeight < 700.dp
+
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Row(
+            // Main scrollable quiz content area
+            Box(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onNavigateBack,
+                Column(
                     modifier = Modifier
-                        .clip(CircleShape)
-                        .background(DarkBackground.copy(alpha = 0.6f))
-                        .bounceClick(scaleDown = 0.92f)
-                        .testTag("quiz_back_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = TextWhite,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Psychology,
-                        contentDescription = null,
-                        tint = PrimaryPurpleLight,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = uiState.categoryTitle,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(
+                            horizontal = if (isCompactScreen) 16.dp else 20.dp,
+                            vertical = if (isCompactScreen) 8.dp else 12.dp
                         ),
-                        color = TextWhite,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("quiz_category_title")
-                    )
-                }
-
-                // XP / Score Pill with scale bounce when score increases
-                val scorePulse = remember { Animatable(1f) }
-                LaunchedEffect(uiState.score) {
-                    if (uiState.score > 0) {
-                        scorePulse.animateTo(1.15f, spring(stiffness = Spring.StiffnessHigh))
-                        scorePulse.animateTo(1f, spring(dampingRatio = 0.6f))
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .scale(scorePulse.value)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(PrimaryPurple, PrimaryPurpleLight)
-                            )
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                        .testTag("quiz_score_pill"),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 10.dp else 14.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.EmojiEvents,
-                            contentDescription = "XP",
-                            tint = TextWhite,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "${uiState.score} XP",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp
-                            ),
-                            color = TextWhite
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2. Question Progress & Timer Header Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "QUESTION ${uiState.currentQuestionIndex + 1} OF ${uiState.questions.size}",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.8.sp,
-                        fontSize = 12.sp
-                    ),
-                    color = TextSecondary,
-                    modifier = Modifier.testTag("question_progress_text")
-                )
-            }
-
-            // Circular Countdown Timer & Badge
-            val timeRemaining = uiState.timeRemaining
-            val targetTimerColor = when {
-                timeRemaining <= 3 -> Color(0xFFE74C3C)
-                timeRemaining <= 7 -> Color(0xFFF39C12)
-                else -> Color(0xFF2ECC71)
-            }
-            val timerColor by animateColorAsState(
-                targetValue = targetTimerColor,
-                animationSpec = tween(durationMillis = 300),
-                label = "TimerColorAnimation"
-            )
-
-            // Pulsing animation for remaining time <= 5s
-            val isUrgent = timeRemaining <= 5
-            val infiniteTransition = rememberInfiniteTransition(label = "timer_pulse")
-            val pulseScale by infiniteTransition.animateFloat(
-                initialValue = 1f,
-                targetValue = if (isUrgent) 1.12f else 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 400),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "pulse_scale"
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .scale(pulseScale)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(timerColor.copy(alpha = 0.15f))
-                    .border(1.dp, timerColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                    .testTag("timer_badge")
-            ) {
-                // Circular Timer Arc Indicator with smooth sweep angle animation
-                val targetProgress = (timeRemaining / 20f).coerceIn(0f, 1f)
-                val animatedTimerProgress by animateFloatAsState(
-                    targetValue = targetProgress,
-                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-                    label = "TimerArcSweep"
-                )
-
-                Box(
-                    modifier = Modifier.size(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(
-                            color = timerColor.copy(alpha = 0.25f),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 3.dp.toPx())
-                        )
-                        drawArc(
-                            color = timerColor,
-                            startAngle = -90f,
-                            sweepAngle = 360f * animatedTimerProgress,
-                            useCenter = false,
-                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.Timer,
-                        contentDescription = "Timer",
-                        tint = timerColor,
-                        modifier = Modifier.size(11.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "${timeRemaining}s",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    ),
-                    color = timerColor
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 3. Question Progress Bar (Smooth 300ms Material Easing)
-        val animatedProgress by animateFloatAsState(
-            targetValue = (uiState.currentQuestionIndex + 1) / uiState.questions.size.toFloat(),
-            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-            label = "QuestionProgressAnimated"
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(DarkCardSurface)
-                .testTag("question_progress_bar")
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(animatedProgress)
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryPurple, PrimaryPurpleLight)
-                        )
-                    )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Timer Progress Line
-        val timerLineProgress by animateFloatAsState(
-            targetValue = (uiState.timeRemaining / 20f).coerceIn(0f, 1f),
-            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-            label = "TimerLineProgress"
-        )
-        val timerLineColor = when {
-            uiState.timeRemaining <= 3 -> Color(0xFFE74C3C)
-            uiState.timeRemaining <= 7 -> Color(0xFFF39C12)
-            else -> AccentCoins
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(3.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(DarkCardBorder.copy(alpha = 0.4f))
-                .testTag("timer_progress_bar")
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(timerLineProgress)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(timerLineColor)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 4. Question Content with Animated Smooth Transition
-        AnimatedContent(
-            targetState = uiState.currentQuestionIndex,
-            transitionSpec = {
-                (slideInHorizontally(animationSpec = tween(300, easing = FastOutSlowInEasing)) { width -> width / 2 } + fadeIn(tween(300)))
-                    .togetherWith(slideOutHorizontally(animationSpec = tween(300, easing = FastOutSlowInEasing)) { width -> -width / 2 } + fadeOut(tween(300)))
-            },
-            label = "QuestionTransition"
-        ) { targetIndex ->
-            val question = uiState.questions.getOrNull(targetIndex) ?: currentQuestion
-            if (question != null) {
-                Column {
-                    // Question Card with Soft Ambient Glow
+                    // 1. Premium Header Bar
                     GlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(8.dp, RoundedCornerShape(24.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurple)
-                            .testTag("question_card"),
-                        shape = RoundedCornerShape(24.dp),
-                        backgroundColor = DarkCardSurface,
-                        borderColor = PrimaryPurple.copy(alpha = 0.4f),
-                        elevation = 8.dp
+                            .heightIn(min = 58.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        backgroundColor = DarkCardSurface.copy(alpha = 0.92f),
+                        borderColor = GlassBorder,
+                        elevation = 6.dp
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onNavigateBack,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(DarkBackground.copy(alpha = 0.65f))
+                                    .bounceClick(scaleDown = 0.92f)
+                                    .testTag("quiz_back_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = TextWhite,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .padding(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Psychology,
+                                    contentDescription = null,
+                                    tint = PrimaryPurpleLight,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = uiState.categoryTitle,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = if (uiState.categoryTitle.length > 18) 15.sp else 17.sp
+                                    ),
+                                    color = TextWhite,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.testTag("quiz_category_title")
+                                )
+                            }
+
+                            // XP / Score Pill with scale bounce when score increases
+                            val scorePulse = remember { Animatable(1f) }
+                            LaunchedEffect(uiState.score) {
+                                if (uiState.score > 0) {
+                                    scorePulse.animateTo(1.18f, spring(stiffness = Spring.StiffnessHigh))
+                                    scorePulse.animateTo(1f, spring(dampingRatio = 0.6f))
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .scale(scorePulse.value)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                                        )
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                                    .testTag("quiz_score_pill"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.EmojiEvents,
+                                        contentDescription = "XP",
+                                        tint = TextWhite,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "${uiState.score} XP",
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp
+                                        ),
+                                        color = TextWhite
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Question Number & Timer Header Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "QUESTION ${uiState.currentQuestionIndex + 1} OF ${uiState.questions.size}",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp,
+                                    fontSize = 13.sp
+                                ),
+                                color = TextSecondary,
+                                modifier = Modifier.testTag("question_progress_text")
+                            )
+                        }
+
+                        // Circular Countdown Timer & Badge
+                        val timeRemaining = uiState.timeRemaining
+                        val targetTimerColor = when {
+                            timeRemaining <= 3 -> Color(0xFFE74C3C)
+                            timeRemaining <= 7 -> Color(0xFFF39C12)
+                            else -> Color(0xFF2ECC71)
+                        }
+                        val timerColor by animateColorAsState(
+                            targetValue = targetTimerColor,
+                            animationSpec = tween(durationMillis = 300),
+                            label = "TimerColorAnimation"
+                        )
+
+                        val isUrgent = timeRemaining <= 5
+                        val infiniteTransition = rememberInfiniteTransition(label = "timer_pulse")
+                        val pulseScale by infiniteTransition.animateFloat(
+                            initialValue = 1f,
+                            targetValue = if (isUrgent) 1.14f else 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 400),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "pulse_scale"
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .scale(pulseScale)
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(timerColor.copy(alpha = 0.16f))
+                                .border(1.2.dp, timerColor.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .testTag("timer_badge")
+                        ) {
+                            val targetProgress = (timeRemaining / 20f).coerceIn(0f, 1f)
+                            val animatedTimerProgress by animateFloatAsState(
+                                targetValue = targetProgress,
+                                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                                label = "TimerArcSweep"
+                            )
+
+                            Box(
+                                modifier = Modifier.size(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawArc(
+                                        color = timerColor.copy(alpha = 0.25f),
+                                        startAngle = -90f,
+                                        sweepAngle = 360f,
+                                        useCenter = false,
+                                        style = Stroke(width = 3.2.dp.toPx())
+                                    )
+                                    drawArc(
+                                        color = timerColor,
+                                        startAngle = -90f,
+                                        sweepAngle = 360f * animatedTimerProgress,
+                                        useCenter = false,
+                                        style = Stroke(width = 3.2.dp.toPx(), cap = StrokeCap.Round)
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Timer,
+                                    contentDescription = "Timer",
+                                    tint = timerColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${timeRemaining}s",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.sp
+                                ),
+                                color = timerColor
+                            )
+                        }
+                    }
+
+                    // 3. Progress Indicators (Question Progress + Timer Progress)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val animatedProgress by animateFloatAsState(
+                            targetValue = (uiState.currentQuestionIndex + 1) / uiState.questions.size.toFloat(),
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                            label = "QuestionProgressAnimated"
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            PrimaryPurple.copy(alpha = 0.2f),
-                                            DarkCardSurface,
-                                            DarkCardSurface
+                                .height(9.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(DarkCardSurface)
+                                .testTag("question_progress_bar")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(animatedProgress)
+                                    .height(9.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(PrimaryPurple, PrimaryPurpleLight)
                                         )
                                     )
-                                )
-                                .padding(16.dp)
+                            )
+                        }
+
+                        val timerLineProgress by animateFloatAsState(
+                            targetValue = (uiState.timeRemaining / 20f).coerceIn(0f, 1f),
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                            label = "TimerLineProgress"
+                        )
+                        val timerLineColor = when {
+                            uiState.timeRemaining <= 3 -> Color(0xFFE74C3C)
+                            uiState.timeRemaining <= 7 -> Color(0xFFF39C12)
+                            else -> AccentCoins
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(DarkCardBorder.copy(alpha = 0.4f))
+                                .testTag("timer_progress_bar")
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(timerLineProgress)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(timerLineColor)
+                            )
+                        }
+                    }
+
+                    // 4. Large Question Card & Option Items
+                    AnimatedContent(
+                        targetState = uiState.currentQuestionIndex,
+                        transitionSpec = {
+                            (slideInHorizontally(animationSpec = tween(300, easing = FastOutSlowInEasing)) { width -> width / 2 } + fadeIn(tween(300)))
+                                .togetherWith(slideOutHorizontally(animationSpec = tween(300, easing = FastOutSlowInEasing)) { width -> -width / 2 } + fadeOut(tween(300)))
+                        },
+                        label = "QuestionTransition"
+                    ) { targetIndex ->
+                        val question = uiState.questions.getOrNull(targetIndex) ?: currentQuestion
+                        if (question != null) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 10.dp else 12.dp)
+                            ) {
+                                // Question Card with Comfortable Padding and Ambient Purple Glow
+                                GlassCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(10.dp, RoundedCornerShape(26.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurple)
+                                        .testTag("question_card"),
+                                    shape = RoundedCornerShape(26.dp),
+                                    backgroundColor = DarkCardSurface,
+                                    borderColor = PrimaryPurple.copy(alpha = 0.45f),
+                                    elevation = 8.dp
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(PrimaryPurple.copy(alpha = 0.3f))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                            .fillMaxWidth()
+                                            .background(
+                                                brush = Brush.linearGradient(
+                                                    colors = listOf(
+                                                        PrimaryPurple.copy(alpha = 0.22f),
+                                                        DarkCardSurface,
+                                                        DarkCardSurface
+                                                    )
+                                                )
+                                            )
+                                            .padding(horizontal = 22.dp, vertical = if (isCompactScreen) 18.dp else 24.dp)
                                     ) {
-                                        Text(
-                                            text = uiState.categoryTitle.uppercase(),
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 10.sp
-                                            ),
-                                            color = PrimaryPurpleLight
-                                        )
-                                    }
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                    .background(PrimaryPurple.copy(alpha = 0.35f))
+                                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = uiState.categoryTitle.uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 11.sp,
+                                                            letterSpacing = 0.6.sp
+                                                        ),
+                                                        color = PrimaryPurpleLight
+                                                    )
+                                                }
 
-                                    // Floating XP Animation Badge above card
-                                    if (floatingXpAlpha.value > 0f) {
-                                        Box(
-                                            modifier = Modifier
-                                                .offset { IntOffset(0, floatingXpY.value.dp.roundToPx()) }
-                                                .alpha(floatingXpAlpha.value)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFF2ECC71))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
+                                                // Floating XP Animation Badge above card
+                                                if (floatingXpAlpha.value > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .offset { IntOffset(0, floatingXpY.value.dp.roundToPx()) }
+                                                            .alpha(floatingXpAlpha.value)
+                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .background(Color(0xFF2ECC71))
+                                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "+10 XP",
+                                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                fontSize = 12.sp
+                                                            ),
+                                                            color = TextWhite
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(14.dp))
+
                                             Text(
-                                                text = "+10 XP",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 11.sp
+                                                text = question.questionText,
+                                                style = MaterialTheme.typography.titleLarge.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = if (isCompactScreen) 19.sp else 22.sp,
+                                                    lineHeight = if (isCompactScreen) 26.sp else 30.sp
                                                 ),
-                                                color = TextWhite
+                                                color = TextWhite,
+                                                modifier = Modifier.testTag("question_text")
                                             )
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                // 5. Four Answer Option Cards
+                                val optionLabels = listOf("A", "B", "C", "D")
+                                question.options.forEachIndexed { index, optionText ->
+                                    val isHiddenByHint = uiState.hiddenOptionIndices.contains(index)
+                                    if (!isHiddenByHint) {
+                                        val isSelected = (uiState.selectedOptionIndex == index)
+                                        val isCorrectAnswer = question.isAnswerCorrect(index)
 
+                                        QuizOptionItem(
+                                            index = index,
+                                            label = optionLabels.getOrElse(index) { "${index + 1}" },
+                                            text = optionText,
+                                            isSelected = isSelected,
+                                            isCorrectAnswer = isCorrectAnswer,
+                                            isAnswerSubmitted = uiState.isAnswerSubmitted,
+                                            onClick = { onSelectOption(index) }
+                                        )
+                                    }
+                                }
+
+                                // 6. Hint Button
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    HintButton(
+                                        isHintAvailableToday = uiState.isHintAvailableToday,
+                                        isShowingAdForHint = uiState.isShowingAdForHint,
+                                        hasApplied5050 = uiState.hiddenOptionIndices.isNotEmpty(),
+                                        isAnswerSubmitted = uiState.isAnswerSubmitted,
+                                        isTimeUp = uiState.timeRemaining <= 0,
+                                        onClick = onRequestHint
+                                    )
+                                }
+
+                                if (uiState.hintErrorMessage != null) {
+                                    LaunchedEffect(uiState.hintErrorMessage) {
+                                        delay(3500)
+                                        onClearHintError()
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color(0xFFE74C3C).copy(alpha = 0.22f))
+                                            .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp))
+                                            .padding(vertical = 10.dp, horizontal = 14.dp)
+                                            .testTag("hint_error_banner"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Cancel,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFE74C3C),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = uiState.hintErrorMessage ?: "Hint unavailable right now. Please try again.",
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp
+                                                    ),
+                                                    color = Color(0xFFFFD1D1)
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = onClearHintError,
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Dismiss",
+                                                    tint = TextWhite,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 7. Success / Error Feedback Banner
+                    var lastFeedbackText by remember { mutableStateOf("") }
+                    var lastIsCorrect by remember { mutableStateOf(false) }
+
+                    if (uiState.isAnswerSubmitted) {
+                        val isCorrectState = uiState.isCorrect == true
+                        val isTimeUpState = uiState.selectedOptionIndex == null && uiState.timeRemaining <= 0
+                        lastFeedbackText = if (isCorrectState) "🎉 Correct! +10 XP" else if (isTimeUpState) "⏰ Time's up!" else "❌ Incorrect Answer"
+                        lastIsCorrect = isCorrectState
+                    }
+
+                    AnimatedVisibility(
+                        visible = uiState.isAnswerSubmitted,
+                        enter = slideInVertically(initialOffsetY = { -it / 2 }) + fadeIn(tween(250)) + scaleIn(tween(250)),
+                        exit = fadeOut(animationSpec = tween(200))
+                    ) {
+                        val feedbackBg = if (lastIsCorrect) Color(0xFF2ECC71).copy(alpha = 0.22f) else Color(0xFFE74C3C).copy(alpha = 0.22f)
+                        val feedbackBorder = if (lastIsCorrect) Color(0xFF2ECC71) else Color(0xFFE74C3C)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(feedbackBg)
+                                .border(1.5.dp, feedbackBorder, RoundedCornerShape(18.dp))
+                                .padding(vertical = 12.dp, horizontal = 16.dp)
+                                .testTag("quiz_feedback_banner"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (lastIsCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    tint = feedbackBorder,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = question.questionText,
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        lineHeight = 25.sp
+                                    text = lastFeedbackText,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 16.sp
                                     ),
-                                    color = TextWhite,
-                                    modifier = Modifier.testTag("question_text")
+                                    color = feedbackBorder
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Option Buttons
-                    val optionLabels = listOf("A", "B", "C", "D")
-                    question.options.forEachIndexed { index, optionText ->
-                        val isHiddenByHint = uiState.hiddenOptionIndices.contains(index)
-                        if (!isHiddenByHint) {
-                            val isSelected = (uiState.selectedOptionIndex == index)
-                            val isCorrectAnswer = question.isAnswerCorrect(index)
-
-                            QuizOptionItem(
-                                index = index,
-                                label = optionLabels.getOrElse(index) { "${index + 1}" },
-                                text = optionText,
-                                isSelected = isSelected,
-                                isCorrectAnswer = isCorrectAnswer,
-                                isAnswerSubmitted = uiState.isAnswerSubmitted,
-                                onClick = { onSelectOption(index) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // 💡 Compact Bottom-Right Hint Control
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HintButton(
-                            isHintAvailableToday = uiState.isHintAvailableToday,
-                            isShowingAdForHint = uiState.isShowingAdForHint,
-                            hasApplied5050 = uiState.hiddenOptionIndices.isNotEmpty(),
-                            isAnswerSubmitted = uiState.isAnswerSubmitted,
-                            isTimeUp = uiState.timeRemaining <= 0,
-                            onClick = onRequestHint
-                        )
-                    }
-
-                    if (uiState.hintErrorMessage != null) {
-                        LaunchedEffect(uiState.hintErrorMessage) {
-                            delay(3500)
-                            onClearHintError()
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFFE74C3C).copy(alpha = 0.22f))
-                                .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp))
-                                .padding(vertical = 10.dp, horizontal = 14.dp)
-                                .testTag("hint_error_banner"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(
-                                        imageVector = Icons.Default.Cancel,
-                                        contentDescription = null,
-                                        tint = Color(0xFFE74C3C),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = uiState.hintErrorMessage ?: "Hint unavailable right now. Please try again.",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        ),
-                                        color = Color(0xFFFFD1D1)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = onClearHintError,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = TextWhite,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 5. Success / Error Banner with Slide & Fade Animation
-        var lastFeedbackText by remember { mutableStateOf("") }
-        var lastIsCorrect by remember { mutableStateOf(false) }
-
-        if (uiState.isAnswerSubmitted) {
-            val isCorrectState = uiState.isCorrect == true
-            val isTimeUpState = uiState.selectedOptionIndex == null && uiState.timeRemaining <= 0
-            lastFeedbackText = if (isCorrectState) "🎉 Correct! +10 XP" else if (isTimeUpState) "⏰ Time's up!" else "❌ Incorrect Answer"
-            lastIsCorrect = isCorrectState
-        }
-
-        AnimatedVisibility(
-            visible = uiState.isAnswerSubmitted,
-            enter = slideInVertically(initialOffsetY = { -it / 2 }) + fadeIn(tween(250)) + scaleIn(tween(250)),
-            exit = fadeOut(animationSpec = tween(200))
-        ) {
-            val feedbackBg = if (lastIsCorrect) Color(0xFF2ECC71).copy(alpha = 0.22f) else Color(0xFFE74C3C).copy(alpha = 0.22f)
-            val feedbackBorder = if (lastIsCorrect) Color(0xFF2ECC71) else Color(0xFFE74C3C)
-
-            Box(
+            // 8. Bottom AdMob Banner Safe Area
+            AdMobBanner(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(feedbackBg)
-                    .border(1.5.dp, feedbackBorder, RoundedCornerShape(16.dp))
-                    .padding(vertical = 10.dp, horizontal = 16.dp)
-                    .testTag("quiz_feedback_banner"),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (lastIsCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                        contentDescription = null,
-                        tint = feedbackBorder,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = lastFeedbackText,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp
-                        ),
-                        color = feedbackBorder
-                    )
-                }
-            }
+                    .background(DarkBackground)
+            )
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 
@@ -916,16 +947,16 @@ fun QuizOptionItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
+            .heightIn(min = 68.dp)
             .graphicsLayer {
                 translationX = shakeOffset.value
                 scaleX = correctPulseScale.value
                 scaleY = correctPulseScale.value
             }
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(containerColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
-            .bounceClick(scaleDown = 0.97f) {
+            .border(1.5.dp, borderColor, RoundedCornerShape(18.dp))
+            .bounceClick(scaleDown = 0.98f) {
                 if (!isAnswerSubmitted) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     SoundEffects.playCoinSound()
@@ -938,8 +969,9 @@ fun QuizOptionItem(
                 enabled = !isAnswerSubmitted,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp, vertical = 11.dp)
-            .testTag("option_button_$index")
+            .padding(horizontal = 18.dp, vertical = 14.dp)
+            .testTag("option_button_$index"),
+        contentAlignment = Alignment.CenterStart
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -950,33 +982,33 @@ fun QuizOptionItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Option Label Circle Badge
+                // Option Label Circle Badge (A, B, C, D)
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
                         .background(badgeColor.copy(alpha = 0.2f))
-                        .border(1.dp, badgeColor, CircleShape),
+                        .border(1.2.dp, badgeColor, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelLarge.copy(
+                        style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp
+                            fontSize = 17.sp
                         ),
                         color = badgeColor
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
                 Text(
                     text = text,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp
+                        fontSize = 17.sp,
+                        lineHeight = 24.sp
                     ),
                     color = textColor
                 )
@@ -993,7 +1025,9 @@ fun QuizOptionItem(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Correct",
                             tint = Color(0xFF2ECC71),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(28.dp)
                         )
                     }
                 } else if (isSelected && !isCorrectAnswer) {
@@ -1005,7 +1039,9 @@ fun QuizOptionItem(
                             imageVector = Icons.Default.Cancel,
                             contentDescription = "Wrong",
                             tint = Color(0xFFE74C3C),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(28.dp)
                         )
                     }
                 }
@@ -1856,23 +1892,24 @@ fun HintButton(
             }
         },
         enabled = isClickable,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color.Transparent,
         modifier = modifier
+            .heightIn(min = 48.dp)
             .bounceClick(scaleDown = 0.94f)
             .shadow(
-                elevation = if (isClickable) 6.dp else 0.dp,
-                shape = RoundedCornerShape(16.dp),
-                ambientColor = if (isClickable) Color(0xFFF1C40F) else Color.Transparent,
-                spotColor = if (isClickable) Color(0xFFF1C40F) else Color.Transparent
+                elevation = if (isClickable) 8.dp else 0.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = if (isClickable) Color(0xFFF1C40F).copy(alpha = 0.5f) else Color.Transparent,
+                spotColor = if (isClickable) Color(0xFFF1C40F).copy(alpha = 0.5f) else Color.Transparent
             )
             .testTag("hint_button")
     ) {
         Box(
             modifier = Modifier
                 .background(bgBrush)
-                .border(1.2.dp, borderColor, RoundedCornerShape(14.dp))
-                .padding(vertical = 5.dp, horizontal = 12.dp),
+                .border(1.2.dp, borderColor, RoundedCornerShape(18.dp))
+                .padding(vertical = 10.dp, horizontal = 18.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -1881,16 +1918,16 @@ fun HintButton(
             ) {
                 if (isShowingAdForHint) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                         color = TextWhite,
-                        strokeWidth = 2.dp
+                        strokeWidth = 2.5.dp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Loading Ad...",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 14.sp
                         ),
                         color = TextWhite
                     )
@@ -1899,7 +1936,7 @@ fun HintButton(
                         text = "✓ Hint Used",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 14.sp
                         ),
                         color = TextMuted
                     )
@@ -1908,14 +1945,14 @@ fun HintButton(
                         imageVector = Icons.Default.Lightbulb,
                         contentDescription = "Hint",
                         tint = Color(0xFFF1C40F),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Hint",
+                        text = "50:50 Hint",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp
+                            fontSize = 15.sp
                         ),
                         color = TextWhite
                     )
