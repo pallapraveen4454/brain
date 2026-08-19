@@ -117,6 +117,7 @@ import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
 import com.example.utils.SoundEffects
 import com.example.utils.bounceClick
@@ -159,13 +160,14 @@ fun ProfileScreen(
     var futureFeatureNotice by remember { mutableStateOf<String?>(null) }
 
     // Number Count-Up Animations for flagship feel
+    val currentLevel = LevelUtils.getLevel(xp)
     val animatedXp by animateIntAsState(
         targetValue = xp,
         animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
         label = "xpCountUp"
     )
     val animatedLevel by animateIntAsState(
-        targetValue = level,
+        targetValue = currentLevel,
         animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
         label = "levelCountUp"
     )
@@ -216,13 +218,8 @@ fun ProfileScreen(
     val calculatedRank = RankUtils.getRankForXp(xp)
     val displayRank = if (rank.isNotBlank() && rank != "Beginner") rank else calculatedRank
 
-    val (prevThreshold, nextThreshold) = when {
-        xp >= 1000 -> 1000 to 2000
-        xp >= 500 -> 500 to 1000
-        xp >= 100 -> 100 to 500
-        else -> 0 to 100
-    }
-    val levelXpProgress = ((xp - prevThreshold).toFloat() / (nextThreshold - prevThreshold).coerceAtLeast(1)).coerceIn(0f, 1f)
+    val (prevThreshold, nextThreshold) = LevelUtils.getLevelThresholds(xp)
+    val levelXpProgress = LevelUtils.getProgress(xp)
     val animatedLevelProgress by animateFloatAsState(
         targetValue = levelXpProgress,
         animationSpec = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
@@ -583,7 +580,7 @@ fun ProfileScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "${nextThreshold - xp} XP needed for next rank tier",
+                            text = "${LevelUtils.getXpToNextLevel(xp)} XP needed for next level",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                             textAlign = TextAlign.End,

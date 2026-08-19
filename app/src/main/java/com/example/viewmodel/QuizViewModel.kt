@@ -21,6 +21,7 @@ import android.app.Activity
 import com.example.data.AchievementRepository
 import com.example.data.HintRepository
 import com.example.data.model.Achievement
+import com.example.utils.LevelUtils
 import com.example.utils.RewardedAdManager
 import com.example.utils.StreakUtils
 import java.text.SimpleDateFormat
@@ -513,7 +514,7 @@ class QuizViewModel(
 
                 val startCoins = currentProfile.coins
                 val newCoins = startCoins + coinsGained
-                val newLevel = maxOf(1, (newTotalXp / 500) + 1)
+                val newLevel = LevelUtils.getLevel(newTotalXp)
 
                 // 2. Calculate Streak and Active Date using StreakUtils
                 val (calculatedStreak, newActiveDate) = StreakUtils.calculateStreak(

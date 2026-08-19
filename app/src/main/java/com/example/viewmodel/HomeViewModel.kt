@@ -22,6 +22,7 @@ import com.example.ui.theme.CategoryMovies
 import com.example.ui.theme.CategoryScience
 import com.example.ui.theme.CategorySports
 import com.example.ui.theme.CategoryTech
+import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
 import com.example.utils.StreakUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -280,7 +281,7 @@ class HomeViewModel(
                                         playerEmail = userEmail,
                                         avatarId = remoteProfile.avatarId.ifBlank { "brain" },
                                         xp = remoteProfile.xp,
-                                        level = maxOf(1, (remoteProfile.xp / 500) + 1),
+                                        level = LevelUtils.getLevel(remoteProfile.xp),
                                         coins = remoteProfile.coins,
                                         streakDays = remoteProfile.streak,
                                         rank = userRank,

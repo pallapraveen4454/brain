@@ -126,6 +126,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.LevelUtils
 import com.example.utils.NotificationHelper
 import com.example.utils.SoundEffects
 import com.example.utils.VibrationUtils
@@ -427,12 +428,14 @@ private fun MainHomeContent(
 
         // 2. Animated XP & Level Progress Card
         item(span = { GridItemSpan(2) }) {
-            val levelProgress = ((uiState.xp % 100) / 100f).coerceIn(0.05f, 1f)
+            val levelProgress = LevelUtils.getProgress(uiState.xp)
             val animatedProgress by animateFloatAsState(
                 targetValue = levelProgress,
                 animationSpec = tween(durationMillis = 300),
                 label = "xp_level_progress"
             )
+            val currentLevel = LevelUtils.getLevel(uiState.xp)
+            val xpToNext = LevelUtils.getXpToNextLevel(uiState.xp)
 
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -468,7 +471,7 @@ private fun MainHomeContent(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "LEVEL ${uiState.level}",
+                                text = "LEVEL $currentLevel",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 15.sp,
@@ -479,7 +482,7 @@ private fun MainHomeContent(
                         }
 
                         Text(
-                            text = "${100 - (uiState.xp % 100)} XP to Level ${uiState.level + 1}",
+                            text = "$xpToNext XP to Level ${currentLevel + 1}",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp

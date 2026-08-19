@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.BrainQuizApplication
 import com.example.data.model.QuizResult
+import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
 import org.json.JSONArray
 import org.json.JSONObject
@@ -126,7 +127,7 @@ class UserProfileStore(
             email = "Guest Account",
             avatarId = guestAvatar,
             xp = guestXp,
-            level = maxOf(1, (guestXp / 500) + 1),
+            level = LevelUtils.getLevel(guestXp),
             coins = guestCoins,
             streak = guestStreak,
             longestStreak = guestLongestStreak,
@@ -274,7 +275,7 @@ class UserProfileStore(
             val mergedCoins = profile.coins
             val mergedStreak = profile.streak
             val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)
-            val mergedLevel = maxOf(1, (mergedXp / 500) + 1)
+            val mergedLevel = LevelUtils.getLevel(mergedXp)
             val mergedRank = RankUtils.getRankForXp(mergedXp)
 
             val mergedUnlocked = if (isSameUser) ((current?.unlockedAchievements ?: emptyList()) + profile.unlockedAchievements).distinct() else profile.unlockedAchievements
@@ -513,7 +514,7 @@ class UserProfileStore(
         }
 
         val xp = json.optInt("xp", 0)
-        val level = json.optInt("level", maxOf(1, (xp / 500) + 1))
+        val level = json.optInt("level", LevelUtils.getLevel(xp))
 
         return UserProfile(
             uid = json.optString("uid", ""),
