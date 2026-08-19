@@ -80,13 +80,26 @@ class StrictEmailAuthFlowTest {
     fun testErrorMappingWrongPassword() {
         val viewModel = AuthViewModel(authRepository = authRepository)
 
-        val invalidCredentialsEx = FirebaseAuthInvalidCredentialsException("ERROR_WRONG_PASSWORD", "The password is invalid or the user does not have a password.")
-        val errorMsg = viewModel.getFriendlyErrorMessage(invalidCredentialsEx)
+        val wrongPasswordEx = FirebaseAuthInvalidCredentialsException("ERROR_WRONG_PASSWORD", "The password is invalid or the user does not have a password.")
+        val errorMsg = viewModel.getFriendlyErrorMessage(wrongPasswordEx)
         assertEquals("Incorrect email or password.", errorMsg)
 
-        val genericCredEx = FirebaseAuthInvalidCredentialsException("INVALID_LOGIN_CREDENTIALS", "INVALID_LOGIN_CREDENTIALS")
-        val errorMsg2 = viewModel.getFriendlyErrorMessage(genericCredEx)
+        val customWrongPassEx = Exception("wrong-password")
+        val errorMsg2 = viewModel.getFriendlyErrorMessage(customWrongPassEx)
         assertEquals("Incorrect email or password.", errorMsg2)
+    }
+
+    @Test
+    fun testErrorMappingGenericInvalidCredentialsUnderEmailEnumerationProtection() {
+        val viewModel = AuthViewModel(authRepository = authRepository)
+
+        val genericCredEx = FirebaseAuthInvalidCredentialsException("INVALID_LOGIN_CREDENTIALS", "The supplied auth credential is incorrect, malformed or has expired.")
+        val errorMsg = viewModel.getFriendlyErrorMessage(genericCredEx)
+        assertEquals("Unable to sign in. If you don't have an account yet, please create one first.", errorMsg)
+
+        val invalidCredEx = Exception("invalid-credential")
+        val errorMsg2 = viewModel.getFriendlyErrorMessage(invalidCredEx)
+        assertEquals("Unable to sign in. If you don't have an account yet, please create one first.", errorMsg2)
     }
 
     @Test
@@ -150,6 +163,24 @@ class StrictEmailAuthFlowTest {
 
         // Registration MUST NOT navigate to home directly
         assertFalse("Create Account must NOT auto-navigate to Home", navigationToHomeInvoked)
+    }
+
+    @Test
+    fun testLoginFailureDoesNotCreateGuestOrNavigateHome() {
+        val viewModel = AuthViewModel(authRepository = authRepository)
+
+        viewModel.onEmailChanged("unregistered@example.com")
+        viewModel.onPasswordChanged("WrongPassword123!")
+
+        var navigatedHome = false
+        viewModel.submitEmailAuth {
+            navigatedHome = true
+        }
+
+        // On failure, callback should not be invoked, guest session not activated, user not logged in
+        assertFalse("Failure must not navigate Home", navigatedHome)
+        assertFalse("Failure must not activate Guest session", authRepository.isGuestSessionActive())
+        assertFalse("Failure must not mark user logged in", authRepository.isUserLoggedIn())
     }
 
     @Test

@@ -505,6 +505,7 @@ class AuthViewModel(
     }
 
     private fun triggerError(msg: String) {
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_UI_MESSAGE=$msg")
         _uiState.update { 
             it.copy(
                 errorMessage = msg, 
@@ -1170,11 +1171,11 @@ class AuthViewModel(
     }
 
     internal fun getFriendlyErrorMessage(throwable: Throwable): String {
-        val exClass = throwable.javaClass.simpleName
+        val exClass = throwable.javaClass.name
         val rawMsg = throwable.message ?: throwable.localizedMessage ?: "Unknown authentication error"
-        Log.w("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg")
+        val errorCode = (throwable as? com.google.firebase.auth.FirebaseAuthException)?.errorCode ?: "N/A"
 
-        return when {
+        val finalMsg = when {
             throwable is FirebaseNetworkException || 
             throwable is java.net.UnknownHostException || 
             throwable is java.net.ConnectException || 
@@ -1198,6 +1199,7 @@ class AuthViewModel(
                 "An account with this email already exists. Please sign in."
 
             throwable is FirebaseAuthInvalidUserException ||
+            errorCode == "ERROR_USER_NOT_FOUND" ||
             rawMsg.contains("user-not-found", ignoreCase = true) ||
             rawMsg.contains("no user record", ignoreCase = true) ||
             rawMsg.contains("USER_NOT_FOUND", ignoreCase = true) ||
@@ -1210,17 +1212,26 @@ class AuthViewModel(
                 "Password must be at least 6 characters."
 
             throwable is FirebaseAuthInvalidCredentialsException -> {
-                if (rawMsg.contains("invalid email", ignoreCase = true) || 
+                if (errorCode == "ERROR_INVALID_EMAIL" ||
+                    rawMsg.contains("invalid email", ignoreCase = true) || 
                     rawMsg.contains("badly formatted", ignoreCase = true) ||
                     rawMsg.contains("invalid-email", ignoreCase = true) ||
                     rawMsg.contains("INVALID_EMAIL", ignoreCase = true)) {
                     "Please enter a valid email address."
-                } else if (rawMsg.contains("user-not-found", ignoreCase = true) || 
+                } else if (errorCode == "ERROR_USER_NOT_FOUND" ||
+                           rawMsg.contains("user-not-found", ignoreCase = true) || 
                            rawMsg.contains("no user", ignoreCase = true) ||
                            rawMsg.contains("USER_NOT_FOUND", ignoreCase = true)) {
                     "Account not found. Please create an account first."
-                } else {
+                } else if (errorCode == "ERROR_WRONG_PASSWORD" ||
+                           rawMsg.contains("wrong-password", ignoreCase = true) ||
+                           rawMsg.contains("INVALID_PASSWORD", ignoreCase = true)) {
                     "Incorrect email or password."
+                } else {
+                    // Under modern Firebase Email Enumeration Protection, non-existing email and wrong password
+                    // both return generic INVALID_LOGIN_CREDENTIALS / invalid-credential.
+                    // This safe user-facing message clearly guides the user toward Create Account without weakening security.
+                    "Unable to sign in. If you don't have an account yet, please create one first."
                 }
             }
 
@@ -1230,12 +1241,16 @@ class AuthViewModel(
             rawMsg.contains("INVALID_EMAIL", ignoreCase = true) ->
                 "Please enter a valid email address."
 
+            errorCode == "ERROR_WRONG_PASSWORD" ||
             rawMsg.contains("wrong-password", ignoreCase = true) ||
+            rawMsg.contains("INVALID_PASSWORD", ignoreCase = true) ->
+                "Incorrect email or password."
+
             rawMsg.contains("invalid-credential", ignoreCase = true) ||
             rawMsg.contains("invalid credential", ignoreCase = true) ||
             rawMsg.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ||
-            rawMsg.contains("INVALID_PASSWORD", ignoreCase = true) ->
-                "Incorrect email or password."
+            rawMsg.contains("malformed or has expired", ignoreCase = true) ->
+                "Unable to sign in. If you don't have an account yet, please create one first."
 
             rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
                 "Too many failed login attempts. Please try again later."
@@ -1243,5 +1258,13 @@ class AuthViewModel(
             else ->
                 "Authentication failed. Please check your connection and try again."
         }
+
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_EXCEPTION_CLASS=$exClass")
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_ERROR_CODE=$errorCode")
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_RAW_MESSAGE=$rawMsg")
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_MAPPED_MESSAGE=$finalMsg")
+        Log.i("AUTH_DIAG", "LOGIN_DEBUG_UI_MESSAGE=$finalMsg")
+
+        return finalMsg
     }
 }
