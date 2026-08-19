@@ -621,18 +621,24 @@ class AuthViewModel(
                         result.fold(
                             onSuccess = { profile ->
                                 val totalMs = System.currentTimeMillis() - startTime
-                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Logging in user automatically.")
+                                Log.d("AUTH_PERF", "[AuthViewModel] Create Account SUCCESS in $totalMs ms. Account created and session signed out. Transitioning to Login screen.")
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
                                         isEmailSignInLoading = false,
-                                        isLoggedIn = true,
-                                        currentUserProfile = profile,
-                                        successMessage = null,
+                                        isLoggedIn = false,
+                                        currentUserProfile = null,
+                                        isSignUpMode = false,
+                                        emailInput = email,
+                                        passwordInput = "",
+                                        confirmPasswordInput = "",
+                                        nameInput = "",
+                                        successMessage = "Account created successfully",
                                         errorMessage = null
                                     )
                                 }
-                                onSuccess()
+                                // STRICT RULE: Registration MUST NOT auto-login or navigate to Home.
+                                // User must manually log in from the Login screen.
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime
@@ -1189,28 +1195,40 @@ class AuthViewModel(
             throwable is FirebaseAuthUserCollisionException ||
             rawMsg.contains("email-already-in-use", ignoreCase = true) ||
             rawMsg.contains("already exists", ignoreCase = true) ->
-                "An account with this email address already exists. Please sign in instead."
+                "An account with this email already exists. Please sign in."
+
+            throwable is FirebaseAuthInvalidUserException ||
+            rawMsg.contains("user-not-found", ignoreCase = true) ||
+            rawMsg.contains("no user record", ignoreCase = true) ||
+            rawMsg.contains("user may have been deleted", ignoreCase = true) ->
+                "Account not found. Please create an account first."
 
             throwable is FirebaseAuthInvalidCredentialsException -> {
-                if (rawMsg.contains("invalid email", ignoreCase = true) || rawMsg.contains("badly formatted", ignoreCase = true)) {
+                if (rawMsg.contains("invalid email", ignoreCase = true) || 
+                    rawMsg.contains("badly formatted", ignoreCase = true) ||
+                    rawMsg.contains("invalid-email", ignoreCase = true)) {
                     "Please enter a valid email address."
+                } else if (rawMsg.contains("user-not-found", ignoreCase = true) || 
+                           rawMsg.contains("no user", ignoreCase = true)) {
+                    "Account not found. Please create an account first."
                 } else {
-                    "Invalid email or password. Please verify your login credentials."
+                    "Incorrect email or password."
                 }
             }
 
-            throwable is FirebaseAuthInvalidUserException ||
-            rawMsg.contains("user-not-found", ignoreCase = true) ->
-                "No account found with this email. Please check your entry or create an account."
-
             throwable is FirebaseAuthWeakPasswordException ->
-                "Password is too weak. Please use at least 6 characters."
+                "Password must be at least 6 characters."
 
-            rawMsg.contains("badly formatted", ignoreCase = true) || rawMsg.contains("invalid email", ignoreCase = true) ->
+            rawMsg.contains("badly formatted", ignoreCase = true) || 
+            rawMsg.contains("invalid email", ignoreCase = true) ||
+            rawMsg.contains("invalid-email", ignoreCase = true) ->
                 "Please enter a valid email address."
 
-            rawMsg.contains("wrong-password", ignoreCase = true) ->
-                "Incorrect password. Please try again."
+            rawMsg.contains("wrong-password", ignoreCase = true) ||
+            rawMsg.contains("invalid-credential", ignoreCase = true) ||
+            rawMsg.contains("invalid credential", ignoreCase = true) ||
+            rawMsg.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ->
+                "Incorrect email or password."
 
             rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
                 "Too many failed login attempts. Please try again later."
