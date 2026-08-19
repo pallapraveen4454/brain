@@ -105,7 +105,13 @@ class AuthRepository(
     }
 
     fun hasSavedUserSession(): Boolean {
-        return if (isGuestSessionActive()) true else (currentUser != null || userProfileStore.isLoggedIn())
+        val isGuest = isGuestSessionActive()
+        val user = currentUser
+        return when {
+            isGuest -> true
+            user != null -> userProfileStore.isLoggedIn()
+            else -> false
+        }
     }
 
     fun isUserLoggedIn(): Boolean {
@@ -185,20 +191,40 @@ class AuthRepository(
     }
 
     fun createOrGetLocalEmailProfile(email: String, name: String): UserProfile {
+        val localUid = "local_${Math.abs(email.hashCode())}"
         val existing = userProfileStore.getProfile()
+        val isSame = existing.uid == localUid || existing.email == email
         val displayName = name.ifBlank {
-            if (existing.name.isNotBlank() && existing.name != "Player" && existing.name != "Guest Player") {
+            if (isSame && existing.name.isNotBlank() && existing.name != "Player" && existing.name != "Guest Player") {
                 existing.name
             } else {
                 email.substringBefore("@").replaceFirstChar { it.uppercase() }
             }
         }
-        val localUid = if (existing.uid.isNotBlank()) existing.uid else "local_${Math.abs(email.hashCode())}"
-        val profile = existing.copy(
-            uid = localUid,
-            email = email,
-            name = displayName
-        )
+        val profile = if (isSame) {
+            existing.copy(uid = localUid, email = email, name = displayName)
+        } else {
+            UserProfile(
+                uid = localUid,
+                email = email,
+                name = displayName,
+                avatarId = "brain",
+                xp = 0,
+                level = 1,
+                coins = 0,
+                streak = 0,
+                rank = "Beginner",
+                unlockedAchievements = emptyList(),
+                claimedRewards = emptyList(),
+                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                quizHistory = emptyList(),
+                totalQuizzesPlayed = 0,
+                totalQuestionsAnswered = 0,
+                totalCorrectAnswers = 0,
+                bestScore = 0,
+                longestStreak = 0
+            )
+        }
         userProfileStore.saveProfile(profile)
         userProfileStore.setLoggedIn(true)
         setGuestSessionActive(false)

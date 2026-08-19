@@ -29,9 +29,22 @@ class AchievementRepository(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null },
     private val userProfileStore: UserProfileStore = UserProfileStore(context)
 ) {
-    private val prefsName = "achievements_prefs"
+    private fun getAccountKey(): String {
+        val isGuest = userProfileStore.isGuestActive()
+        if (isGuest) {
+            return "guest_${userProfileStore.getGuestId()}"
+        }
+        val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
+        val user = auth?.currentUser
+        val profile = userProfileStore.getProfile()
+        return when {
+            user != null && user.uid.isNotBlank() -> "uid_${user.uid}"
+            profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") -> "uid_${profile.uid}"
+            else -> "guest_${userProfileStore.getGuestId()}"
+        }
+    }
 
-    private fun getSharedPreferences() = context?.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+    private fun getSharedPreferences() = context?.getSharedPreferences("achievements_prefs_${getAccountKey()}", Context.MODE_PRIVATE)
 
     fun getStats(): AchievementStats {
         val prefs = getSharedPreferences() ?: return AchievementStats()

@@ -27,7 +27,8 @@ class GuestAccountTest {
         assertNotNull("Guest ID should not be null", initialGuestId)
         assertTrue("Guest ID must start with guest_", initialGuestId.startsWith("guest_"))
 
-        val profileLaunch1 = storeLaunch1.getProfile()
+        storeLaunch1.setGuestActive(true)
+        val profileLaunch1 = storeLaunch1.createOrGetGuestProfile()
         assertEquals(initialGuestId, profileLaunch1.uid)
 
         // 2. Customizing user info & completing quizzes

@@ -181,8 +181,10 @@ class QuizResultRepository(
 
         // 2. Update user stats
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+        val isGuest = userProfileStore.isGuestActive()
+        val accountKey = if (isGuest || userId.startsWith("guest_")) "guest_$userId" else "uid_$userId"
         ctx?.let {
-            val prefs = it.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE)
+            val prefs = it.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)
             val currentStats = getUserStats()
             val newQuizzesPlayed = currentStats.totalQuizzesPlayed + 1
             val newQuestionsAnswered = currentStats.totalQuestionsAnswered + 10
@@ -229,7 +231,7 @@ class QuizResultRepository(
 
         saveLocalProgress(
             totalXp = totalXp,
-            level = (totalXp / 500) + 1,
+            level = com.example.utils.LevelUtils.getLevel(totalXp),
             coins = finalCoins,
             streak = finalStreak,
             lastActiveDate = finalActiveDate,

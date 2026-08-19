@@ -147,66 +147,115 @@ class UserProfileStore(
     }
 
     fun getProfile(): UserProfile {
-        val guestId = getGuestId()
+        val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
+        val fbUser = auth?.currentUser
         val isGuest = isGuestActive()
-        val targetKey = if (isGuest) keyGuestProfileJson else keyAuthProfileJson
+        val targetKey = when {
+            isGuest -> keyGuestProfileJson
+            fbUser != null -> "auth_user_profile_${fbUser.uid}"
+            else -> keyAuthProfileJson
+        }
 
         try {
-            val jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
+            var jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
+            if (jsonStr.isBlank() && fbUser != null) {
+                jsonStr = getPrefs()?.getString(keyAuthProfileJson, "") ?: ""
+            }
             if (jsonStr.isNotBlank()) {
                 val profile = profileFromJson(JSONObject(jsonStr))
                 if (isGuest) {
+                    val guestId = getGuestId()
                     val sanitized = profile.copy(
                         uid = if (profile.uid.startsWith("guest_")) profile.uid else guestId,
                         name = if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name,
                         email = "Guest Account"
                     )
                     return sanitized
+                } else if (fbUser != null) {
+                    return profile.copy(
+                        uid = fbUser.uid,
+                        email = fbUser.email ?: profile.email,
+                        name = profile.name.ifBlank { fbUser.displayName ?: fbUser.email?.substringBefore("@") ?: "Player" }
+                    )
                 } else {
                     return profile
-                }
-            } else if (isGuest) {
-                // Fallback check legacy key for guest
-                val legacyJsonStr = getPrefs()?.getString(keyProfileJson, "") ?: ""
-                if (legacyJsonStr.isNotBlank()) {
-                    val legacyProfile = profileFromJson(JSONObject(legacyJsonStr))
-                    if (legacyProfile.uid.startsWith("guest_")) {
-                        val sanitized = legacyProfile.copy(
-                            uid = legacyProfile.uid,
-                            name = if (legacyProfile.name.isBlank() || legacyProfile.name == "Player" || legacyProfile.name == "Guest Player") "Guest" else legacyProfile.name,
-                            email = "Guest Account"
-                        )
-                        getPrefs()?.edit()?.putString(keyGuestProfileJson, profileToJson(sanitized).toString())?.apply()
-                        return sanitized
-                    }
                 }
             }
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error loading profile from JSON", e)
         }
 
-        val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
-        val fbUser = auth?.currentUser
-
-        if (isGuest || fbUser == null) {
-            return createOrGetGuestProfile()
+        if (isGuest) {
+            val guestId = getGuestId()
+            return UserProfile(
+                uid = guestId,
+                name = "Guest",
+                email = "Guest Account",
+                avatarId = "brain",
+                xp = 0,
+                level = 1,
+                coins = 0,
+                streak = 0,
+                rank = "Beginner",
+                unlockedAchievements = emptyList(),
+                claimedRewards = emptyList(),
+                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                quizHistory = emptyList(),
+                totalQuizzesPlayed = 0,
+                totalQuestionsAnswered = 0,
+                totalCorrectAnswers = 0,
+                bestScore = 0,
+                longestStreak = 0
+            )
         }
 
-        val defaultName = fbUser.displayName ?: fbUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Player"
-        val defaultEmail = fbUser.email ?: ""
+        if (fbUser != null) {
+            val defaultName = fbUser.displayName ?: fbUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Player"
+            val defaultEmail = fbUser.email ?: ""
 
-        val defaultProfile = UserProfile(
-            uid = fbUser.uid,
-            name = defaultName,
-            email = defaultEmail,
+            return UserProfile(
+                uid = fbUser.uid,
+                name = defaultName,
+                email = defaultEmail,
+                avatarId = "brain",
+                xp = 0,
+                level = 1,
+                coins = 0,
+                streak = 0,
+                rank = "Beginner",
+                unlockedAchievements = emptyList(),
+                claimedRewards = emptyList(),
+                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                quizHistory = emptyList(),
+                totalQuizzesPlayed = 0,
+                totalQuestionsAnswered = 0,
+                totalCorrectAnswers = 0,
+                bestScore = 0,
+                longestStreak = 0
+            )
+        }
+
+        // Clean unauthenticated default profile (NEVER automatically enter guest mode)
+        return UserProfile(
+            uid = "",
+            name = "Player",
+            email = "",
             avatarId = "brain",
             xp = 0,
             level = 1,
             coins = 0,
             streak = 0,
-            rank = "Beginner"
+            rank = "Beginner",
+            unlockedAchievements = emptyList(),
+            claimedRewards = emptyList(),
+            unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+            quizHistory = emptyList(),
+            totalQuizzesPlayed = 0,
+            totalQuestionsAnswered = 0,
+            totalCorrectAnswers = 0,
+            bestScore = 0,
+            longestStreak = 0
         )
-        return defaultProfile
     }
 
     fun resetGuestAccount(): UserProfile {
@@ -223,7 +272,15 @@ class UserProfileStore(
 
     fun clearAuthProfile() {
         try {
-            getPrefs()?.edit()?.remove(keyAuthProfileJson)?.apply()
+            val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
+            val currentUid = auth?.currentUser?.uid
+            val editor = getPrefs()?.edit()
+            editor?.remove(keyAuthProfileJson)
+            editor?.remove(keyProfileJson)
+            if (!currentUid.isNullOrBlank()) {
+                editor?.remove("auth_user_profile_$currentUid")
+            }
+            editor?.apply()
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error during clearAuthProfile", e)
         }
@@ -232,7 +289,13 @@ class UserProfileStore(
     fun saveProfile(profile: UserProfile): UserProfile {
         try {
             val isGuestTarget = profile.uid.startsWith("guest_") || isGuestActive() || profile.email == "Guest Account"
-            val targetKey = if (isGuestTarget) keyGuestProfileJson else keyAuthProfileJson
+            val targetKey = if (isGuestTarget) {
+                keyGuestProfileJson
+            } else if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_")) {
+                "auth_user_profile_${profile.uid}"
+            } else {
+                keyAuthProfileJson
+            }
 
             // Point 6: At the beginning of UserProfileStore.saveProfile
             Log.d("RUNTIME_TRACE", "[Point 6: Beginning of UserProfileStore.saveProfile] profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestTarget=$isGuestTarget, targetKey=$targetKey, isGuestActive=${isGuestActive()}")
@@ -335,7 +398,16 @@ class UserProfileStore(
             )
 
             val jsonObj = profileToJson(updated)
-            getPrefs()?.edit()?.putString(targetKey, jsonObj.toString())?.apply()
+            getPrefs()?.edit()?.apply {
+                putString(targetKey, jsonObj.toString())
+                if (!isGuestTarget) {
+                    putString(keyAuthProfileJson, jsonObj.toString())
+                    if (updated.uid.isNotBlank()) {
+                        putString("auth_user_profile_${updated.uid}", jsonObj.toString())
+                    }
+                }
+                apply()
+            }
 
             val jsonAfterSaving = getPrefs()?.getString(targetKey, "") ?: ""
             // Point 7: Immediately after SharedPreferences.apply
@@ -355,18 +427,21 @@ class UserProfileStore(
     private fun syncLegacyPrefs(profile: UserProfile) {
         try {
             val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null } ?: return
+            val accountKey = if (isGuestActive() || profile.uid.startsWith("guest_")) "guest_${profile.uid}" else "uid_${profile.uid}"
             
             // Sync auth_prefs
             ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit().apply {
-                putString("guest_user_id", profile.uid)
+                if (isGuestActive()) {
+                    putString("guest_user_id", profile.uid)
+                }
                 putBoolean("is_guest_active", isGuestActive())
                 putString("saved_custom_username", profile.name)
                 putString("saved_avatar_id", profile.avatarId)
                 apply()
             }
 
-            // Sync quiz_results_prefs
-            ctx.getSharedPreferences("quiz_results_prefs", Context.MODE_PRIVATE).edit().apply {
+            // Sync account-specific quiz_results_prefs
+            ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().apply {
                 putInt("user_total_xp", profile.xp)
                 putInt("last_total_xp", profile.xp)
                 putInt("user_level", profile.level)
@@ -403,8 +478,8 @@ class UserProfileStore(
                 apply()
             }
 
-            // Sync achievements_prefs
-            ctx.getSharedPreferences("achievements_prefs", Context.MODE_PRIVATE).edit().apply {
+            // Sync account-specific achievements_prefs
+            ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().apply {
                 profile.unlockedAchievements.forEach { achId ->
                     putBoolean("ach_unlocked_$achId", true)
                 }
