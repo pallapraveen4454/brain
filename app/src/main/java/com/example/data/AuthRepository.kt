@@ -248,7 +248,7 @@ class AuthRepository(
             ensureUserProfileExists(user)
             Result.success(user)
         } catch (e: Exception) {
-            Log.e("AuthRepository", "FirebaseAuth.signInWithEmailAndPassword FAILED -> [${e.javaClass.name}] ${e.message}", e)
+            Log.w("AuthRepository", "FirebaseAuth.signInWithEmailAndPassword FAILED -> [${e.javaClass.name}] ${e.message}")
             Result.failure(e)
         }
     }

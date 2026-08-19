@@ -642,7 +642,7 @@ class AuthViewModel(
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime
-                                Log.e("AUTH_PERF", "[AuthViewModel] Create Account FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}", error)
+                                Log.w("AUTH_PERF", "[AuthViewModel] Create Account FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}")
                                 triggerError(getFriendlyErrorMessage(error))
                             }
                         )
@@ -680,7 +680,7 @@ class AuthViewModel(
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime
-                                Log.e("AUTH_PERF", "[AuthViewModel] Login FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}", error)
+                                Log.w("AUTH_PERF", "[AuthViewModel] Login FAILED after $totalMs ms: [${error.javaClass.name}] ${error.message}")
                                 triggerError(getFriendlyErrorMessage(error))
                             }
                         )
@@ -1169,10 +1169,10 @@ class AuthViewModel(
         _uiState.value = AuthUiState(isLoggedIn = false)
     }
 
-    private fun getFriendlyErrorMessage(throwable: Throwable): String {
+    internal fun getFriendlyErrorMessage(throwable: Throwable): String {
         val exClass = throwable.javaClass.simpleName
         val rawMsg = throwable.message ?: throwable.localizedMessage ?: "Unknown authentication error"
-        Log.e("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg", throwable)
+        Log.w("AuthViewModel", "Authentication Exception: [$exClass] $rawMsg")
 
         return when {
             throwable is FirebaseNetworkException || 
@@ -1185,12 +1185,12 @@ class AuthViewModel(
             rawMsg.contains("interrupted connection", ignoreCase = true) ||
             rawMsg.contains("NO_NETWORK", ignoreCase = true) ||
             rawMsg.contains("FirebaseNetworkException", ignoreCase = true) ->
-                "No internet connection. Please check your connection and try again."
+                "Network error. Please check your internet connection and try again."
 
             throwable is TimeoutCancellationException ||
             rawMsg.contains("timed out", ignoreCase = true) ||
             rawMsg.contains("Timeout", ignoreCase = true) ->
-                "Network issue. Please try again later."
+                "Network error. Please check your internet connection and try again."
 
             throwable is FirebaseAuthUserCollisionException ||
             rawMsg.contains("email-already-in-use", ignoreCase = true) ||
@@ -1200,34 +1200,41 @@ class AuthViewModel(
             throwable is FirebaseAuthInvalidUserException ||
             rawMsg.contains("user-not-found", ignoreCase = true) ||
             rawMsg.contains("no user record", ignoreCase = true) ||
+            rawMsg.contains("USER_NOT_FOUND", ignoreCase = true) ||
             rawMsg.contains("user may have been deleted", ignoreCase = true) ->
                 "Account not found. Please create an account first."
+
+            throwable is FirebaseAuthWeakPasswordException ||
+            rawMsg.contains("weak-password", ignoreCase = true) ||
+            rawMsg.contains("weak password", ignoreCase = true) ->
+                "Password must be at least 6 characters."
 
             throwable is FirebaseAuthInvalidCredentialsException -> {
                 if (rawMsg.contains("invalid email", ignoreCase = true) || 
                     rawMsg.contains("badly formatted", ignoreCase = true) ||
-                    rawMsg.contains("invalid-email", ignoreCase = true)) {
+                    rawMsg.contains("invalid-email", ignoreCase = true) ||
+                    rawMsg.contains("INVALID_EMAIL", ignoreCase = true)) {
                     "Please enter a valid email address."
                 } else if (rawMsg.contains("user-not-found", ignoreCase = true) || 
-                           rawMsg.contains("no user", ignoreCase = true)) {
+                           rawMsg.contains("no user", ignoreCase = true) ||
+                           rawMsg.contains("USER_NOT_FOUND", ignoreCase = true)) {
                     "Account not found. Please create an account first."
                 } else {
                     "Incorrect email or password."
                 }
             }
 
-            throwable is FirebaseAuthWeakPasswordException ->
-                "Password must be at least 6 characters."
-
             rawMsg.contains("badly formatted", ignoreCase = true) || 
             rawMsg.contains("invalid email", ignoreCase = true) ||
-            rawMsg.contains("invalid-email", ignoreCase = true) ->
+            rawMsg.contains("invalid-email", ignoreCase = true) ||
+            rawMsg.contains("INVALID_EMAIL", ignoreCase = true) ->
                 "Please enter a valid email address."
 
             rawMsg.contains("wrong-password", ignoreCase = true) ||
             rawMsg.contains("invalid-credential", ignoreCase = true) ||
             rawMsg.contains("invalid credential", ignoreCase = true) ||
-            rawMsg.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ->
+            rawMsg.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ||
+            rawMsg.contains("INVALID_PASSWORD", ignoreCase = true) ->
                 "Incorrect email or password."
 
             rawMsg.contains("too-many-requests", ignoreCase = true) || rawMsg.contains("TOO_MANY_ATTEMPTS", ignoreCase = true) ->
