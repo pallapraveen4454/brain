@@ -705,7 +705,7 @@ class AuthRepository(
             user.delete().await()
 
             // Clear local storage and sign out
-            userProfileStore.resetGuestAccount()
+            userProfileStore.clearAuthProfile()
             signOut()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -718,6 +718,7 @@ class AuthRepository(
         try {
             userProfileStore.setGuestActive(false)
             userProfileStore.setLoggedIn(false)
+            userProfileStore.clearAuthProfile()
             getAuth()?.signOut()
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error signing out", e)

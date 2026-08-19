@@ -221,6 +221,14 @@ class UserProfileStore(
         return createOrGetGuestProfile()
     }
 
+    fun clearAuthProfile() {
+        try {
+            getPrefs()?.edit()?.remove(keyAuthProfileJson)?.apply()
+        } catch (e: Exception) {
+            Log.e("UserProfileStore", "Error during clearAuthProfile", e)
+        }
+    }
+
     fun saveProfile(profile: UserProfile): UserProfile {
         try {
             val isGuestTarget = profile.uid.startsWith("guest_") || isGuestActive() || profile.email == "Guest Account"
