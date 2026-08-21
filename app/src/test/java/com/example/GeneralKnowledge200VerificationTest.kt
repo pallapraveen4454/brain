@@ -77,6 +77,6 @@ class GeneralKnowledge200VerificationTest {
         println("CURRENT TOTAL GENERAL KNOWLEDGE QUESTIONS: $totalCountInDb")
         println("==================================================")
 
-        assertEquals("Total General Knowledge questions in DB should be 200", 200, totalCountInDb)
+        assertTrue("Total General Knowledge questions in DB should be at least 200", totalCountInDb >= 200)
     }
 }

@@ -130,7 +130,7 @@ object AvatarUtils {
     fun getEmoji(avatarId: String): String {
         val shopItem = AvatarShopData.SAMPLE_AVATARS.find { it.id == avatarId }
         if (shopItem != null) return shopItem.emoji
-        return when (avatarId) {
+        return when (avatarId.lowercase().trim()) {
             "student_boy" -> "👦"
             "student_girl" -> "👧"
             "reader" -> "🧑‍🎓"
@@ -142,6 +142,22 @@ object AvatarUtils {
             "quiz_king" -> "👑"
             "brain_master" -> "🧠"
             "brain" -> "🧠"
+            "wizard" -> "🧙"
+            "rocket" -> "🚀"
+            "crown" -> "👑"
+            "star" -> "⭐"
+            "fire" -> "🔥"
+            "ninja" -> "🥷"
+            "cat" -> "🐱"
+            "fox" -> "🦊"
+            "owl" -> "🦉"
+            "bear" -> "🐻"
+            "dragon" -> "🐲"
+            "shield" -> "🛡️"
+            "gem" -> "💎"
+            "zap" -> "⚡"
+            "lion" -> "🦁"
+            "tiger" -> "🐯"
             else -> "🧠"
         }
     }

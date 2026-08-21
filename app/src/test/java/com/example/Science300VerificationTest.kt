@@ -21,7 +21,9 @@ class Science300VerificationTest {
     @Test
     fun verifyScience001To300ImportAndDatabaseIntegrity() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        CategoryDatabaseManager.closeAndClearAll()
         context.deleteDatabase("category_science.db")
+        context.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE).edit().clear().commit()
 
         val importManager = QuestionImportManager(context)
         val selectionEngine = QuestionSelectionEngine(context)

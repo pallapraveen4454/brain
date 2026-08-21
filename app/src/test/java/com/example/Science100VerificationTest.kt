@@ -22,7 +22,9 @@ class Science100VerificationTest {
     @Test
     fun verifyScience001To100ImportAndDatabaseCount() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        CategoryDatabaseManager.closeAndClearAll()
         context.deleteDatabase("category_science.db")
+        context.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE).edit().clear().commit()
 
         val importManager = QuestionImportManager(context)
         val selectionEngine = QuestionSelectionEngine(context)
@@ -32,11 +34,16 @@ class Science100VerificationTest {
         val scienceSeeds = DefaultQuestionSeeds.getSeedsForCategory("science")
         println("Total Science Seed Count: ${scienceSeeds.size}")
         assertTrue("Total Science seeds should be at least 100", scienceSeeds.size >= 100)
+        val first100Seeds = scienceSeeds.filter { 
+            val num = it.id.removePrefix("SCI").toIntOrNull()
+            num != null && num in 1..100
+        }
+        assertEquals("First batch must have 100 questions", 100, first100Seeds.size)
 
         // 2. Validate difficulty distribution: Easy 40, Medium 40, Hard 20
-        val easyCount = scienceSeeds.count { it.difficulty.equals("Easy", ignoreCase = true) }
-        val mediumCount = scienceSeeds.count { it.difficulty.equals("Medium", ignoreCase = true) }
-        val hardCount = scienceSeeds.count { it.difficulty.equals("Hard", ignoreCase = true) }
+        val easyCount = first100Seeds.count { it.difficulty.equals("Easy", ignoreCase = true) }
+        val mediumCount = first100Seeds.count { it.difficulty.equals("Medium", ignoreCase = true) }
+        val hardCount = first100Seeds.count { it.difficulty.equals("Hard", ignoreCase = true) }
 
         println("Science Difficulty Breakdown: Easy=$easyCount, Medium=$mediumCount, Hard=$hardCount")
         assertEquals("Easy questions count must be 40", 40, easyCount)
@@ -44,7 +51,7 @@ class Science100VerificationTest {
         assertEquals("Hard questions count must be 20", 20, hardCount)
 
         // 3. Check for unique IDs (SCI001 to SCI100)
-        val allIds = scienceSeeds.map { it.id }
+        val allIds = first100Seeds.map { it.id }
         val duplicateIds = allIds.groupBy { it }.filter { it.value.size > 1 }.keys
         assertEquals("All 100 IDs must be unique. Duplicates: $duplicateIds", 100, allIds.toSet().size)
 

@@ -321,6 +321,13 @@ fun QuizActiveView(
         val screenHeight = maxHeight
         val isCompactScreen = screenHeight < 700.dp
 
+        LaunchedEffect(uiState.isAnswerSubmitted) {
+            if (uiState.isAnswerSubmitted) {
+                delay(100)
+                scrollState.animateScrollTo(scrollState.maxValue)
+            }
+        }
+
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -335,32 +342,32 @@ fun QuizActiveView(
                         .fillMaxSize()
                         .verticalScroll(scrollState)
                         .padding(
-                            horizontal = if (isCompactScreen) 16.dp else 20.dp,
-                            vertical = if (isCompactScreen) 8.dp else 12.dp
+                            horizontal = if (isCompactScreen) 14.dp else 18.dp,
+                            vertical = if (isCompactScreen) 6.dp else 10.dp
                         ),
-                    verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 10.dp else 14.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 8.dp else 10.dp)
                 ) {
                     // 1. Premium Header Bar
                     GlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 58.dp),
-                        shape = RoundedCornerShape(22.dp),
+                            .heightIn(min = 50.dp),
+                        shape = RoundedCornerShape(18.dp),
                         backgroundColor = DarkCardSurface.copy(alpha = 0.92f),
                         borderColor = GlassBorder,
-                        elevation = 6.dp
+                        elevation = 4.dp
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
                                 onClick = onNavigateBack,
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(DarkBackground.copy(alpha = 0.65f))
                                     .bounceClick(scaleDown = 0.92f)
@@ -370,7 +377,7 @@ fun QuizActiveView(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
                                     tint = TextWhite,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
@@ -378,20 +385,20 @@ fun QuizActiveView(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .weight(1f, fill = false)
-                                    .padding(horizontal = 8.dp)
+                                    .padding(horizontal = 6.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Psychology,
                                     contentDescription = null,
                                     tint = PrimaryPurpleLight,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = uiState.categoryTitle,
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = if (uiState.categoryTitle.length > 18) 15.sp else 17.sp
+                                        fontSize = if (uiState.categoryTitle.length > 18) 14.sp else 16.sp
                                     ),
                                     color = TextWhite,
                                     maxLines = 1,
@@ -412,13 +419,13 @@ fun QuizActiveView(
                             Box(
                                 modifier = Modifier
                                     .scale(scorePulse.value)
-                                    .clip(RoundedCornerShape(18.dp))
+                                    .clip(RoundedCornerShape(16.dp))
                                     .background(
                                         brush = Brush.horizontalGradient(
                                             colors = listOf(PrimaryPurple, PrimaryPurpleLight)
                                         )
                                     )
-                                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                                     .testTag("quiz_score_pill"),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -427,14 +434,14 @@ fun QuizActiveView(
                                         imageVector = Icons.Default.EmojiEvents,
                                         contentDescription = "XP",
                                         tint = TextWhite,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "${uiState.score} XP",
                                         style = MaterialTheme.typography.labelLarge.copy(
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = TextWhite
                                     )
@@ -456,8 +463,8 @@ fun QuizActiveView(
                                 text = "QUESTION ${uiState.currentQuestionIndex + 1} OF ${uiState.questions.size}",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 1.sp,
-                                    fontSize = 13.sp
+                                    letterSpacing = 0.8.sp,
+                                    fontSize = 12.sp
                                 ),
                                 color = TextSecondary,
                                 modifier = Modifier.testTag("question_progress_text")
@@ -481,7 +488,7 @@ fun QuizActiveView(
                         val infiniteTransition = rememberInfiniteTransition(label = "timer_pulse")
                         val pulseScale by infiniteTransition.animateFloat(
                             initialValue = 1f,
-                            targetValue = if (isUrgent) 1.14f else 1f,
+                            targetValue = if (isUrgent) 1.12f else 1f,
                             animationSpec = infiniteRepeatable(
                                 animation = tween(durationMillis = 400),
                                 repeatMode = RepeatMode.Reverse
@@ -493,11 +500,11 @@ fun QuizActiveView(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .scale(pulseScale)
-                                .heightIn(min = 44.dp)
-                                .clip(RoundedCornerShape(18.dp))
+                                .heightIn(min = 38.dp)
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(timerColor.copy(alpha = 0.16f))
-                                .border(1.2.dp, timerColor.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .border(1.2.dp, timerColor.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                                 .testTag("timer_badge")
                         ) {
                             val targetProgress = (timeRemaining / 20f).coerceIn(0f, 1f)
@@ -508,7 +515,7 @@ fun QuizActiveView(
                             )
 
                             Box(
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(20.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -517,29 +524,29 @@ fun QuizActiveView(
                                         startAngle = -90f,
                                         sweepAngle = 360f,
                                         useCenter = false,
-                                        style = Stroke(width = 3.2.dp.toPx())
+                                        style = Stroke(width = 2.8.dp.toPx())
                                     )
                                     drawArc(
                                         color = timerColor,
                                         startAngle = -90f,
                                         sweepAngle = 360f * animatedTimerProgress,
                                         useCenter = false,
-                                        style = Stroke(width = 3.2.dp.toPx(), cap = StrokeCap.Round)
+                                        style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
                                     )
                                 }
                                 Icon(
                                     imageVector = Icons.Default.Timer,
                                     contentDescription = "Timer",
                                     tint = timerColor,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(11.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "${timeRemaining}s",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp
+                                    fontSize = 14.sp
                                 ),
                                 color = timerColor
                             )
@@ -549,7 +556,7 @@ fun QuizActiveView(
                     // 3. Progress Indicators (Question Progress + Timer Progress)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val animatedProgress by animateFloatAsState(
                             targetValue = (uiState.currentQuestionIndex + 1) / uiState.questions.size.toFloat(),
@@ -559,16 +566,16 @@ fun QuizActiveView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(9.dp)
-                                .clip(RoundedCornerShape(5.dp))
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(4.dp))
                                 .background(DarkCardSurface)
                                 .testTag("question_progress_bar")
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(animatedProgress)
-                                    .height(9.dp)
-                                    .clip(RoundedCornerShape(5.dp))
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp))
                                     .background(
                                         brush = Brush.horizontalGradient(
                                             colors = listOf(PrimaryPurple, PrimaryPurpleLight)
@@ -590,7 +597,7 @@ fun QuizActiveView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(4.dp)
+                                .height(3.dp)
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(DarkCardBorder.copy(alpha = 0.4f))
                                 .testTag("timer_progress_bar")
@@ -598,7 +605,7 @@ fun QuizActiveView(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(timerLineProgress)
-                                    .height(4.dp)
+                                    .height(3.dp)
                                     .clip(RoundedCornerShape(2.dp))
                                     .background(timerLineColor)
                             )
@@ -618,18 +625,18 @@ fun QuizActiveView(
                         if (question != null) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 10.dp else 12.dp)
+                                verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 8.dp else 10.dp)
                             ) {
                                 // Question Card with Comfortable Padding and Ambient Purple Glow
                                 GlassCard(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .shadow(10.dp, RoundedCornerShape(26.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurple)
+                                        .shadow(6.dp, RoundedCornerShape(20.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurple)
                                         .testTag("question_card"),
-                                    shape = RoundedCornerShape(26.dp),
+                                    shape = RoundedCornerShape(20.dp),
                                     backgroundColor = DarkCardSurface,
                                     borderColor = PrimaryPurple.copy(alpha = 0.45f),
-                                    elevation = 8.dp
+                                    elevation = 6.dp
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -643,7 +650,7 @@ fun QuizActiveView(
                                                     )
                                                 )
                                             )
-                                            .padding(horizontal = 22.dp, vertical = if (isCompactScreen) 18.dp else 24.dp)
+                                            .padding(horizontal = 16.dp, vertical = if (isCompactScreen) 12.dp else 16.dp)
                                     ) {
                                         Column {
                                             Row(
@@ -653,16 +660,16 @@ fun QuizActiveView(
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .clip(RoundedCornerShape(10.dp))
-                                                    .background(PrimaryPurple.copy(alpha = 0.35f))
-                                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(PrimaryPurple.copy(alpha = 0.35f))
+                                                        .padding(horizontal = 8.dp, vertical = 3.dp)
                                                 ) {
                                                     Text(
                                                         text = uiState.categoryTitle.uppercase(),
                                                         style = MaterialTheme.typography.labelSmall.copy(
                                                             fontWeight = FontWeight.ExtraBold,
-                                                            fontSize = 11.sp,
-                                                            letterSpacing = 0.6.sp
+                                                            fontSize = 10.sp,
+                                                            letterSpacing = 0.5.sp
                                                         ),
                                                         color = PrimaryPurpleLight
                                                     )
@@ -674,15 +681,15 @@ fun QuizActiveView(
                                                         modifier = Modifier
                                                             .offset { IntOffset(0, floatingXpY.value.dp.roundToPx()) }
                                                             .alpha(floatingXpAlpha.value)
-                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .clip(RoundedCornerShape(12.dp))
                                                             .background(Color(0xFF2ECC71))
-                                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                            .padding(horizontal = 8.dp, vertical = 3.dp)
                                                     ) {
                                                         Text(
                                                             text = "+10 XP",
                                                             style = MaterialTheme.typography.labelSmall.copy(
                                                                 fontWeight = FontWeight.ExtraBold,
-                                                                fontSize = 12.sp
+                                                                fontSize = 11.sp
                                                             ),
                                                             color = TextWhite
                                                         )
@@ -690,14 +697,14 @@ fun QuizActiveView(
                                                 }
                                             }
 
-                                            Spacer(modifier = Modifier.height(14.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
 
                                             Text(
                                                 text = question.questionText,
                                                 style = MaterialTheme.typography.titleLarge.copy(
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = if (isCompactScreen) 19.sp else 22.sp,
-                                                    lineHeight = if (isCompactScreen) 26.sp else 30.sp
+                                                    fontSize = if (isCompactScreen) 16.sp else 18.sp,
+                                                    lineHeight = if (isCompactScreen) 22.sp else 25.sp
                                                 ),
                                                 color = TextWhite,
                                                 modifier = Modifier.testTag("question_text")
@@ -753,10 +760,10 @@ fun QuizActiveView(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(16.dp))
+                                            .clip(RoundedCornerShape(14.dp))
                                             .background(Color(0xFFE74C3C).copy(alpha = 0.22f))
-                                            .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp))
-                                            .padding(vertical = 10.dp, horizontal = 14.dp)
+                                            .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(14.dp))
+                                            .padding(vertical = 8.dp, horizontal = 12.dp)
                                             .testTag("hint_error_banner"),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -770,27 +777,27 @@ fun QuizActiveView(
                                                     imageVector = Icons.Default.Cancel,
                                                     contentDescription = null,
                                                     tint = Color(0xFFE74C3C),
-                                                    modifier = Modifier.size(18.dp)
+                                                    modifier = Modifier.size(16.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = uiState.hintErrorMessage ?: "Hint unavailable right now. Please try again.",
                                                     style = MaterialTheme.typography.bodyMedium.copy(
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 12.sp
+                                                        fontSize = 11.sp
                                                     ),
                                                     color = Color(0xFFFFD1D1)
                                                 )
                                             }
                                             IconButton(
                                                 onClick = onClearHintError,
-                                                modifier = Modifier.size(24.dp)
+                                                modifier = Modifier.size(20.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Close,
                                                     contentDescription = "Dismiss",
                                                     tint = TextWhite,
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(14.dp)
                                                 )
                                             }
                                         }
@@ -822,10 +829,10 @@ fun QuizActiveView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(feedbackBg)
-                                .border(1.5.dp, feedbackBorder, RoundedCornerShape(18.dp))
-                                .padding(vertical = 12.dp, horizontal = 16.dp)
+                                .border(1.5.dp, feedbackBorder, RoundedCornerShape(16.dp))
+                                .padding(vertical = 10.dp, horizontal = 14.dp)
                                 .testTag("quiz_feedback_banner"),
                             contentAlignment = Alignment.Center
                         ) {
@@ -834,14 +841,14 @@ fun QuizActiveView(
                                     imageVector = if (lastIsCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
                                     contentDescription = null,
                                     tint = feedbackBorder,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = lastFeedbackText,
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 16.sp
+                                        fontSize = 15.sp
                                     ),
                                     color = feedbackBorder
                                 )
@@ -849,7 +856,7 @@ fun QuizActiveView(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
@@ -947,15 +954,15 @@ fun QuizOptionItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 68.dp)
+            .heightIn(min = 50.dp)
             .graphicsLayer {
                 translationX = shakeOffset.value
                 scaleX = correctPulseScale.value
                 scaleY = correctPulseScale.value
             }
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(18.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
             .bounceClick(scaleDown = 0.98f) {
                 if (!isAnswerSubmitted) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -969,7 +976,7 @@ fun QuizOptionItem(
                 enabled = !isAnswerSubmitted,
                 onClick = onClick
             )
-            .padding(horizontal = 18.dp, vertical = 14.dp)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
             .testTag("option_button_$index"),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -985,7 +992,7 @@ fun QuizOptionItem(
                 // Option Label Circle Badge (A, B, C, D)
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(badgeColor.copy(alpha = 0.2f))
                         .border(1.2.dp, badgeColor, CircleShape),
@@ -995,20 +1002,20 @@ fun QuizOptionItem(
                         text = label,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 17.sp
+                            fontSize = 14.sp
                         ),
                         color = badgeColor
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
                     text = text,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 17.sp,
-                        lineHeight = 24.sp
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp
                     ),
                     color = textColor
                 )
@@ -1892,14 +1899,14 @@ fun HintButton(
             }
         },
         enabled = isClickable,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color.Transparent,
         modifier = modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = 40.dp)
             .bounceClick(scaleDown = 0.94f)
             .shadow(
-                elevation = if (isClickable) 8.dp else 0.dp,
-                shape = RoundedCornerShape(18.dp),
+                elevation = if (isClickable) 6.dp else 0.dp,
+                shape = RoundedCornerShape(16.dp),
                 ambientColor = if (isClickable) Color(0xFFF1C40F).copy(alpha = 0.5f) else Color.Transparent,
                 spotColor = if (isClickable) Color(0xFFF1C40F).copy(alpha = 0.5f) else Color.Transparent
             )
@@ -1908,8 +1915,8 @@ fun HintButton(
         Box(
             modifier = Modifier
                 .background(bgBrush)
-                .border(1.2.dp, borderColor, RoundedCornerShape(18.dp))
-                .padding(vertical = 10.dp, horizontal = 18.dp),
+                .border(1.2.dp, borderColor, RoundedCornerShape(16.dp))
+                .padding(vertical = 8.dp, horizontal = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -1918,16 +1925,16 @@ fun HintButton(
             ) {
                 if (isShowingAdForHint) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         color = TextWhite,
-                        strokeWidth = 2.5.dp
+                        strokeWidth = 2.dp
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Loading Ad...",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         ),
                         color = TextWhite
                     )
@@ -1936,7 +1943,7 @@ fun HintButton(
                         text = "✓ Hint Used",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         ),
                         color = TextMuted
                     )
@@ -1945,14 +1952,14 @@ fun HintButton(
                         imageVector = Icons.Default.Lightbulb,
                         contentDescription = "Hint",
                         tint = Color(0xFFF1C40F),
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "50:50 Hint",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp
+                            fontSize = 13.sp
                         ),
                         color = TextWhite
                     )

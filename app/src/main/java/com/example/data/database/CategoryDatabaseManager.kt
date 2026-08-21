@@ -8,7 +8,20 @@ import java.util.concurrent.ConcurrentHashMap
 
 class CategoryDatabaseManager(private val context: Context? = null) {
 
-    private val dbMap = ConcurrentHashMap<String, CategoryDatabase>()
+    companion object {
+        private val dbMap = ConcurrentHashMap<String, CategoryDatabase>()
+
+        fun closeAndClearAll() {
+            dbMap.values.forEach { try { it.close() } catch (_: Exception) {} }
+            dbMap.clear()
+        }
+
+        fun closeAndClear(categoryKey: String) {
+            val norm = categoryKey.lowercase().trim()
+            val db = dbMap.remove(norm)
+            try { db?.close() } catch (_: Exception) {}
+        }
+    }
 
     private fun getAppContext(): Context? {
         return context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
@@ -41,7 +54,7 @@ class CategoryDatabaseManager(private val context: Context? = null) {
 
         return dbMap.getOrPut(normKey) {
             val dbName = "category_$normKey.db"
-            val db = Room.databaseBuilder(
+            Room.databaseBuilder(
                 ctx.applicationContext,
                 CategoryDatabase::class.java,
                 dbName
@@ -49,10 +62,6 @@ class CategoryDatabaseManager(private val context: Context? = null) {
             .fallbackToDestructiveMigration(dropAllTables = true)
             .allowMainThreadQueries() // Allows fast synchronous count lookup during UI setup
             .build()
-
-            // Initialize default seed questions if category database is empty
-            ensureCategoryPopulated(normKey, db)
-            db
         }
     }
 
@@ -63,16 +72,18 @@ class CategoryDatabaseManager(private val context: Context? = null) {
         return listOf("gk", "science", "sports", "history", "movies", "tech", "geo", "math")
     }
 
-    private fun ensureCategoryPopulated(categoryKey: String, db: CategoryDatabase) {
+    fun ensureCategoryPopulated(categoryKey: String, db: CategoryDatabase? = null) {
+        val normKey = normalizeCategoryKey(categoryKey)
+        val targetDb = db ?: getDatabaseForCategory(normKey) ?: return
         try {
-            val seedQuestions = DefaultQuestionSeeds.getSeedsForCategory(categoryKey)
-            val currentCount = db.questionDao().getQuestionCountSync()
+            val seedQuestions = DefaultQuestionSeeds.getSeedsForCategory(normKey)
+            val currentCount = targetDb.questionDao().getQuestionCountSync()
             if (currentCount < seedQuestions.size) {
-                db.questionDao().insertQuestionsSync(seedQuestions)
-                Log.d("CategoryDatabaseManager", "Synced ${seedQuestions.size} seed questions into category_$categoryKey.db (previously $currentCount)")
+                targetDb.questionDao().insertQuestionsSync(seedQuestions)
+                Log.d("CategoryDatabaseManager", "Synced ${seedQuestions.size} seed questions into category_$normKey.db (previously $currentCount)")
             }
         } catch (e: Exception) {
-            Log.e("CategoryDatabaseManager", "Error ensuring population for category_$categoryKey", e)
+            Log.e("CategoryDatabaseManager", "Error ensuring population for category_$normKey", e)
         }
     }
 }

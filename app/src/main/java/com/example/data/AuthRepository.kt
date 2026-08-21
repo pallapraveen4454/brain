@@ -44,7 +44,9 @@ data class UserProfile(
     val bestScore: Int = 0,
     val longestStreak: Int = 0,
     val installDate: String = ""
-)
+) {
+    fun isGuest(): Boolean = uid.isBlank() || uid.startsWith("guest_")
+}
 
 class AuthRepository(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null },

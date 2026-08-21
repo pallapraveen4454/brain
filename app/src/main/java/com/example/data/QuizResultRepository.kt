@@ -202,7 +202,7 @@ class QuizResultRepository(
             }
         }
 
-        // 3. Save to Firestore under user subcollection 'quiz_results'
+        // 3. Save to Firestore under user subcollection 'quiz_results' & sync to leaderboard
         try {
             val firestore = getFirestore()
             if (firestore != null && userId.isNotBlank() && !userId.startsWith("guest_")) {
@@ -213,6 +213,28 @@ class QuizResultRepository(
                             .collection("quiz_results")
                             .document(resultId)
                             .set(quizResult)
+                            .await()
+
+                        val currentProf = userProfileStore.getProfile()
+                        val currentStats = getUserStats()
+                        val calculatedScore = totalXp + (currentProf.unlockedAchievements.size * 50) + ((currentStats.totalQuizzesPlayed + 1) * 15)
+
+                        firestore.collection("leaderboard")
+                            .document(userId)
+                            .set(
+                                hashMapOf(
+                                    "id" to userId,
+                                    "name" to currentProf.name.ifBlank { "Player" },
+                                    "avatarId" to currentProf.avatarId.ifBlank { "brain" },
+                                    "xp" to totalXp,
+                                    "level" to com.example.utils.LevelUtils.getLevel(totalXp),
+                                    "rankBadge" to RankUtils.getRankForXp(totalXp),
+                                    "quizzesPlayed" to (currentStats.totalQuizzesPlayed + 1),
+                                    "achievementsCount" to currentProf.unlockedAchievements.size,
+                                    "score" to calculatedScore,
+                                    "updatedAt" to System.currentTimeMillis()
+                                )
+                            )
                             .await()
                     }
                 }

@@ -152,25 +152,24 @@ class QuestionImportManager(private val context: Context? = null) {
             val seenInBatchIds = mutableSetOf<String>()
 
             for (rawQ in questions) {
-                val validation = validateQuestion(rawQ, checkDatabaseDuplicates = true)
+                val validation = validateQuestion(rawQ, checkDatabaseDuplicates = false)
                 if (!validation.isValid || validation.normalizedQuestion == null) {
                     val errorMsg = validation.error ?: "Unknown error"
-                    if (errorMsg.contains("Duplicate question text")) {
-                        skippedDuplicatesCount++
-                    } else {
-                        failedValidationCount++
-                    }
+                    failedValidationCount++
                     validationErrors.add("Validation failed for ID '${rawQ.id}': $errorMsg")
                     continue
                 }
 
                 val validatedQ = validation.normalizedQuestion
-                val textKey = validatedQ.questionText.lowercase()
+                val textKey = validatedQ.questionText.trim().lowercase()
 
-                // Check against intra-batch duplicates
-                if (seenInBatchTexts.contains(textKey) || (validatedQ.id.isNotBlank() && seenInBatchIds.contains(validatedQ.id.lowercase()))) {
+                // Check against intra-batch duplicates or destination database duplicates
+                if (seenInBatchTexts.contains(textKey) || 
+                    (validatedQ.id.isNotBlank() && seenInBatchIds.contains(validatedQ.id.trim().lowercase())) ||
+                    dao.existsByText(validatedQ.questionText.trim())
+                ) {
                     skippedDuplicatesCount++
-                    validationErrors.add("Duplicate question text inside batch skipped: '${validatedQ.questionText}'")
+                    validationErrors.add("Duplicate question text skipped: '${validatedQ.questionText}'")
                     continue
                 }
 

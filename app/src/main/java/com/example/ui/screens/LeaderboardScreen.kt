@@ -269,11 +269,15 @@ fun LeaderboardScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No competitors found matching \"$searchQuery\"",
+                            text = if (searchQuery.isBlank()) {
+                                "More global champions will appear as quizzes are completed. Keep playing to defend your rank! 🏆"
+                            } else {
+                                "No competitors found matching \"$searchQuery\""
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                             textAlign = TextAlign.Center

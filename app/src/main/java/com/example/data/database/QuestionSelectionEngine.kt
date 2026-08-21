@@ -65,7 +65,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         val ctx = getAppContext()
         val prefs = getPrefs()
 
-        var savedInstallDate = prefs?.getString("app_install_date", null) ?: inMemoryInstallDate
+        var savedInstallDate = if (todayDateOverride != null) todayDateOverride else (prefs?.getString("app_install_date", null) ?: inMemoryInstallDate)
 
         if (savedInstallDate.isNullOrBlank() && ctx != null) {
             val authPrefs = ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
@@ -213,7 +213,7 @@ class QuestionSelectionEngine(private val context: Context? = null) {
     }
 
     fun getOrInitInstallDate(todayDateOverride: String? = null): String {
-        if (todayDateOverride != null && inMemoryInstallDate == null) {
+        if (todayDateOverride != null) {
             inMemoryInstallDate = todayDateOverride
         }
         return getInstallDateDetails(todayDateOverride).currentInstallDate
@@ -240,12 +240,26 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             "quick", "daily", "all" -> {
                 dbManager.getAllCategoryKeys().sumOf { cat ->
                     val db = dbManager.getDatabaseForCategory(cat)
-                    db?.questionDao()?.getQuestionCountSync() ?: 0
+                    if (db != null) {
+                        var count = db.questionDao().getQuestionCountSync()
+                        if (count == 0) {
+                            dbManager.ensureCategoryPopulated(cat, db)
+                            count = db.questionDao().getQuestionCountSync()
+                        }
+                        count
+                    } else 0
                 }
             }
             else -> {
                 val db = dbManager.getDatabaseForCategory(normKey)
-                db?.questionDao()?.getQuestionCountSync() ?: 0
+                if (db != null) {
+                    var count = db.questionDao().getQuestionCountSync()
+                    if (count == 0) {
+                        dbManager.ensureCategoryPopulated(normKey, db)
+                        count = db.questionDao().getQuestionCountSync()
+                    }
+                    count
+                } else 0
             }
         }
     }
@@ -423,13 +437,27 @@ class QuestionSelectionEngine(private val context: Context? = null) {
             for (catKey in dbManager.getAllCategoryKeys()) {
                 val db = dbManager.getDatabaseForCategory(catKey)
                 if (db != null) {
-                    combined.addAll(db.questionDao().getAllQuestions())
+                    var questions = db.questionDao().getAllQuestions()
+                    if (questions.isEmpty()) {
+                        dbManager.ensureCategoryPopulated(catKey, db)
+                        questions = db.questionDao().getAllQuestions()
+                    }
+                    combined.addAll(questions)
                 }
             }
             combined
         } else {
             val db = dbManager.getDatabaseForCategory(normKey)
-            db?.questionDao()?.getAllQuestions() ?: emptyList()
+            if (db != null) {
+                var questions = db.questionDao().getAllQuestions()
+                if (questions.isEmpty()) {
+                    dbManager.ensureCategoryPopulated(normKey, db)
+                    questions = db.questionDao().getAllQuestions()
+                }
+                questions
+            } else {
+                emptyList()
+            }
         }
     }
 

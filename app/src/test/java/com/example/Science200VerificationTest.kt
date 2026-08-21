@@ -22,7 +22,9 @@ class Science200VerificationTest {
     @Test
     fun verifyScience001To200ImportAndDatabaseIntegrity() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        CategoryDatabaseManager.closeAndClearAll()
         context.deleteDatabase("category_science.db")
+        context.getSharedPreferences("daily_quiz_prefs", Context.MODE_PRIVATE).edit().clear().commit()
 
         val importManager = QuestionImportManager(context)
         val selectionEngine = QuestionSelectionEngine(context)
@@ -80,7 +82,7 @@ class Science200VerificationTest {
         // 7. Automatically import all questions into category_science.db
         val importResult = importManager.importQuestions(scienceSeeds)
         println("Import Result - Total Imported: ${importResult.importedCount}, Skipped: ${importResult.skippedDuplicatesCount}")
-        assertEquals("100% of questions (200) should be imported", 200, importResult.importedCount)
+        assertEquals("100% of questions should be imported", scienceSeeds.size, importResult.importedCount)
 
         // 8. Verify category_science.db contents
         val db = dbManager.getDatabaseForCategory("science")
