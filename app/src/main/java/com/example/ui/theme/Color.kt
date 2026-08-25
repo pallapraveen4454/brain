@@ -38,3 +38,6 @@ val CategoryMovies = Color(0xFFEC407A)
 val CategoryTech = Color(0xFFAB47BC)
 val CategoryGeo = Color(0xFF26A69A)
 val CategoryMath = Color(0xFFFFA726)
+
+val ErrorRed = Color(0xFFE74C3C)
+val SuccessGreen = Color(0xFF2ECC71)

@@ -9,17 +9,24 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
+import com.example.ui.components.NoInternetOverlay
 import com.example.ui.localization.EnglishStrings
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.navigation.BrainQuizNavGraph
 import com.example.ui.navigation.ScreenRoute
 import com.example.ui.theme.BrainQuizAITheme
+import com.example.utils.NetworkConnectivityObserver
 import com.example.utils.NotificationHelper
 import com.example.utils.RewardedAdManager
 
@@ -38,7 +45,10 @@ class MainActivity : ComponentActivity() {
                 LocalAppStrings provides EnglishStrings
             ) {
                 BrainQuizAITheme {
+                    val context = LocalContext.current
                     val navController = rememberNavController()
+                    val networkObserver = remember { NetworkConnectivityObserver.getInstance(context) }
+                    val isOnline by networkObserver.isOnline.collectAsState()
 
                     val targetRoute = deepLinkDestination.value
                     LaunchedEffect(targetRoute) {
@@ -54,10 +64,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    BrainQuizNavGraph(
-                        navController = navController,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        BrainQuizNavGraph(
+                            navController = navController,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        NoInternetOverlay(
+                            isOnline = isOnline,
+                            onRetry = { networkObserver.refresh() }
+                        )
+                    }
                 }
             }
         }

@@ -119,12 +119,26 @@ class HomeViewModel(
     }
 
     fun loadLeaderboard(period: LeaderboardPeriod = _uiState.value.leaderboardPeriod) {
+        // 1. Instant local render from cache/store
+        try {
+            val initialData = leaderboardRepository.getLeaderboard(period)
+            _uiState.update { it.copy(leaderboardData = initialData, leaderboardPeriod = period) }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "Error reading local leaderboard", e)
+        }
+
+        // 2. Refresh from Firestore and sync current authenticated user in background
         viewModelScope.launch {
             try {
-                val data = leaderboardRepository.getLeaderboard(period)
-                _uiState.update { it.copy(leaderboardData = data, leaderboardPeriod = period) }
+                if (!authRepository.isGuestSessionActive() && authRepository.currentUser != null) {
+                    val profile = authRepository.getPersistentGuestProfile()
+                    leaderboardRepository.syncCurrentUserToLeaderboard(profile)
+                }
+                leaderboardRepository.fetchRemoteLeaderboard(period)
+                val freshData = leaderboardRepository.getLeaderboard(period)
+                _uiState.update { it.copy(leaderboardData = freshData) }
             } catch (e: Exception) {
-                Log.e("HomeViewModel", "Error loading leaderboard data", e)
+                Log.e("HomeViewModel", "Error fetching remote leaderboard data", e)
             }
         }
     }

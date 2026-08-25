@@ -120,12 +120,13 @@ data class LeaderboardUser(
     val name: String,
     val avatarId: String = "brain",
     val xp: Int,
+    val weeklyXp: Int = 0,
     val level: Int = 1,
     val rankBadge: String = "Beginner",
     val quizzesPlayed: Int = 0,
     val achievementsCount: Int = 0,
     val score: Int = 0,
-    val countryFlag: String = "🇺🇸",
+    val countryFlag: String = "🌟",
     val rankChange: Int = 0, // >0: up, <0: down, 0: same
     val isCurrentUser: Boolean = false
 )
@@ -146,14 +147,12 @@ fun LeaderboardScreen(
 
     var searchQuery by remember { mutableStateOf("") }
 
-    // Default mock data with flags & rank change dynamics if not provided
-    val defaultPlayers = remember(selectedPeriod) {
-        LeaderboardRepository(context).getLeaderboard(selectedPeriod).topPlayers
+    val defaultData = remember(selectedPeriod) {
+        LeaderboardRepository(context).getLeaderboard(selectedPeriod)
     }
 
-    val players = (leaderboardData?.topPlayers ?: defaultPlayers)
-        .sortedByDescending { it.xp }
-        .mapIndexed { index, user -> user.copy(rank = index + 1) }
+    val activeLeaderboardData = leaderboardData ?: defaultData
+    val players = activeLeaderboardData.topPlayers
 
     val filteredPlayers = if (searchQuery.isBlank()) {
         players
@@ -165,18 +164,7 @@ fun LeaderboardScreen(
         }
     }
 
-    val currentUserEntry = leaderboardData?.currentUserEntry ?: players.find { it.isCurrentUser } ?: LeaderboardUser(
-        rank = players.size + 1,
-        id = "current",
-        name = currentUserName.ifBlank { "You" },
-        avatarId = currentUserAvatar,
-        xp = currentUserXp,
-        level = maxOf(1, currentUserLevel),
-        rankBadge = RankUtils.getRankForXp(currentUserXp),
-        countryFlag = "🌟",
-        rankChange = 1,
-        isCurrentUser = true
-    )
+    val currentUserEntry = activeLeaderboardData.currentUserEntry
 
     Box(
         modifier = modifier
@@ -273,10 +261,16 @@ fun LeaderboardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (searchQuery.isBlank()) {
-                                "More global champions will appear as quizzes are completed. Keep playing to defend your rank! 🏆"
-                            } else {
-                                "No competitors found matching \"$searchQuery\""
+                            text = when {
+                                selectedPeriod == LeaderboardPeriod.FRIENDS -> {
+                                    "No friends added yet. Connect with friends to compare your quiz ranking! 👥"
+                                }
+                                searchQuery.isBlank() -> {
+                                    "More champions will appear as quizzes are completed. Keep playing to defend your rank! 🏆"
+                                }
+                                else -> {
+                                    "No competitors found matching \"$searchQuery\""
+                                }
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,

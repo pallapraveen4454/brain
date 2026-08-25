@@ -533,6 +533,12 @@ class AuthRepository(
                             .set(profile)
                             .await()
                     }
+                    try {
+                        val leaderboardRepo = LeaderboardRepository(context)
+                        leaderboardRepo.syncCurrentUserToLeaderboard(profile)
+                    } catch (e: Exception) {
+                        Log.e("AuthRepository", "Error syncing to leaderboard from saveUserProfileToFirestore", e)
+                    }
                 }
             }
             true

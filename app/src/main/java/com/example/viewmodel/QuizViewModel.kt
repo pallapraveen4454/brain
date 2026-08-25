@@ -213,12 +213,12 @@ class QuizViewModel(
         }
     }
 
-    private fun pauseTimer() {
+    fun pauseTimer() {
         timerJob?.cancel()
         timerJob = null
     }
 
-    private fun resumeTimer() {
+    fun resumeTimer() {
         val currentState = _uiState.value
         if (currentState.timeRemaining > 0 &&
             !currentState.isAnswerSubmitted &&

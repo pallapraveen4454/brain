@@ -146,9 +146,20 @@ fun QuizScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val networkObserver = remember { com.example.utils.NetworkConnectivityObserver.getInstance(context) }
+    val isOnline by networkObserver.isOnline.collectAsState()
 
     LaunchedEffect(categoryId) {
         viewModel.loadQuiz(categoryId)
+    }
+
+    LaunchedEffect(isOnline) {
+        if (!isOnline) {
+            viewModel.pauseTimer()
+        } else {
+            viewModel.resumeTimer()
+        }
     }
 
     Box(
@@ -1956,7 +1967,7 @@ fun HintButton(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "50:50 Hint",
+                        text = "Hint 💡",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 13.sp

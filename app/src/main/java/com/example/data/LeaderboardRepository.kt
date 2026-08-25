@@ -45,6 +45,17 @@ class LeaderboardRepository(
         }
     }
 
+    fun getStartOfWeekMillis(): Long {
+        val calendar = java.util.Calendar.getInstance()
+        calendar.firstDayOfWeek = java.util.Calendar.MONDAY
+        calendar.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calendar.set(java.util.Calendar.MINUTE, 0)
+        calendar.set(java.util.Calendar.SECOND, 0)
+        calendar.set(java.util.Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
     fun getLeaderboard(period: LeaderboardPeriod = LeaderboardPeriod.GLOBAL): LeaderboardData {
         val cachedPlayers = loadCachedLeaderboard()
         val userProfile = userProfileStore.getProfile()
@@ -52,8 +63,15 @@ class LeaderboardRepository(
         val achievements = achievementRepository.getAllAchievements(userProfile.xp, userProfile.coins, userProfile.streak)
         val unlockedCount = achievements.count { it.isUnlocked }
 
+        val startOfWeek = getStartOfWeekMillis()
+        val userWeeklyXp = if (userProfile.quizHistory.isNotEmpty()) {
+            userProfile.quizHistory.filter { it.timestamp >= startOfWeek }.sumOf { it.xpEarned }
+        } else {
+            userProfile.xp
+        }
+
         val currentUserScore = calculateScore(
-            xp = userProfile.xp,
+            xp = if (period == LeaderboardPeriod.WEEKLY) userWeeklyXp else userProfile.xp,
             quizzesPlayed = userStats.totalQuizzesPlayed,
             achievementsCount = unlockedCount
         )
@@ -64,6 +82,7 @@ class LeaderboardRepository(
             name = userProfile.name.ifBlank { "Player" },
             avatarId = userProfile.avatarId.ifBlank { "brain" },
             xp = userProfile.xp,
+            weeklyXp = userWeeklyXp,
             level = maxOf(1, userProfile.level),
             rankBadge = RankUtils.getRankForXp(userProfile.xp),
             quizzesPlayed = userStats.totalQuizzesPlayed,
@@ -74,17 +93,33 @@ class LeaderboardRepository(
             isCurrentUser = true
         )
 
+        if (period == LeaderboardPeriod.FRIENDS) {
+            return LeaderboardData(
+                topPlayers = emptyList(),
+                currentUserEntry = currentUserEntry,
+                period = period
+            )
+        }
+
         // Combine real cached players with current user entry
         val otherPlayers = cachedPlayers.filterNot { it.id == currentUserEntry.id || it.isCurrentUser }
-        val allEntries = (otherPlayers + currentUserEntry)
-            .sortedWith(
-                compareByDescending<LeaderboardUser> { it.xp }
-                    .thenByDescending { it.score }
-                    .thenByDescending { it.achievementsCount }
-            )
+        val allEntries = (otherPlayers + currentUserEntry).distinctBy { it.id }
 
-        val rankedList = allEntries.mapIndexed { index, user ->
-            user.copy(rank = index + 1)
+        val rankedList = when (period) {
+            LeaderboardPeriod.WEEKLY -> {
+                allEntries.sortedWith(
+                    compareByDescending<LeaderboardUser> { it.weeklyXp }
+                        .thenByDescending { it.xp }
+                        .thenByDescending { it.score }
+                ).mapIndexed { index, user -> user.copy(rank = index + 1) }
+            }
+            else -> {
+                allEntries.sortedWith(
+                    compareByDescending<LeaderboardUser> { it.xp }
+                        .thenByDescending { it.score }
+                        .thenByDescending { it.achievementsCount }
+                ).mapIndexed { index, user -> user.copy(rank = index + 1) }
+            }
         }
 
         val updatedCurrentUser = rankedList.find { it.id == currentUserEntry.id || it.isCurrentUser }
@@ -97,23 +132,27 @@ class LeaderboardRepository(
         )
     }
 
-    suspend fun fetchRemoteLeaderboard(): List<LeaderboardUser> {
+    suspend fun fetchRemoteLeaderboard(period: LeaderboardPeriod = LeaderboardPeriod.GLOBAL): List<LeaderboardUser> {
         try {
             val firestore = getFirestore() ?: return loadCachedLeaderboard()
             val snapshot = firestore.collection("leaderboard")
-                .orderBy("xp", Query.Direction.DESCENDING)
                 .limit(100)
                 .get()
                 .await()
 
             val remoteUsers = mutableListOf<LeaderboardUser>()
-            val currentUid = userProfileStore.getProfile().uid
+            val currentProfile = userProfileStore.getProfile()
+            val currentUid = currentProfile.uid
+            val startOfWeek = getStartOfWeekMillis()
 
-            for ((index, doc) in snapshot.documents.withIndex()) {
+            for (doc in snapshot.documents) {
                 val id = doc.getString("id") ?: doc.id
                 val name = doc.getString("name") ?: "Player"
                 val avatarId = doc.getString("avatarId") ?: "brain"
                 val xp = doc.getLong("xp")?.toInt() ?: 0
+                val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
+                val docWeekStart = doc.getLong("weekStart") ?: 0L
+                val validWeeklyXp = if (docWeekStart >= startOfWeek) docWeeklyXp else 0
                 val level = doc.getLong("level")?.toInt() ?: 1
                 val rankBadge = doc.getString("rankBadge") ?: RankUtils.getRankForXp(xp)
                 val quizzesPlayed = doc.getLong("quizzesPlayed")?.toInt() ?: 0
@@ -124,11 +163,12 @@ class LeaderboardRepository(
 
                 remoteUsers.add(
                     LeaderboardUser(
-                        rank = index + 1,
+                        rank = 0,
                         id = id,
                         name = name,
                         avatarId = avatarId,
                         xp = xp,
+                        weeklyXp = validWeeklyXp,
                         level = level,
                         rankBadge = rankBadge,
                         quizzesPlayed = quizzesPlayed,
@@ -154,8 +194,8 @@ class LeaderboardRepository(
         }
     }
 
-    suspend fun syncCurrentUserToLeaderboard() {
-        val userProfile = userProfileStore.getProfile()
+    suspend fun syncCurrentUserToLeaderboard(profile: UserProfile? = null) {
+        val userProfile = profile ?: userProfileStore.getProfile()
         if (userProfile.uid.isBlank() || userProfile.uid.startsWith("guest_") || userProfile.isGuest()) {
             return
         }
@@ -167,14 +207,23 @@ class LeaderboardRepository(
             val unlockedCount = achievements.count { it.isUnlocked }
             val score = calculateScore(userProfile.xp, userStats.totalQuizzesPlayed, unlockedCount)
 
+            val startOfWeek = getStartOfWeekMillis()
+            val weeklyXp = if (userProfile.quizHistory.isNotEmpty()) {
+                userProfile.quizHistory.filter { it.timestamp >= startOfWeek }.sumOf { it.xpEarned }
+            } else {
+                userProfile.xp
+            }
+
             val entry = hashMapOf(
                 "id" to userProfile.uid,
                 "name" to userProfile.name.ifBlank { "Player" },
                 "avatarId" to userProfile.avatarId.ifBlank { "brain" },
                 "xp" to userProfile.xp,
+                "weeklyXp" to weeklyXp,
+                "weekStart" to startOfWeek,
                 "level" to maxOf(1, userProfile.level),
                 "rankBadge" to RankUtils.getRankForXp(userProfile.xp),
-                "quizzesPlayed" to userStats.totalQuizzesPlayed,
+                "quizzesPlayed" to maxOf(userProfile.totalQuizzesPlayed, userStats.totalQuizzesPlayed),
                 "achievementsCount" to unlockedCount,
                 "score" to score,
                 "updatedAt" to System.currentTimeMillis()
@@ -185,7 +234,27 @@ class LeaderboardRepository(
                 .set(entry)
                 .await()
 
-            Log.d("LeaderboardRepository", "Successfully synced user ${userProfile.uid} to Firestore leaderboard")
+            Log.d("LeaderboardRepository", "Successfully synced user ${userProfile.uid} to Firestore leaderboard (XP: ${userProfile.xp}, Weekly XP: $weeklyXp)")
+
+            // Update cached leaderboard to include current user
+            val cached = loadCachedLeaderboard().filterNot { it.id == userProfile.uid }
+            val currentUserItem = LeaderboardUser(
+                rank = 0,
+                id = userProfile.uid,
+                name = userProfile.name.ifBlank { "Player" },
+                avatarId = userProfile.avatarId.ifBlank { "brain" },
+                xp = userProfile.xp,
+                weeklyXp = weeklyXp,
+                level = maxOf(1, userProfile.level),
+                rankBadge = RankUtils.getRankForXp(userProfile.xp),
+                quizzesPlayed = maxOf(userProfile.totalQuizzesPlayed, userStats.totalQuizzesPlayed),
+                achievementsCount = unlockedCount,
+                score = score,
+                countryFlag = "🌟",
+                rankChange = 0,
+                isCurrentUser = true
+            )
+            saveCachedLeaderboard(listOf(currentUserItem) + cached)
         } catch (e: CancellationException) {
             Log.d("LeaderboardRepository", "syncCurrentUserToLeaderboard cancelled")
         } catch (e: Exception) {
@@ -214,6 +283,7 @@ class LeaderboardRepository(
                             name = obj.optString("name", "Player"),
                             avatarId = obj.optString("avatarId", "brain"),
                             xp = obj.optInt("xp", 0),
+                            weeklyXp = obj.optInt("weeklyXp", 0),
                             level = obj.optInt("level", 1),
                             rankBadge = obj.optString("rankBadge", "Beginner"),
                             quizzesPlayed = obj.optInt("quizzesPlayed", 0),
@@ -244,6 +314,7 @@ class LeaderboardRepository(
                     put("name", player.name)
                     put("avatarId", player.avatarId)
                     put("xp", player.xp)
+                    put("weeklyXp", player.weeklyXp)
                     put("level", player.level)
                     put("rankBadge", player.rankBadge)
                     put("quizzesPlayed", player.quizzesPlayed)
