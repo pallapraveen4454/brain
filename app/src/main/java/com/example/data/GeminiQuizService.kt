@@ -10,84 +10,88 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.Random
 import java.util.concurrent.TimeUnit
 
 class GeminiQuizService {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(45, TimeUnit.SECONDS)
         .build()
 
+    private val random = Random()
+
+    /**
+     * Generates exactly 10 genuinely topic-specific multiple-choice quiz questions for the selected topic.
+     */
     suspend fun generateQuizForTopic(topic: String): List<QuizQuestion> = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        Log.d("GeminiQuizService", "Generating quiz for topic: '$topic' (API Key present: ${apiKey.isNotBlank()})")
+        val trimmedTopic = topic.trim()
+        Log.d("GeminiQuizService", "Generating quiz for topic: '$trimmedTopic' (API Key present: ${apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"})")
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            Log.w("GeminiQuizService", "Gemini API key is missing or default. Using topic-customized fallback questions.")
-            return@withContext generateFallbackQuestions(topic)
+            Log.d("GeminiQuizService", "Using TopicKnowledgeEngine for topic: '$trimmedTopic'")
+            return@withContext TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
         }
 
         try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+            val candidateModels = listOf("gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest")
+            var responseJsonString: String? = null
 
-            val prompt = """
-                Generate exactly 10 multiple-choice quiz questions about the topic: "$topic".
-                Requirements:
-                1. Provide exactly 4 distinct option strings for each question.
-                2. Provide correctAnswer as the exact string matching one of the 4 options.
-                3. Provide correctOptionIndex as a 0-based integer (0, 1, 2, or 3) corresponding to the index of correctAnswer in options.
-                4. Include a concise 1-sentence explanation for the correct answer.
-                5. Output strictly valid JSON matching this structure without Markdown formatting:
-                {
-                  "questions": [
-                    {
-                      "questionText": "Question string here?",
-                      "options": ["Option A", "Option B", "Option C", "Option D"],
-                      "correctAnswer": "Option A",
-                      "correctOptionIndex": 0,
-                      "explanation": "Explanation here."
-                    }
-                  ]
-                }
-            """.trimIndent()
+            for (model in candidateModels) {
+                try {
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+                    val prompt = buildGeminiPrompt(trimmedTopic)
 
-            val jsonPayload = JSONObject().apply {
-                put("contents", org.json.JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", org.json.JSONArray().apply {
+                    val jsonPayload = JSONObject().apply {
+                        put("contents", org.json.JSONArray().apply {
                             put(JSONObject().apply {
-                                put("text", prompt)
+                                put("parts", org.json.JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("text", prompt)
+                                    })
+                                })
                             })
                         })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.7)
-                    put("responseMimeType", "application/json")
-                })
+                        put("generationConfig", JSONObject().apply {
+                            put("temperature", 0.75)
+                            put("topP", 0.95)
+                            put("responseMimeType", "application/json")
+                        })
+                    }
+
+                    val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(requestBody)
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    val body = response.body?.string()
+
+                    if (response.isSuccessful && !body.isNullOrBlank()) {
+                        responseJsonString = body
+                        break
+                    } else {
+                        Log.w("GeminiQuizService", "Model $model returned status ${response.code}: $body")
+                    }
+                } catch (e: Exception) {
+                    Log.w("GeminiQuizService", "Error requesting model $model: ${e.message}")
+                }
             }
 
-            val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(url)
-                .post(requestBody)
-                .build()
-
-            val response = client.newCall(request).execute()
-            val responseBodyString = response.body?.string()
-
-            if (!response.isSuccessful || responseBodyString.isNullOrBlank()) {
-                Log.e("GeminiQuizService", "API request failed with code ${response.code}: $responseBodyString")
-                return@withContext generateFallbackQuestions(topic)
+            if (responseJsonString.isNullOrBlank()) {
+                Log.w("GeminiQuizService", "API requests unsuccessful. Falling back to TopicKnowledgeEngine.")
+                return@withContext TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
             }
 
-            val responseJson = JSONObject(responseBodyString)
+            val responseJson = JSONObject(responseJsonString)
             val candidates = responseJson.optJSONArray("candidates")
             if (candidates == null || candidates.length() == 0) {
-                Log.e("GeminiQuizService", "No candidates returned from Gemini API")
-                return@withContext generateFallbackQuestions(topic)
+                Log.w("GeminiQuizService", "No candidates in response. Falling back to TopicKnowledgeEngine.")
+                return@withContext TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
             }
 
             val candidate = candidates.getJSONObject(0)
@@ -95,29 +99,78 @@ class GeminiQuizService {
             val parts = content.getJSONArray("parts")
             val rawText = parts.getJSONObject(0).getString("text")
 
-            val questions = parseQuestionsJson(rawText, topic)
-            if (questions.size >= 10) {
-                return@withContext questions.take(10)
-            } else if (questions.isNotEmpty()) {
-                // If fewer than 10, fill remaining with fallback
-                val remaining = generateFallbackQuestions(topic).filterNot { fb -> questions.any { q -> q.questionText == fb.questionText } }
-                return@withContext (questions + remaining).take(10)
+            val parsedQuestions = parseAndValidateQuestionsJson(rawText, trimmedTopic)
+            val sanitizedList = sanitizeAndEnforceDiversity(parsedQuestions, trimmedTopic)
+
+            if (sanitizedList.size == 10) {
+                return@withContext sanitizedList
             } else {
-                return@withContext generateFallbackQuestions(topic)
+                Log.w("GeminiQuizService", "Parsed ${sanitizedList.size} questions after sanitization. Topping up to 10.")
+                val fallbackPool = TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
+                val combined = (sanitizedList + fallbackPool.filterNot { fb -> sanitizedList.any { q -> q.questionText.equals(fb.questionText, ignoreCase = true) } }).take(10)
+                return@withContext combined
             }
 
         } catch (e: Exception) {
-            Log.e("GeminiQuizService", "Error calling Gemini API for topic '$topic'", e)
-            return@withContext generateFallbackQuestions(topic)
+            Log.e("GeminiQuizService", "Exception in generateQuizForTopic('$trimmedTopic')", e)
+            return@withContext TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
         }
     }
 
-    private fun parseQuestionsJson(rawJson: String, topic: String): List<QuizQuestion> {
+    private fun buildGeminiPrompt(topic: String): String {
+        return """
+            You are an expert trivia master and quiz creator. Generate exactly 10 distinct, high-quality, multiple-choice quiz questions specifically and exclusively about the topic: "$topic".
+
+            STRICT QUALITY REQUIREMENTS:
+            1. TOPIC-SPECIFIC KNOWLEDGE:
+               - Every single question, its correct answer, and all 3 distractors MUST be factually and deeply grounded in "$topic".
+               - For historical topics (e.g. World War II), ask about real battles, commanders, treaties, strategies, dates, alliances, and causes.
+               - For entertainment/fiction topics (e.g. Marvel Cinematic Universe), ask about specific characters, Infinity Stones, weapons, movie plots, actors, directors, and lore.
+               - For science topics (e.g. Quantum Physics), ask about real principles, particles, equations, experiments, and scientists.
+               - For sports topics (e.g. Football World Cup), ask about tournaments, records, legendary players, rules, and memorable matches.
+
+            2. FORBIDDEN GENERIC TEMPLATES & DISTRACTORS:
+               - DO NOT use generic template questions like:
+                 * "Which milestone significantly transformed the study of [topic]?"
+                 * "How does [topic] impact modern global developments?"
+                 * "Which factor is most crucial for future advancements in [topic]?"
+                 * "Which core concept is fundamental when studying [topic]?"
+               - DO NOT use generic academic distractors like:
+                 * "Methodological Innovations", "The Ban on Research", "Stagnation of Ideas", "Complete Disregard of Facts", "Ignoring Facts", "Random Speculation".
+               - Every distractor must be a genuine, plausible, topic-relevant alternative.
+
+            3. QUESTION & ANSWER DIVERSITY:
+               - Mix question styles (e.g. key figures, chronology/milestones, technical mechanisms, identification, cause & effect, defining quotes/artifacts).
+               - Do not ask about the same entity twice.
+               - Exactly 4 options per question.
+               - Exactly 1 correct answer.
+               - Distribute the correct answer position randomly across the 4 options (roughly an equal mix of 0, 1, 2, and 3).
+               - Include a concise, 1-2 sentence explanation of why the correct answer is true.
+
+            OUTPUT FORMAT:
+            Output strictly valid JSON matching this schema without Markdown formatting:
+            {
+              "questions": [
+                {
+                  "questionText": "What specific factual question here?",
+                  "options": ["Option A", "Option B", "Option C", "Option D"],
+                  "correctOptionIndex": 0,
+                  "explanation": "Clear factual explanation."
+                }
+              ]
+            }
+        """.trimIndent()
+    }
+
+    /**
+     * Parses raw JSON from Gemini and applies structural and anti-template validation.
+     */
+    fun parseAndValidateQuestionsJson(rawJson: String, topic: String): List<QuizQuestion> {
         val result = mutableListOf<QuizQuestion>()
         try {
-            // Clean markdown blocks if present
             val cleanedJson = rawJson.trim()
                 .removePrefix("```json")
+                .removePrefix("```JSON")
                 .removePrefix("```")
                 .removeSuffix("```")
                 .trim()
@@ -127,26 +180,44 @@ class GeminiQuizService {
 
             for (i in 0 until questionsArray.length()) {
                 val qObj = questionsArray.getJSONObject(i)
-                val qText = qObj.getString("questionText")
-                val optionsArray = qObj.getJSONArray("options")
+                val qText = qObj.optString("questionText", "").trim()
+                val optionsArray = qObj.optJSONArray("options") ?: org.json.JSONArray()
                 val optionsList = mutableListOf<String>()
-                for (j in 0 until optionsArray.length()) {
-                    optionsList.add(optionsArray.getString(j))
-                }
-                val correctIndex = qObj.optInt("correctOptionIndex", 0).coerceIn(0, 3)
-                val explanation = qObj.optString("explanation", "The correct answer is ${optionsList.getOrNull(correctIndex) ?: ""}.")
 
-                if (optionsList.size == 4 && qText.isNotBlank()) {
-                    result.add(
-                        QuizQuestion(
-                            id = "ai_${topic.hashCode()}_$i",
-                            categoryId = "ai_custom",
-                            questionText = qText,
-                            options = optionsList,
-                            correctOptionIndex = correctIndex,
-                            explanation = explanation
-                        )
+                for (j in 0 until optionsArray.length()) {
+                    val opt = optionsArray.getString(j).trim()
+                    if (opt.isNotBlank()) {
+                        optionsList.add(opt)
+                    }
+                }
+
+                // If correctAnswer string was supplied instead of or alongside index
+                val correctAnswerStr = qObj.optString("correctAnswer", "")
+                var correctIndex = qObj.optInt("correctOptionIndex", -1)
+                if (correctIndex !in 0..3 && correctAnswerStr.isNotBlank()) {
+                    correctIndex = optionsList.indexOfFirst { it.equals(correctAnswerStr, ignoreCase = true) }
+                }
+                if (correctIndex !in 0..3) {
+                    correctIndex = 0
+                }
+
+                val explanation = qObj.optString("explanation", "").ifBlank {
+                    "The correct answer is ${optionsList.getOrNull(correctIndex) ?: ""}."
+                }
+
+                // Validate question
+                if (qText.isNotBlank() && optionsList.size == 4 && !TopicKnowledgeEngine.isGenericOrInvalid(qText, optionsList)) {
+                    val initialQuestion = QuizQuestion(
+                        id = "ai_${topic.hashCode()}_${System.currentTimeMillis()}_$i",
+                        categoryId = "ai_custom",
+                        questionText = qText,
+                        options = optionsList,
+                        correctOptionIndex = correctIndex,
+                        explanation = explanation
                     )
+                    result.add(initialQuestion)
+                } else {
+                    Log.w("GeminiQuizService", "Rejected generic or invalid question: '$qText'")
                 }
             }
         } catch (e: Exception) {
@@ -155,90 +226,46 @@ class GeminiQuizService {
         return result
     }
 
-    private fun generateFallbackQuestions(topic: String): List<QuizQuestion> {
-        val normTopic = topic.trim().replaceFirstChar { it.uppercase() }
-        val templateQuestions = listOf(
-            QuizQuestion(
-                id = "fb_1",
-                categoryId = "ai_custom",
-                questionText = "Which core concept is fundamental when studying $normTopic?",
-                options = listOf("Systematic Analysis", "Random Speculation", "Unverified Assumptions", "Subjective Guessing"),
-                correctOptionIndex = 0,
-                explanation = "Systematic analysis and structured principles form the core foundation of $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_2",
-                categoryId = "ai_custom",
-                questionText = "In the domain of $normTopic, what plays a vital role in practical applications?",
-                options = listOf("Outdated Practices", "Theoretical Frameworks & Data", "Disregarded Evidence", "Random Variables"),
-                correctOptionIndex = 1,
-                explanation = "Theoretical frameworks backed by empirical data drive real-world applications in $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_3",
-                categoryId = "ai_custom",
-                questionText = "Which milestone significantly transformed the study of $normTopic?",
-                options = listOf("Methodological Innovations", "The Ban on Research", "Stagnation of Ideas", "Complete Disregard of Facts"),
-                correctOptionIndex = 0,
-                explanation = "Methodological breakthroughs and technological innovations transformed modern $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_4",
-                categoryId = "ai_custom",
-                questionText = "When evaluating key developments in $normTopic, what feature stands out most?",
-                options = listOf("Continuous Evolution & Refinement", "Static Knowledge", "Lack of Growth", "Irrelevance"),
-                correctOptionIndex = 0,
-                explanation = "$normTopic continues to evolve rapidly as new evidence and tools emerge."
-            ),
-            QuizQuestion(
-                id = "fb_5",
-                categoryId = "ai_custom",
-                questionText = "What primary methodology is utilized by experts in $normTopic?",
-                options = listOf("Empirical Testing & Verification", "Pure Coincidence", "Mythological Beliefs", "Trial without Observation"),
-                correctOptionIndex = 0,
-                explanation = "Experts rely on rigorous empirical testing and verification in $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_6",
-                categoryId = "ai_custom",
-                questionText = "How does $normTopic impact modern global developments?",
-                options = listOf("Minimal Impact", "Drives Innovation & Understanding", "Restricts Progress", "Has No Practical Value"),
-                correctOptionIndex = 1,
-                explanation = "$normTopic contributes significantly to advancements across global research and technology."
-            ),
-            QuizQuestion(
-                id = "fb_7",
-                categoryId = "ai_custom",
-                questionText = "Which of the following best describes the global consensus on $normTopic?",
-                options = listOf("It is a recognized field of study", "It is completely unknown", "It was discredited centuries ago", "It holds zero scientific value"),
-                correctOptionIndex = 0,
-                explanation = "$normTopic is widely recognized as an essential area of study and discussion."
-            ),
-            QuizQuestion(
-                id = "fb_8",
-                categoryId = "ai_custom",
-                questionText = "What is a essential skill required for mastering $normTopic?",
-                options = listOf("Critical Thinking & Analysis", "Ignoring Facts", "Rote Memorization Only", "Superficial Skimming"),
-                correctOptionIndex = 0,
-                explanation = "Critical thinking allows deeper comprehension and problem-solving in $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_9",
-                categoryId = "ai_custom",
-                questionText = "Which factor is most crucial for future advancements in $normTopic?",
-                options = listOf("Interdisciplinary Collaboration", "Isolation", "Discarding Historical Data", "Avoiding New Tools"),
-                correctOptionIndex = 0,
-                explanation = "Cross-disciplinary research accelerates innovations in $normTopic."
-            ),
-            QuizQuestion(
-                id = "fb_10",
-                categoryId = "ai_custom",
-                questionText = "What ultimate objective guides scholars and practitioners of $normTopic?",
-                options = listOf("Expanding Depth of Knowledge", "Promoting Confusion", "Halting Inquiry", "Creating Misinformation"),
-                correctOptionIndex = 0,
-                explanation = "Pursuing accuracy and expanding knowledge remains the guiding principle of $normTopic."
-            )
-        )
-        return templateQuestions
+    /**
+     * Sanitizes question list: rejects duplicates, ensures option diversity,
+     * randomizes answer positions so correct answers are not stuck at index 0,
+     * and fills any missing slots with genuine topic-specific questions.
+     */
+    fun sanitizeAndEnforceDiversity(questions: List<QuizQuestion>, topic: String): List<QuizQuestion> {
+        val uniqueQuestions = mutableListOf<QuizQuestion>()
+        val seenTexts = mutableSetOf<String>()
+        val seenOptionSets = mutableSetOf<Set<String>>()
+
+        for (q in questions) {
+            val normalizedText = q.questionText.trim().lowercase()
+            val optionSet = q.options.map { it.trim().lowercase() }.toSet()
+
+            if (normalizedText !in seenTexts && optionSet !in seenOptionSets) {
+                seenTexts.add(normalizedText)
+                seenOptionSets.add(optionSet)
+                // Randomize option order to avoid index 0 bias from LLMs
+                val randomizedQuestion = TopicKnowledgeEngine.randomizeOptionOrder(q)
+                uniqueQuestions.add(randomizedQuestion)
+            }
+            if (uniqueQuestions.size == 10) break
+        }
+
+        // If fewer than 10 valid questions, fill remaining from topic pool
+        if (uniqueQuestions.size < 10) {
+            val fallbackPool = TopicKnowledgeEngine.generateQuestionsForTopic(topic)
+            for (fb in fallbackPool) {
+                val normFbText = fb.questionText.trim().lowercase()
+                val fbOptionSet = fb.options.map { it.trim().lowercase() }.toSet()
+
+                if (normFbText !in seenTexts && fbOptionSet !in seenOptionSets) {
+                    seenTexts.add(normFbText)
+                    seenOptionSets.add(fbOptionSet)
+                    uniqueQuestions.add(fb)
+                }
+                if (uniqueQuestions.size == 10) break
+            }
+        }
+
+        return uniqueQuestions.take(10)
     }
 }

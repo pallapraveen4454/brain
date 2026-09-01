@@ -9,10 +9,17 @@ import com.example.utils.RankUtils
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class UserProfileStore(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null }
 ) {
+    companion object {
+        private val _profileFlow = MutableStateFlow<UserProfile?>(null)
+        val profileFlow: StateFlow<UserProfile?> = _profileFlow.asStateFlow()
+    }
     private val prefsName = "user_profile_prefs"
     private val keyProfileJson = "persistent_user_profile"
     private val keyGuestProfileJson = "guest_user_profile"
@@ -71,6 +78,7 @@ class UserProfileStore(
     fun setGuestActive(active: Boolean) {
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()?.putBoolean("is_guest_active", active)?.commit()
+        try { _profileFlow.value = getProfile() } catch (e: Exception) { }
     }
 
     fun isLoggedIn(): Boolean {
@@ -86,6 +94,7 @@ class UserProfileStore(
         ctx?.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)?.edit()
             ?.putBoolean("is_logged_in", loggedIn)
             ?.commit()
+        try { _profileFlow.value = getProfile() } catch (e: Exception) { }
     }
 
     fun hasSavedProfile(): Boolean {
@@ -416,6 +425,8 @@ class UserProfileStore(
             if (isGuestTarget == isGuestActive()) {
                 syncLegacyPrefs(updated)
             }
+
+            try { _profileFlow.value = updated } catch (e: Exception) { }
 
             return updated
         } catch (e: Exception) {

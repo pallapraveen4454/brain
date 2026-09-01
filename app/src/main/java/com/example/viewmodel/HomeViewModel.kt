@@ -116,6 +116,11 @@ class HomeViewModel(
         loadUserProfile()
         loadCategoryQuestionCounts()
         loadLeaderboard()
+        viewModelScope.launch {
+            com.example.data.UserProfileStore.profileFlow.collect {
+                loadUserProfile()
+            }
+        }
     }
 
     fun loadLeaderboard(period: LeaderboardPeriod = _uiState.value.leaderboardPeriod) {
@@ -294,18 +299,18 @@ class HomeViewModel(
                                         playerName = userName,
                                         playerEmail = userEmail,
                                         avatarId = remoteProfile.avatarId.ifBlank { "brain" },
-                                        xp = remoteProfile.xp,
-                                        level = LevelUtils.getLevel(remoteProfile.xp),
-                                        coins = remoteProfile.coins,
-                                        streakDays = remoteProfile.streak,
+                                        xp = maxOf(profile.xp, remoteProfile.xp),
+                                        level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
+                                        coins = maxOf(updatedCoins, remoteProfile.coins),
+                                        streakDays = maxOf(localStreak, remoteProfile.streak),
                                         rank = userRank,
                                         unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl", "brain") else setOf("student_boy", "student_girl", "brain"),
-                                        totalQuizzesPlayed = remoteProfile.totalQuizzesPlayed,
-                                        totalQuestionsAnswered = remoteProfile.totalQuestionsAnswered,
-                                        totalCorrectAnswers = remoteProfile.totalCorrectAnswers,
-                                        bestScore = remoteProfile.bestScore,
-                                        longestStreak = remoteProfile.longestStreak,
-                                        quizHistory = remoteProfile.quizHistory
+                                        totalQuizzesPlayed = maxOf(quizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                        totalQuestionsAnswered = maxOf(questionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                        totalCorrectAnswers = maxOf(correctAnswers, remoteProfile.totalCorrectAnswers),
+                                        bestScore = maxOf(bestScore, remoteProfile.bestScore),
+                                        longestStreak = maxOf(longestStreak, remoteProfile.longestStreak),
+                                        quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else history
                                     )
                                 }
                             }

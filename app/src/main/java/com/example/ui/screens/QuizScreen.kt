@@ -1959,15 +1959,8 @@ fun HintButton(
                         color = TextMuted
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Default.Lightbulb,
-                        contentDescription = "Hint",
-                        tint = Color(0xFFF1C40F),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Hint 💡",
+                        text = "Hint💡",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 13.sp

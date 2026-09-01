@@ -12,7 +12,10 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.actionCodeSettings
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -364,7 +367,13 @@ class AuthRepository(
             )
             userProfileStore.saveProfile(initialProfile)
 
-            ensureUserProfileExists(user)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    ensureUserProfileExists(user)
+                } catch (e: Exception) {
+                    Log.w("AuthRepository", "Async ensureUserProfileExists failed: ${e.message}")
+                }
+            }
             Result.success(user)
         } catch (e: Exception) {
             Log.e("GOOGLE_AUTH_FLOW", "AuthRepository: FirebaseAuth.signInWithCredential FAILED -> [${e.javaClass.name}] ${e.message}", e)
@@ -511,10 +520,12 @@ class AuthRepository(
     suspend fun fetchUserProfile(uid: String): UserProfile? {
         return try {
             val firestore = getFirestore() ?: return null
-            val doc = firestore.collection("users").document(uid).get().await()
-            if (doc.exists()) {
-                doc.toObject(UserProfile::class.java)
-            } else null
+            withTimeoutOrNull(2500L) {
+                val doc = firestore.collection("users").document(uid).get().await()
+                if (doc.exists()) {
+                    doc.toObject(UserProfile::class.java)
+                } else null
+            }
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error fetching user profile", e)
             null
@@ -557,41 +568,43 @@ class AuthRepository(
         Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] ENTER ensureUserProfileExists: uid=${user.uid}, isGuestSessionActive=$isGuestActive, currentFirebaseUserUid=$currentAuthUserUid")
         try {
             val firestore = getFirestore() ?: return
-            val doc = firestore.collection("users").document(user.uid).get().await()
+            withTimeoutOrNull(2500L) {
+                val doc = firestore.collection("users").document(user.uid).get().await()
 
-            if (!doc.exists()) {
-                val displayName = user.displayName
-                    ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
-                    ?: "Player"
-                val profile = UserProfile(
-                    uid = user.uid,
-                    name = displayName,
-                    email = user.email ?: "",
-                    avatarId = "brain",
-                    xp = 0,
-                    level = 1,
-                    coins = 0,
-                    streak = 0,
-                    rank = "Beginner",
-                    unlockedAchievements = emptyList(),
-                    claimedRewards = emptyList(),
-                    unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
-                    quizHistory = emptyList(),
-                    totalQuizzesPlayed = 0,
-                    totalQuestionsAnswered = 0,
-                    totalCorrectAnswers = 0,
-                    bestScore = 0,
-                    longestStreak = 0
-                )
-                Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc does not exist. Saving default profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, fullProfile=$profile")
-                Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(profile)...")
-                saveUserProfileToFirestore(profile)
-            } else {
-                val existing = doc.toObject(UserProfile::class.java)
-                if (existing != null) {
-                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Existing profile: uid=${existing.uid}, xp=${existing.xp}, coins=${existing.coins}, streak=${existing.streak}, fullProfile=$existing")
-                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(existing)...")
-                    saveUserProfileToFirestore(existing)
+                if (!doc.exists()) {
+                    val displayName = user.displayName
+                        ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                        ?: "Player"
+                    val profile = UserProfile(
+                        uid = user.uid,
+                        name = displayName,
+                        email = user.email ?: "",
+                        avatarId = "brain",
+                        xp = 0,
+                        level = 1,
+                        coins = 0,
+                        streak = 0,
+                        rank = "Beginner",
+                        unlockedAchievements = emptyList(),
+                        claimedRewards = emptyList(),
+                        unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                        quizHistory = emptyList(),
+                        totalQuizzesPlayed = 0,
+                        totalQuestionsAnswered = 0,
+                        totalCorrectAnswers = 0,
+                        bestScore = 0,
+                        longestStreak = 0
+                    )
+                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc does not exist. Saving default profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, fullProfile=$profile")
+                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(profile)...")
+                    saveUserProfileToFirestore(profile)
+                } else {
+                    val existing = doc.toObject(UserProfile::class.java)
+                    if (existing != null) {
+                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Existing profile: uid=${existing.uid}, xp=${existing.xp}, coins=${existing.coins}, streak=${existing.streak}, fullProfile=$existing")
+                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(existing)...")
+                        saveUserProfileToFirestore(existing)
+                    }
                 }
             }
         } catch (e: Exception) {

@@ -798,76 +798,98 @@ class AuthViewModel(
             ) 
         }
         viewModelScope.launch {
-            if (context != null) {
-                GoogleAuthDiagnostics.logEvent(
-                    context = context,
-                    stage = "STAGE_6_FIREBASE_AUTH_BEFORE_SIGN_IN",
-                    flowStep = "STEP 10 Firebase signInWithCredential started",
-                    additionalInfo = "idTokenLength=${idToken.length}"
-                )
-            } else {
-                Log.d("GOOGLE_AUTH_FLOW", "STEP 10 Firebase signInWithCredential started (idToken length=${idToken.length})")
-            }
-
-            val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
-            firebaseResult.fold(
-                onSuccess = { user ->
-                    if (context != null) {
-                        GoogleAuthDiagnostics.logEvent(
-                            context = context,
-                            stage = "STAGE_6_FIREBASE_AUTH_SUCCESS",
-                            flowStep = "STEP 11 Firebase auth success",
-                            additionalInfo = "uid=${user.uid}"
-                        )
-                    } else {
-                        Log.d("GOOGLE_AUTH_FLOW", "STEP 11 Firebase auth success -> uid=${user.uid}")
-                    }
-
-                    val profile = authRepository.fetchUserProfile(user.uid) ?: UserProfile(
-                        uid = user.uid,
-                        name = user.displayName ?: userName.ifBlank { "Google User" },
-                        email = user.email ?: userEmail
+            try {
+                if (context != null) {
+                    GoogleAuthDiagnostics.logEvent(
+                        context = context,
+                        stage = "STAGE_6_FIREBASE_AUTH_BEFORE_SIGN_IN",
+                        flowStep = "STEP 10 Firebase signInWithCredential started",
+                        additionalInfo = "idTokenLength=${idToken.length}"
                     )
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
-
-                    authRepository.setGuestSessionActive(false)
-                    authRepository.saveUserProfileToFirestore(profile)
-
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isGoogleSignInLoading = false,
-                            isLoggedIn = true,
-                            currentUserProfile = profile,
-                            errorMessage = null
-                        )
-                    }
-                    Log.d("GOOGLE_AUTH_FLOW", "STEP 14 navigation success")
-                    onSuccess()
-                },
-                onFailure = { error ->
-                    val exClass = error.javaClass.name
-                    val exMsg = error.message ?: "Firebase authentication failed"
-                    if (context != null) {
-                        GoogleAuthDiagnostics.logEvent(
-                            context = context,
-                            stage = "STAGE_6_FIREBASE_AUTH_FAILURE",
-                            flowStep = "Firebase auth failed",
-                            exception = if (error is Exception) error else Exception(error)
-                        )
-                    } else {
-                        Log.e("GOOGLE_AUTH_FLOW", "Firebase signInWithCredential FAILED: [$exClass] $exMsg", error)
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isGoogleSignInLoading = false,
-                            errorMessage = getFriendlyErrorMessage(error)
-                        )
-                    }
+                } else {
+                    Log.d("GOOGLE_AUTH_FLOW", "STEP 10 Firebase signInWithCredential started (idToken length=${idToken.length})")
                 }
-            )
+
+                val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
+                firebaseResult.fold(
+                    onSuccess = { user ->
+                        if (context != null) {
+                            GoogleAuthDiagnostics.logEvent(
+                                context = context,
+                                stage = "STAGE_6_FIREBASE_AUTH_SUCCESS",
+                                flowStep = "STEP 11 Firebase auth success",
+                                additionalInfo = "uid=${user.uid}"
+                            )
+                        } else {
+                            Log.d("GOOGLE_AUTH_FLOW", "STEP 11 Firebase auth success -> uid=${user.uid}")
+                        }
+
+                        val localProfile = authRepository.getPersistentGuestProfile()
+                        val displayName = user.displayName?.ifBlank { null }
+                            ?: userName.ifBlank { null }
+                            ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                            ?: "Google User"
+                        val email = user.email ?: userEmail
+
+                        val profile = if (localProfile.uid == user.uid) {
+                            localProfile.copy(name = displayName, email = email)
+                        } else {
+                            UserProfile(
+                                uid = user.uid,
+                                name = displayName,
+                                email = email,
+                                avatarId = localProfile.avatarId.ifBlank { "brain" }
+                            )
+                        }
+                        Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
+
+                        authRepository.setGuestSessionActive(false)
+                        authRepository.saveUserProfileToFirestore(profile)
+
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isGoogleSignInLoading = false,
+                                isLoggedIn = true,
+                                currentUserProfile = profile,
+                                errorMessage = null
+                            )
+                        }
+                        Log.d("GOOGLE_AUTH_FLOW", "STEP 14 navigation success")
+                        onSuccess()
+                    },
+                    onFailure = { error ->
+                        val exClass = error.javaClass.name
+                        val exMsg = error.message ?: "Firebase authentication failed"
+                        if (context != null) {
+                            GoogleAuthDiagnostics.logEvent(
+                                context = context,
+                                stage = "STAGE_6_FIREBASE_AUTH_FAILURE",
+                                flowStep = "Firebase auth failed",
+                                exception = if (error is Exception) error else Exception(error)
+                            )
+                        } else {
+                            Log.e("GOOGLE_AUTH_FLOW", "Firebase signInWithCredential FAILED: [$exClass] $exMsg", error)
+                        }
+
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isGoogleSignInLoading = false,
+                                errorMessage = getFriendlyErrorMessage(error)
+                            )
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isGoogleSignInLoading = false,
+                        errorMessage = getFriendlyErrorMessage(e)
+                    )
+                }
+            }
         }
     }
 

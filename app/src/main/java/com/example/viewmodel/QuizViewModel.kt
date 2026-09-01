@@ -498,11 +498,7 @@ class QuizViewModel(
                 val existingLocalProfile = authRepository.getPersistentGuestProfile()
                 val userId = if (isGuest) existingLocalProfile.uid else (user?.uid ?: existingLocalProfile.uid)
 
-                val currentProfile = if (!isGuest && user != null) {
-                    authRepository.fetchUserProfile(user.uid) ?: existingLocalProfile
-                } else {
-                    authRepository.getPersistentGuestProfile()
-                }
+                val currentProfile = authRepository.getPersistentGuestProfile()
 
                 // Point 3: Immediately after getPersistentGuestProfile / loading profile
                 Log.d("RUNTIME_TRACE", "[Point 3: After loading profile] uid=${currentProfile.uid}, xp=${currentProfile.xp}, coins=${currentProfile.coins}, streak=${currentProfile.streak}, lastActiveDate=${currentProfile.lastActiveDate}, level=${currentProfile.level}, isGuest=$isGuest")
@@ -574,6 +570,8 @@ class QuizViewModel(
 
                 _uiState.update {
                     it.copy(
+                        streak = updatedStreak,
+                        maxStreak = updatedLongestStreak,
                         totalXp = newTotalXp,
                         coinsEarned = coinsGained,
                         savedQuizResult = quizResult,
