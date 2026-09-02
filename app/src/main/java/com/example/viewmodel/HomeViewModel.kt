@@ -96,7 +96,7 @@ data class HomeUiState(
     ),
     val quickPlayOptions: List<QuickPlayOption> = listOf(
         QuickPlayOption("quick", "Quick Play", "10 random questions", "POPULAR"),
-        QuickPlayOption("daily", "Daily Challenge", "Earn 2x Coins & XP today", "2X REWARDS"),
+        QuickPlayOption("ai_quick_answer", "AI Quick Answer", "Ask anything. Get instant answers.", "AI"),
         QuickPlayOption("ai_custom", "AI Quiz Generator", "Generate custom topic quizzes with Gemini", "GEMINI AI", isComingSoon = false)
     )
 )
@@ -119,6 +119,7 @@ class HomeViewModel(
         viewModelScope.launch {
             com.example.data.UserProfileStore.profileFlow.collect {
                 loadUserProfile()
+                loadLeaderboard()
             }
         }
     }

@@ -24,6 +24,112 @@ class GeminiQuizService {
     private val random = Random()
 
     /**
+     * Answers any general user question accurately, directly, and concisely using Gemini.
+     * Supports multi-turn conversational context without building oversized request payloads.
+     */
+    suspend fun generateQuickAnswer(
+        question: String,
+        recentHistory: List<Pair<String, String>> = emptyList()
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        val trimmedQuestion = question.trim()
+        if (trimmedQuestion.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Question cannot be empty"))
+        }
+
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            Log.w("GeminiQuizService", "Cannot call Gemini Quick Answer: API key is not configured.")
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured. Please check your settings."))
+        }
+
+        val candidateModels = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-3.5-flash")
+        var lastException: Exception? = null
+
+        for (model in candidateModels) {
+            try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+
+                val contentsArray = org.json.JSONArray()
+
+                // Add up to last 4 conversation turns for context continuity
+                val boundedHistory = recentHistory.takeLast(4)
+                for ((prevUser, prevModel) in boundedHistory) {
+                    if (prevUser.isNotBlank() && prevModel.isNotBlank()) {
+                        contentsArray.put(JSONObject().apply {
+                            put("role", "user")
+                            put("parts", org.json.JSONArray().apply {
+                                put(JSONObject().apply { put("text", prevUser.trim()) })
+                            })
+                        })
+                        contentsArray.put(JSONObject().apply {
+                            put("role", "model")
+                            put("parts", org.json.JSONArray().apply {
+                                put(JSONObject().apply { put("text", prevModel.trim()) })
+                            })
+                        })
+                    }
+                }
+
+                // Add current user prompt
+                contentsArray.put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", org.json.JSONArray().apply {
+                        put(JSONObject().apply { put("text", trimmedQuestion) })
+                    })
+                })
+
+                val jsonPayload = JSONObject().apply {
+                    put("contents", contentsArray)
+                    put("systemInstruction", JSONObject().apply {
+                        put("parts", org.json.JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("text", "You are BrainQuizAI Quick Answer, an intelligent, helpful, factual, and direct AI question-and-answer assistant. Provide direct, accurate, and concise answers to user questions across science, history, geography, mathematics, technology, pop culture, languages, and general knowledge. Keep answers informative yet easy to read. Answer in the same language or dialect the user asks in (e.g. English, Telugu, Hindi, Spanish). Do NOT format the response as a multiple-choice quiz or test unless explicitly requested.")
+                            })
+                        })
+                    })
+                    put("generationConfig", JSONObject().apply {
+                        put("temperature", 0.7)
+                        put("topP", 0.95)
+                        put("maxOutputTokens", 1024)
+                    })
+                }
+
+                val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                val request = Request.Builder()
+                    .url(url)
+                    .post(requestBody)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (response.isSuccessful && !body.isNullOrBlank()) {
+                    val responseJson = JSONObject(body)
+                    val candidates = responseJson.optJSONArray("candidates")
+                    if (candidates != null && candidates.length() > 0) {
+                        val candidate = candidates.getJSONObject(0)
+                        val content = candidate.optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        if (parts != null && parts.length() > 0) {
+                            val answerText = parts.getJSONObject(0).optString("text", "").trim()
+                            if (answerText.isNotBlank()) {
+                                return@withContext Result.success(answerText)
+                            }
+                        }
+                    }
+                } else {
+                    Log.w("GeminiQuizService", "QuickAnswer Model $model returned status ${response.code}: $body")
+                }
+            } catch (e: Exception) {
+                Log.w("GeminiQuizService", "QuickAnswer error requesting model $model: ${e.message}")
+                lastException = e
+            }
+        }
+
+        return@withContext Result.failure(lastException ?: Exception("Couldn't get an answer right now. Please try again."))
+    }
+
+    /**
      * Generates exactly 10 genuinely topic-specific multiple-choice quiz questions for the selected topic.
      */
     suspend fun generateQuizForTopic(topic: String): List<QuizQuestion> = withContext(Dispatchers.IO) {

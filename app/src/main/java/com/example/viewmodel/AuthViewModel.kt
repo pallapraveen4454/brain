@@ -30,6 +30,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import com.example.utils.LevelUtils
 
 data class AuthUiState(
     val emailInput: String = "",
@@ -654,19 +656,40 @@ class AuthViewModel(
                             onSuccess = { user ->
                                 val totalMs = System.currentTimeMillis() - startTime
                                 Log.d("AUTH_PERF", "[AuthViewModel] Login SUCCESS in $totalMs ms for uid=${user.uid}")
-                                val fetchedProfile = authRepository.fetchUserProfile(user.uid)
-                                val profile = fetchedProfile ?: UserProfile(
-                                    uid = user.uid,
-                                    name = user.displayName ?: email.substringBefore("@").replaceFirstChar { it.uppercase() },
-                                    email = user.email ?: email,
-                                    avatarId = "brain",
-                                    xp = 0,
-                                    level = 1,
-                                    coins = 0,
-                                    streak = 0,
-                                    rank = "Beginner"
-                                )
-                                authRepository.saveUserProfileToFirestore(profile)
+                                
+                                val localProfile = authRepository.getPersistentGuestProfile()
+                                val displayName = user.displayName?.ifBlank { null }
+                                    ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                val userEmail = user.email ?: email
+
+                                val profile = if (localProfile.uid == user.uid) {
+                                    localProfile.copy(name = displayName, email = userEmail)
+                                } else {
+                                    UserProfile(
+                                        uid = user.uid,
+                                        name = displayName,
+                                        email = userEmail,
+                                        avatarId = localProfile.avatarId.ifBlank { "brain" },
+                                        xp = localProfile.xp,
+                                        level = localProfile.level,
+                                        coins = localProfile.coins,
+                                        streak = localProfile.streak,
+                                        rank = localProfile.rank,
+                                        unlockedAchievements = localProfile.unlockedAchievements,
+                                        claimedRewards = localProfile.claimedRewards,
+                                        unlockedAvatars = localProfile.unlockedAvatars,
+                                        quizHistory = localProfile.quizHistory,
+                                        totalQuizzesPlayed = localProfile.totalQuizzesPlayed,
+                                        totalQuestionsAnswered = localProfile.totalQuestionsAnswered,
+                                        totalCorrectAnswers = localProfile.totalCorrectAnswers,
+                                        bestScore = localProfile.bestScore,
+                                        longestStreak = localProfile.longestStreak
+                                    )
+                                }
+
+                                authRepository.setGuestSessionActive(false)
+                                authRepository.saveLocalUserProfile(profile, state.rememberMe)
+
                                 _uiState.update {
                                     it.copy(
                                         isLoading = false,
@@ -677,7 +700,41 @@ class AuthViewModel(
                                         errorMessage = null
                                     )
                                 }
+
                                 onSuccess()
+
+                                viewModelScope.launch(Dispatchers.IO) {
+                                    try {
+                                        val remoteProfile = authRepository.fetchUserProfile(user.uid)
+                                        if (remoteProfile != null) {
+                                            val merged = UserProfile(
+                                                uid = user.uid,
+                                                name = displayName,
+                                                email = userEmail,
+                                                avatarId = remoteProfile.avatarId.ifBlank { profile.avatarId },
+                                                xp = maxOf(profile.xp, remoteProfile.xp),
+                                                level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
+                                                coins = maxOf(profile.coins, remoteProfile.coins),
+                                                streak = maxOf(profile.streak, remoteProfile.streak),
+                                                rank = remoteProfile.rank.ifBlank { profile.rank },
+                                                unlockedAchievements = (profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                                                claimedRewards = (profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
+                                                unlockedAvatars = (profile.unlockedAvatars + remoteProfile.unlockedAvatars).distinct(),
+                                                quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profile.quizHistory,
+                                                totalQuizzesPlayed = maxOf(profile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                                totalQuestionsAnswered = maxOf(profile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                                totalCorrectAnswers = maxOf(profile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
+                                                bestScore = maxOf(profile.bestScore, remoteProfile.bestScore),
+                                                longestStreak = maxOf(profile.longestStreak, remoteProfile.longestStreak)
+                                            )
+                                            authRepository.saveUserProfileToFirestore(merged)
+                                        } else {
+                                            authRepository.saveUserProfileToFirestore(profile)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w("AuthViewModel", "Background profile sync after email sign in failed: ${e.message}")
+                                    }
+                                }
                             },
                             onFailure = { error ->
                                 val totalMs = System.currentTimeMillis() - startTime

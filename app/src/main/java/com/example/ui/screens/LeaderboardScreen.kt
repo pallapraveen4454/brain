@@ -265,6 +265,13 @@ fun LeaderboardScreen(
                                 selectedPeriod == LeaderboardPeriod.FRIENDS -> {
                                     "No friends added yet. Connect with friends to compare your quiz ranking! 👥"
                                 }
+                                selectedPeriod == LeaderboardPeriod.WEEKLY -> {
+                                    if (searchQuery.isBlank()) {
+                                        "No weekly competitors yet this week. Complete a quiz to claim the #1 spot! 🏆"
+                                    } else {
+                                        "No competitors found matching \"$searchQuery\""
+                                    }
+                                }
                                 searchQuery.isBlank() -> {
                                     "More champions will appear as quizzes are completed. Keep playing to defend your rank! 🏆"
                                 }
@@ -475,7 +482,7 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "#${user.rank}",
+                        text = if (user.rank > 0) "#${user.rank}" else "-",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 16.sp

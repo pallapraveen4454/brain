@@ -123,6 +123,11 @@ class AuthRepository(
         return hasSavedUserSession()
     }
 
+    fun saveLocalUserProfile(profile: UserProfile, isLoggedIn: Boolean = true) {
+        userProfileStore.saveProfile(profile)
+        userProfileStore.setLoggedIn(isLoggedIn)
+    }
+
     fun saveCustomUsername(name: String) {
         val current = userProfileStore.getProfile()
         userProfileStore.saveProfile(current.copy(name = name))
@@ -250,7 +255,13 @@ class AuthRepository(
             Log.d("AuthRepository", "FirebaseAuth.signInWithEmailAndPassword SUCCESS -> user.uid=${user.uid}, email=${user.email}")
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
-            ensureUserProfileExists(user)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    ensureUserProfileExists(user)
+                } catch (e: Exception) {
+                    Log.w("AuthRepository", "Async ensureUserProfileExists failed: ${e.message}")
+                }
+            }
             Result.success(user)
         } catch (e: Exception) {
             Log.w("AuthRepository", "FirebaseAuth.signInWithEmailAndPassword FAILED -> [${e.javaClass.name}] ${e.message}")

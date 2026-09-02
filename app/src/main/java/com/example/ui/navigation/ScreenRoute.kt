@@ -5,6 +5,7 @@ sealed class ScreenRoute(val route: String) {
     object Login : ScreenRoute("login_screen")
     object Home : ScreenRoute("home_screen")
     object AiQuizGenerator : ScreenRoute("ai_quiz_generator_screen")
+    object AiQuickAnswer : ScreenRoute("ai_quick_answer_screen")
     object AvatarShop : ScreenRoute("avatar_shop_screen")
     object Quiz : ScreenRoute("quiz_screen/{categoryId}") {
         fun createRoute(categoryId: String) = "quiz_screen/$categoryId"

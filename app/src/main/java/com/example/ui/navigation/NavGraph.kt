@@ -14,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.ui.screens.AiQuickAnswerScreen
 import com.example.ui.screens.AiQuizGeneratorScreen
 import com.example.ui.screens.AvatarShopScreen
 import com.example.ui.screens.ForgotPasswordScreen
@@ -141,6 +142,9 @@ fun BrainQuizNavGraph(
                 onNavigateToAiGenerator = {
                     navController.navigate(ScreenRoute.AiQuizGenerator.route)
                 },
+                onNavigateToAiQuickAnswer = {
+                    navController.navigate(ScreenRoute.AiQuickAnswer.route)
+                },
                 onNavigateToAvatarShop = {
                     navController.navigate(ScreenRoute.AvatarShop.route)
                 },
@@ -151,6 +155,28 @@ fun BrainQuizNavGraph(
                             popUpTo(0) { inclusive = true }
                         }
                     }
+                }
+            )
+        }
+
+        composable(
+            route = ScreenRoute.AiQuickAnswer.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(400)
+                ) + fadeIn(animationSpec = tween(400))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(400)
+                ) + fadeOut(animationSpec = tween(400))
+            }
+        ) {
+            AiQuickAnswerScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

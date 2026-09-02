@@ -53,6 +53,9 @@ class LeaderboardRepository(
         calendar.set(java.util.Calendar.MINUTE, 0)
         calendar.set(java.util.Calendar.SECOND, 0)
         calendar.set(java.util.Calendar.MILLISECOND, 0)
+        if (calendar.timeInMillis > System.currentTimeMillis()) {
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, -7)
+        }
         return calendar.timeInMillis
     }
 
@@ -67,26 +70,39 @@ class LeaderboardRepository(
         val userWeeklyXp = if (userProfile.quizHistory.isNotEmpty()) {
             userProfile.quizHistory.filter { it.timestamp >= startOfWeek }.sumOf { it.xpEarned }
         } else {
-            userProfile.xp
+            0
+        }
+        val userWeeklyQuizzesCount = if (userProfile.quizHistory.isNotEmpty()) {
+            userProfile.quizHistory.count { it.timestamp >= startOfWeek }
+        } else {
+            0
         }
 
-        val currentUserScore = calculateScore(
-            xp = if (period == LeaderboardPeriod.WEEKLY) userWeeklyXp else userProfile.xp,
-            quizzesPlayed = userStats.totalQuizzesPlayed,
-            achievementsCount = unlockedCount
-        )
+        val currentUserScore = if (period == LeaderboardPeriod.WEEKLY) {
+            calculateScore(
+                xp = userWeeklyXp,
+                quizzesPlayed = userWeeklyQuizzesCount,
+                achievementsCount = 0
+            )
+        } else {
+            calculateScore(
+                xp = userProfile.xp,
+                quizzesPlayed = userStats.totalQuizzesPlayed,
+                achievementsCount = unlockedCount
+            )
+        }
 
         val currentUserEntry = LeaderboardUser(
-            rank = 1,
+            rank = 0,
             id = userProfile.uid.ifBlank { "current_user" },
             name = userProfile.name.ifBlank { "Player" },
             avatarId = userProfile.avatarId.ifBlank { "brain" },
-            xp = userProfile.xp,
+            xp = if (period == LeaderboardPeriod.WEEKLY) userWeeklyXp else userProfile.xp,
             weeklyXp = userWeeklyXp,
             level = maxOf(1, userProfile.level),
             rankBadge = RankUtils.getRankForXp(userProfile.xp),
-            quizzesPlayed = userStats.totalQuizzesPlayed,
-            achievementsCount = unlockedCount,
+            quizzesPlayed = if (period == LeaderboardPeriod.WEEKLY) userWeeklyQuizzesCount else userStats.totalQuizzesPlayed,
+            achievementsCount = if (period == LeaderboardPeriod.WEEKLY) 0 else unlockedCount,
             score = currentUserScore,
             countryFlag = "🌟",
             rankChange = 0,
@@ -96,34 +112,48 @@ class LeaderboardRepository(
         if (period == LeaderboardPeriod.FRIENDS) {
             return LeaderboardData(
                 topPlayers = emptyList(),
-                currentUserEntry = currentUserEntry,
+                currentUserEntry = currentUserEntry.copy(rank = 0),
                 period = period
             )
         }
 
-        // Combine real cached players with current user entry
+        // Filter out duplicate current user entries from cached players
         val otherPlayers = cachedPlayers.filterNot { it.id == currentUserEntry.id || it.isCurrentUser }
-        val allEntries = (otherPlayers + currentUserEntry).distinctBy { it.id }
 
         val rankedList = when (period) {
             LeaderboardPeriod.WEEKLY -> {
-                allEntries.sortedWith(
-                    compareByDescending<LeaderboardUser> { it.weeklyXp }
-                        .thenByDescending { it.xp }
+                val eligibleOther = otherPlayers
+                    .filter { it.weeklyXp > 0 }
+                    .map { it.copy(xp = it.weeklyXp) }
+                val eligibleAll = if (userWeeklyXp > 0) {
+                    (eligibleOther + currentUserEntry).distinctBy { it.id }
+                } else {
+                    eligibleOther.distinctBy { it.id }
+                }
+                eligibleAll.sortedWith(
+                    compareByDescending<LeaderboardUser> { it.xp }
                         .thenByDescending { it.score }
+                        .thenByDescending { it.quizzesPlayed }
                 ).mapIndexed { index, user -> user.copy(rank = index + 1) }
             }
-            else -> {
+            LeaderboardPeriod.GLOBAL -> {
+                val eligibleOther = otherPlayers.filter { it.xp > 0 || it.quizzesPlayed > 0 }
+                val allEntries = (eligibleOther + currentUserEntry).distinctBy { it.id }
                 allEntries.sortedWith(
                     compareByDescending<LeaderboardUser> { it.xp }
                         .thenByDescending { it.score }
                         .thenByDescending { it.achievementsCount }
                 ).mapIndexed { index, user -> user.copy(rank = index + 1) }
             }
+            LeaderboardPeriod.FRIENDS -> emptyList()
         }
 
-        val updatedCurrentUser = rankedList.find { it.id == currentUserEntry.id || it.isCurrentUser }
-            ?: currentUserEntry.copy(rank = 1)
+        val updatedCurrentUser = if (period == LeaderboardPeriod.WEEKLY && userWeeklyXp <= 0) {
+            currentUserEntry.copy(rank = 0)
+        } else {
+            rankedList.find { it.id == currentUserEntry.id || it.isCurrentUser }
+                ?: currentUserEntry.copy(rank = if (period == LeaderboardPeriod.WEEKLY) 0 else 1)
+        }
 
         return LeaderboardData(
             topPlayers = rankedList,
@@ -211,7 +241,7 @@ class LeaderboardRepository(
             val weeklyXp = if (userProfile.quizHistory.isNotEmpty()) {
                 userProfile.quizHistory.filter { it.timestamp >= startOfWeek }.sumOf { it.xpEarned }
             } else {
-                userProfile.xp
+                0
             }
 
             val entry = hashMapOf(

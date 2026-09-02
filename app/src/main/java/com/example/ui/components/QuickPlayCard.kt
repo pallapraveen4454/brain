@@ -45,6 +45,7 @@ fun QuickPlayCard(
     accentColors: List<Color>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    actionText: String? = null,
     isComingSoon: Boolean = false,
     testTag: String = "quick_play_card"
 ) {
@@ -94,24 +95,47 @@ fun QuickPlayCard(
                         )
                     }
 
-                    // Badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isComingSoon) DarkCardBorder
-                                else accentColors.first().copy(alpha = 0.2f)
-                            )
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = badgeText,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
-                            ),
-                            color = if (isComingSoon) TextMuted else accentColors.first()
-                        )
+                        if (!actionText.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(accentColors.first().copy(alpha = 0.15f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = actionText,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    ),
+                                    color = if (isComingSoon) TextMuted else accentColors.first()
+                                )
+                            }
+                        }
+
+                        // Badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isComingSoon) DarkCardBorder
+                                    else accentColors.first().copy(alpha = 0.2f)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                ),
+                                color = if (isComingSoon) TextMuted else accentColors.first()
+                            )
+                        }
                     }
                 }
 
