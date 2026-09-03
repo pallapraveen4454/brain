@@ -157,6 +157,10 @@ class GeminiQuizService {
                             }
                             val answerText = combinedText.toString().trim()
                             if (answerText.isNotBlank()) {
+                                if (BuildConfig.DEBUG) {
+                                    val attemptType = if (index == 0) "primary" else "fallback"
+                                    Log.d(TAG, "Success ($attemptType): model=$model answered in ${durationMs}ms")
+                                }
                                 return@withContext Result.success(answerText)
                             }
                         }
