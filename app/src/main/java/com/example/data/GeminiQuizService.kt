@@ -3,6 +3,7 @@ package com.example.data
 import android.util.Log
 import com.example.BuildConfig
 import com.example.data.model.QuizQuestion
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -10,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.net.SocketTimeoutException
 import java.util.Random
 import java.util.concurrent.TimeUnit
 
@@ -24,7 +26,7 @@ class GeminiQuizService {
         private val quickAnswerClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(18, TimeUnit.SECONDS)
+                .readTimeout(25, TimeUnit.SECONDS)
                 .writeTimeout(10, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build()
@@ -171,6 +173,17 @@ class GeminiQuizService {
                         break
                     }
                 }
+            } catch (e: CancellationException) {
+                // Preserve coroutine cancellation when user leaves screen
+                throw e
+            } catch (e: SocketTimeoutException) {
+                val durationMs = System.currentTimeMillis() - startTime
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "Request timed out: model=$model after ${durationMs}ms")
+                }
+                lastException = e
+                // Fast-fail on timeout: do not cascade another full timeout to fallback model
+                break
             } catch (e: Exception) {
                 val durationMs = System.currentTimeMillis() - startTime
                 if (BuildConfig.DEBUG) {
