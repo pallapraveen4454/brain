@@ -19,8 +19,8 @@ class GeminiQuizService {
 
     companion object {
         private const val TAG = "GeminiQuickAnswer"
-        private const val PRIMARY_MODEL = "gemini-2.5-flash"
-        private const val FALLBACK_MODEL = "gemini-flash-latest"
+        private const val PRIMARY_MODEL = "gemini-3.6-flash"
+        private const val FALLBACK_MODEL = "gemini-3.5-flash"
 
         // Reusable client with optimized, short timeouts and connection pooling for Quick Answer
         private val quickAnswerClient: OkHttpClient by lazy {
