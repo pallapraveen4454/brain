@@ -140,12 +140,25 @@ class AiQuickAnswerViewModel(
                 },
                 onFailure = { error ->
                     val friendlyError = when {
-                        error.message?.contains("API key", ignoreCase = true) == true ->
+                        error.message?.contains("API key", ignoreCase = true) == true ||
+                                error.message?.contains("401", ignoreCase = true) == true ||
+                                error.message?.contains("403", ignoreCase = true) == true ||
+                                error.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true ->
                             "AI service is currently unavailable. Please verify API configuration."
+                        error.message?.contains("400", ignoreCase = true) == true ->
+                            "Unable to process question. Please rephrase and try again."
+                        error.message?.contains("429", ignoreCase = true) == true ||
+                                error.message?.contains("RESOURCE_EXHAUSTED", ignoreCase = true) == true ->
+                            "AI service is busy right now. Please wait a moment and try again."
+                        error.message?.contains("500", ignoreCase = true) == true ||
+                                error.message?.contains("503", ignoreCase = true) == true ->
+                            "AI service encountered a temporary error. Please try again."
                         error.message?.contains("network", ignoreCase = true) == true ||
-                                error.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
+                                error.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
+                                error is java.net.UnknownHostException ->
                             "Network connection lost. Please check your internet connection."
-                        error.message?.contains("timeout", ignoreCase = true) == true ->
+                        error.message?.contains("timeout", ignoreCase = true) == true ||
+                                error is java.net.SocketTimeoutException ->
                             "The request timed out. Please try again."
                         else ->
                             "Couldn't get an answer right now. Please try again."

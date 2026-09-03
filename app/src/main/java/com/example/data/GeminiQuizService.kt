@@ -15,6 +15,22 @@ import java.util.concurrent.TimeUnit
 
 class GeminiQuizService {
 
+    companion object {
+        private const val TAG = "GeminiQuickAnswer"
+        private const val PRIMARY_MODEL = "gemini-2.5-flash"
+        private const val FALLBACK_MODEL = "gemini-flash-latest"
+
+        // Reusable client with optimized, short timeouts and connection pooling for Quick Answer
+        private val quickAnswerClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(18, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .build()
+        }
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(45, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
@@ -25,7 +41,12 @@ class GeminiQuizService {
 
     /**
      * Answers any general user question accurately, directly, and concisely using Gemini.
-     * Supports multi-turn conversational context without building oversized request payloads.
+     * Optimized for fast response times:
+     * - Fast primary model with at most one fallback
+     * - Connection reuse with keep-alive pooling
+     * - Concise bounded history (last 2 turns)
+     * - Lightweight token limits (384 max output tokens)
+     * - Non-blocking I/O execution
      */
     suspend fun generateQuickAnswer(
         question: String,
@@ -42,35 +63,43 @@ class GeminiQuizService {
             return@withContext Result.failure(IllegalStateException("Gemini API key is not configured. Please check your settings."))
         }
 
-        val candidateModels = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-3.5-flash")
+        // Primary model + at most one carefully selected fallback
+        val modelsToAttempt = listOf(PRIMARY_MODEL, FALLBACK_MODEL)
         var lastException: Exception? = null
 
-        for (model in candidateModels) {
+        for ((index, model) in modelsToAttempt.withIndex()) {
+            val startTime = System.currentTimeMillis()
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Request started: model=$model (attempt ${index + 1}/${modelsToAttempt.size})")
+            }
+
             try {
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
 
                 val contentsArray = org.json.JSONArray()
 
-                // Add up to last 4 conversation turns for context continuity
-                val boundedHistory = recentHistory.takeLast(4)
+                // Keep only the most recent 2 conversation turns to keep request payload compact and fast
+                val boundedHistory = recentHistory.takeLast(2)
                 for ((prevUser, prevModel) in boundedHistory) {
-                    if (prevUser.isNotBlank() && prevModel.isNotBlank()) {
+                    val u = prevUser.trim()
+                    val m = prevModel.trim()
+                    if (u.isNotBlank() && m.isNotBlank()) {
                         contentsArray.put(JSONObject().apply {
                             put("role", "user")
                             put("parts", org.json.JSONArray().apply {
-                                put(JSONObject().apply { put("text", prevUser.trim()) })
+                                put(JSONObject().apply { put("text", u) })
                             })
                         })
                         contentsArray.put(JSONObject().apply {
                             put("role", "model")
                             put("parts", org.json.JSONArray().apply {
-                                put(JSONObject().apply { put("text", prevModel.trim()) })
+                                put(JSONObject().apply { put("text", m) })
                             })
                         })
                     }
                 }
 
-                // Add current user prompt
+                // Add current user question
                 contentsArray.put(JSONObject().apply {
                     put("role", "user")
                     put("parts", org.json.JSONArray().apply {
@@ -83,25 +112,31 @@ class GeminiQuizService {
                     put("systemInstruction", JSONObject().apply {
                         put("parts", org.json.JSONArray().apply {
                             put(JSONObject().apply {
-                                put("text", "You are BrainQuizAI Quick Answer, an intelligent, helpful, factual, and direct AI question-and-answer assistant. Provide direct, accurate, and concise answers to user questions across science, history, geography, mathematics, technology, pop culture, languages, and general knowledge. Keep answers informative yet easy to read. Answer in the same language or dialect the user asks in (e.g. English, Telugu, Hindi, Spanish). Do NOT format the response as a multiple-choice quiz or test unless explicitly requested.")
+                                put("text", "You are BrainQuizAI Quick Answer, an intelligent, factual, and direct AI assistant. Provide concise, accurate, and direct answers in the user's language. Keep answers informative yet brief. Do not format as a quiz.")
                             })
                         })
                     })
                     put("generationConfig", JSONObject().apply {
-                        put("temperature", 0.7)
-                        put("topP", 0.95)
-                        put("maxOutputTokens", 1024)
+                        put("temperature", 0.4)
+                        put("topP", 0.9)
+                        put("maxOutputTokens", 384)
                     })
                 }
 
                 val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
                     .url(url)
+                    .header("x-goog-api-key", apiKey)
                     .post(requestBody)
                     .build()
 
-                val response = client.newCall(request).execute()
+                val response = quickAnswerClient.newCall(request).execute()
+                val durationMs = System.currentTimeMillis() - startTime
                 val body = response.body?.string()
+
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "Request completed: model=$model in ${durationMs}ms, status=${response.code}")
+                }
 
                 if (response.isSuccessful && !body.isNullOrBlank()) {
                     val responseJson = JSONObject(body)
@@ -111,17 +146,36 @@ class GeminiQuizService {
                         val content = candidate.optJSONObject("content")
                         val parts = content?.optJSONArray("parts")
                         if (parts != null && parts.length() > 0) {
-                            val answerText = parts.getJSONObject(0).optString("text", "").trim()
+                            val combinedText = StringBuilder()
+                            for (i in 0 until parts.length()) {
+                                val partText = parts.getJSONObject(i).optString("text", "")
+                                if (partText.isNotBlank()) {
+                                    combinedText.append(partText)
+                                }
+                            }
+                            val answerText = combinedText.toString().trim()
                             if (answerText.isNotBlank()) {
                                 return@withContext Result.success(answerText)
                             }
                         }
                     }
+                    lastException = Exception("Model $model returned 200 with empty candidate text")
                 } else {
-                    Log.w("GeminiQuizService", "QuickAnswer Model $model returned status ${response.code}: $body")
+                    val code = response.code
+                    val errorMsg = "HTTP $code from $model: ${body?.take(200) ?: "Empty body"}"
+                    Log.w(TAG, errorMsg)
+                    lastException = Exception(errorMsg)
+
+                    // Client/auth errors (400, 401, 403) will not succeed with fallback; fast-fail immediately
+                    if (code == 400 || code == 401 || code == 403) {
+                        break
+                    }
                 }
             } catch (e: Exception) {
-                Log.w("GeminiQuizService", "QuickAnswer error requesting model $model: ${e.message}")
+                val durationMs = System.currentTimeMillis() - startTime
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "Request failed: model=$model after ${durationMs}ms, error=${e.javaClass.simpleName}")
+                }
                 lastException = e
             }
         }
