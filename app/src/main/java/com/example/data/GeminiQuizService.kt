@@ -5,7 +5,10 @@ import com.example.BuildConfig
 import com.example.data.model.QuizQuestion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DisposableHandle
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -22,7 +25,7 @@ class GeminiQuizService {
         private const val PRIMARY_MODEL = "gemini-3.6-flash"
         private const val FALLBACK_MODEL = "gemini-3.5-flash"
 
-        // Reusable client with optimized, short timeouts and connection pooling for Quick Answer
+        // Reusable client with 25s read timeout for primary Quick Answer
         private val quickAnswerClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
@@ -31,7 +34,18 @@ class GeminiQuizService {
                 .retryOnConnectionFailure(true)
                 .build()
         }
+
+        // Shorter timeout client for fallback attempt to prevent 50+ second total wait
+        private val quickAnswerFallbackClient: OkHttpClient by lazy {
+            quickAnswerClient.newBuilder()
+                .readTimeout(12, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .build()
+        }
     }
+
+    @Volatile
+    private var activeQuickAnswerCall: Call? = null
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(45, TimeUnit.SECONDS)
@@ -65,82 +79,111 @@ class GeminiQuizService {
             return@withContext Result.failure(IllegalStateException("Gemini API key is not configured. Please check your settings."))
         }
 
-        // Primary model + at most one carefully selected fallback
-        val modelsToAttempt = listOf(PRIMARY_MODEL, FALLBACK_MODEL)
-        var lastException: Exception? = null
+        // Cancel any previous in-flight quick answer network call so repeated questions do not leave jobs running
+        activeQuickAnswerCall?.cancel()
 
-        for ((index, model) in modelsToAttempt.withIndex()) {
-            val startTime = System.currentTimeMillis()
-            if (BuildConfig.DEBUG) {
-                Log.d(TAG, "Request started: model=$model (attempt ${index + 1}/${modelsToAttempt.size})")
-            }
+        val contentsArray = org.json.JSONArray()
 
-            try {
-                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
-
-                val contentsArray = org.json.JSONArray()
-
-                // Keep only the most recent 2 conversation turns to keep request payload compact and fast
-                val boundedHistory = recentHistory.takeLast(2)
-                for ((prevUser, prevModel) in boundedHistory) {
-                    val u = prevUser.trim()
-                    val m = prevModel.trim()
-                    if (u.isNotBlank() && m.isNotBlank()) {
-                        contentsArray.put(JSONObject().apply {
-                            put("role", "user")
-                            put("parts", org.json.JSONArray().apply {
-                                put(JSONObject().apply { put("text", u) })
-                            })
-                        })
-                        contentsArray.put(JSONObject().apply {
-                            put("role", "model")
-                            put("parts", org.json.JSONArray().apply {
-                                put(JSONObject().apply { put("text", m) })
-                            })
-                        })
-                    }
-                }
-
-                // Add current user question
+        // Keep only the most recent 2 conversation turns to keep request payload compact and fast
+        val boundedHistory = recentHistory.takeLast(2)
+        for ((prevUser, prevModel) in boundedHistory) {
+            val u = prevUser.trim()
+            val m = prevModel.trim()
+            if (u.isNotBlank() && m.isNotBlank()) {
                 contentsArray.put(JSONObject().apply {
                     put("role", "user")
                     put("parts", org.json.JSONArray().apply {
-                        put(JSONObject().apply { put("text", trimmedQuestion) })
+                        put(JSONObject().apply { put("text", u) })
                     })
                 })
-
-                val jsonPayload = JSONObject().apply {
-                    put("contents", contentsArray)
-                    put("systemInstruction", JSONObject().apply {
-                        put("parts", org.json.JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("text", "You are BrainQuizAI Quick Answer, an intelligent, factual, and direct AI assistant. Provide concise, accurate, and direct answers in the user's language. Keep answers informative yet brief. Do not format as a quiz.")
-                            })
-                        })
+                contentsArray.put(JSONObject().apply {
+                    put("role", "model")
+                    put("parts", org.json.JSONArray().apply {
+                        put(JSONObject().apply { put("text", m) })
                     })
-                    put("generationConfig", JSONObject().apply {
-                        put("temperature", 0.4)
-                        put("topP", 0.9)
-                        put("maxOutputTokens", 384)
-                    })
-                }
+                })
+            }
+        }
 
-                val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        // Add current user question
+        contentsArray.put(JSONObject().apply {
+            put("role", "user")
+            put("parts", org.json.JSONArray().apply {
+                put(JSONObject().apply { put("text", trimmedQuestion) })
+            })
+        })
+
+        val jsonPayload = JSONObject().apply {
+            put("contents", contentsArray)
+            put("systemInstruction", JSONObject().apply {
+                put("parts", org.json.JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("text", "You are BrainQuizAI Quick Answer, an intelligent, factual, and direct AI assistant. Provide concise, accurate, and direct answers in the user's language. Keep answers informative yet brief. Do not format as a quiz.")
+                    })
+                })
+            })
+            put("generationConfig", JSONObject().apply {
+                put("temperature", 0.4)
+                put("topP", 0.9)
+                put("maxOutputTokens", 384)
+            })
+        }
+
+        val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        data class ModelAttempt(
+            val modelName: String,
+            val httpClient: OkHttpClient,
+            val isFallback: Boolean
+        )
+
+        // Attempt primary model first, followed by at most one verified fallback model
+        val modelAttempts = listOf(
+            ModelAttempt(PRIMARY_MODEL, quickAnswerClient, isFallback = false),
+            ModelAttempt(FALLBACK_MODEL, quickAnswerFallbackClient, isFallback = true)
+        )
+
+        var lastException: Exception? = null
+
+        for (attempt in modelAttempts) {
+            val model = attempt.modelName
+            val clientToUse = attempt.httpClient
+            val isFallback = attempt.isFallback
+            val startTime = System.currentTimeMillis()
+
+            if (isFallback) {
+                Log.d(TAG, "Fallback started: model=$model")
+            }
+            Log.d(TAG, "Request started: model=$model")
+
+            var call: Call? = null
+            var jobCancellation: DisposableHandle? = null
+
+            try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
                 val request = Request.Builder()
                     .url(url)
                     .header("x-goog-api-key", apiKey)
                     .post(requestBody)
                     .build()
 
-                val response = quickAnswerClient.newCall(request).execute()
-                val durationMs = System.currentTimeMillis() - startTime
-                val body = response.body?.string()
+                call = clientToUse.newCall(request)
+                activeQuickAnswerCall = call
 
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "Request completed: model=$model in ${durationMs}ms, status=${response.code}")
+                // Link coroutine job cancellation to OkHttp call cancellation
+                jobCancellation = coroutineContext[Job]?.invokeOnCompletion {
+                    call.cancel()
                 }
 
-                if (response.isSuccessful && !body.isNullOrBlank()) {
+                val response = call.execute()
+                val durationMs = System.currentTimeMillis() - startTime
+
+                // Ensure OkHttp response body is properly closed
+                val (isSuccessful, code, body) = response.use { resp ->
+                    Triple(resp.isSuccessful, resp.code, resp.body?.string())
+                }
+
+                if (isSuccessful && !body.isNullOrBlank()) {
                     val responseJson = JSONObject(body)
                     val candidates = responseJson.optJSONArray("candidates")
                     if (candidates != null && candidates.length() > 0) {
@@ -157,19 +200,25 @@ class GeminiQuizService {
                             }
                             val answerText = combinedText.toString().trim()
                             if (answerText.isNotBlank()) {
-                                if (BuildConfig.DEBUG) {
-                                    val attemptType = if (index == 0) "primary" else "fallback"
-                                    Log.d(TAG, "Success ($attemptType): model=$model answered in ${durationMs}ms")
+                                if (isFallback) {
+                                    Log.d(TAG, "Fallback succeeded: model=$model duration=${durationMs}ms")
                                 }
+                                Log.d(TAG, "Request succeeded: model=$model duration=${durationMs}ms")
                                 return@withContext Result.success(answerText)
                             }
                         }
                     }
-                    lastException = Exception("Model $model returned 200 with empty candidate text")
+                    val emptyError = "Model $model returned 200 with empty candidate text"
+                    if (isFallback) {
+                        Log.d(TAG, "Fallback failed: model=$model reason=$emptyError")
+                    }
+                    lastException = Exception(emptyError)
                 } else {
-                    val code = response.code
                     val errorMsg = "HTTP $code from $model: ${body?.take(200) ?: "Empty body"}"
                     Log.w(TAG, errorMsg)
+                    if (isFallback) {
+                        Log.d(TAG, "Fallback failed: model=$model reason=$errorMsg")
+                    }
                     lastException = Exception(errorMsg)
 
                     // Client/auth errors (400, 401, 403) will not succeed with fallback; fast-fail immediately
@@ -178,22 +227,33 @@ class GeminiQuizService {
                     }
                 }
             } catch (e: CancellationException) {
-                // Preserve coroutine cancellation when user leaves screen
+                // Preserve coroutine cancellation when user leaves screen or newer request cancels it
                 throw e
             } catch (e: SocketTimeoutException) {
                 val durationMs = System.currentTimeMillis() - startTime
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "Request timed out: model=$model after ${durationMs}ms")
+                Log.d(TAG, "Request timed out: model=$model duration=${durationMs}ms")
+                if (isFallback) {
+                    Log.d(TAG, "Fallback failed: model=$model reason=Timed out after ${durationMs}ms")
                 }
                 lastException = e
-                // Fast-fail on timeout: do not cascade another full timeout to fallback model
-                break
+                // Do NOT break! When primary model times out, proceed immediately to the fallback model exactly once.
             } catch (e: Exception) {
                 val durationMs = System.currentTimeMillis() - startTime
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "Request failed: model=$model after ${durationMs}ms, error=${e.javaClass.simpleName}")
+                if (call?.isCanceled() == true) {
+                    // If cancelled by a newer question or job cancellation, rethrow CancellationException
+                    throw CancellationException("Quick answer request was cancelled")
+                }
+                val reason = e.message ?: e.javaClass.simpleName
+                Log.d(TAG, "Request failed: model=$model after ${durationMs}ms, error=$reason")
+                if (isFallback) {
+                    Log.d(TAG, "Fallback failed: model=$model reason=$reason")
                 }
                 lastException = e
+            } finally {
+                jobCancellation?.dispose()
+                if (activeQuickAnswerCall == call) {
+                    activeQuickAnswerCall = null
+                }
             }
         }
 
