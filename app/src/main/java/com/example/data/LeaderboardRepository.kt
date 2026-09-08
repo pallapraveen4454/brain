@@ -8,6 +8,7 @@ import com.example.utils.RankUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -259,10 +260,12 @@ class LeaderboardRepository(
                 "updatedAt" to System.currentTimeMillis()
             )
 
-            firestore.collection("leaderboard")
-                .document(userProfile.uid)
-                .set(entry)
-                .await()
+            withTimeoutOrNull(3000L) {
+                firestore.collection("leaderboard")
+                    .document(userProfile.uid)
+                    .set(entry)
+                    .await()
+            }
 
             Log.d("LeaderboardRepository", "Successfully synced user ${userProfile.uid} to Firestore leaderboard (XP: ${userProfile.xp}, Weekly XP: $weeklyXp)")
 

@@ -901,7 +901,7 @@ class AuthViewModel(
                         Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
 
                         authRepository.setGuestSessionActive(false)
-                        authRepository.saveUserProfileToFirestore(profile)
+                        authRepository.saveLocalUserProfile(profile, isLoggedIn = true)
 
                         _uiState.update {
                             it.copy(
@@ -914,6 +914,14 @@ class AuthViewModel(
                         }
                         Log.d("GOOGLE_AUTH_FLOW", "STEP 14 navigation success")
                         onSuccess()
+
+                        viewModelScope.launch(Dispatchers.IO) {
+                            try {
+                                authRepository.saveUserProfileToFirestore(profile)
+                            } catch (e: Exception) {
+                                Log.w("AuthViewModel", "Background profile sync after Google sign in: ${e.message}")
+                            }
+                        }
                     },
                     onFailure = { error ->
                         val exClass = error.javaClass.name

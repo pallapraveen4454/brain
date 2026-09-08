@@ -202,7 +202,7 @@ object AvatarShopData {
             name = "Programmer",
             emoji = "👨‍💻",
             category = AvatarCategory.COMMON,
-            price = 750,
+            price = 1000,
             status = AvatarStatus.BUY,
             description = "Master of algorithms, logical thinking, and bug-free quiz streaks.",
             gradientColors = listOf(Color(0xFF818CF8), Color(0xFF4338CA))
@@ -212,7 +212,7 @@ object AvatarShopData {
             name = "Gamer",
             emoji = "🎮",
             category = AvatarCategory.COMMON,
-            price = 1000,
+            price = 1500,
             status = AvatarStatus.BUY,
             description = "Reflex mastermind with lightning speed on timed challenge questions.",
             gradientColors = listOf(Color(0xFFA78BFA), Color(0xFF6D28D9))
@@ -223,7 +223,7 @@ object AvatarShopData {
             name = "Robot",
             emoji = "🤖",
             category = AvatarCategory.RARE,
-            price = 1500,
+            price = 2500,
             status = AvatarStatus.BUY,
             description = "A futuristic AI companion for BrainQuiz champions.",
             gradientColors = listOf(Color(0xFFC084FC), Color(0xFF7E22CE))
@@ -233,7 +233,7 @@ object AvatarShopData {
             name = "Scientist",
             emoji = "🔬",
             category = AvatarCategory.RARE,
-            price = 2000,
+            price = 4000,
             status = AvatarStatus.BUY,
             description = "Analytical researcher who dissects complex questions with scientific precision.",
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
@@ -243,7 +243,7 @@ object AvatarShopData {
             name = "Astronaut",
             emoji = "👨‍🚀",
             category = AvatarCategory.RARE,
-            price = 2500,
+            price = 6000,
             status = AvatarStatus.BUY,
             description = "Space explorer discovering new frontiers of cosmic general knowledge.",
             gradientColors = listOf(Color(0xFFF59E0B), Color(0xFFB45309))
@@ -254,7 +254,7 @@ object AvatarShopData {
             name = "Quiz King",
             emoji = "👑",
             category = AvatarCategory.EPIC,
-            price = 5000,
+            price = 8000,
             status = AvatarStatus.LOCKED,
             description = "Royal trivia monarch ruling at the top of the BrainQuiz leaderboard.",
             gradientColors = listOf(Color(0xFFFBBF24), Color(0xFFD97706))
@@ -264,7 +264,7 @@ object AvatarShopData {
             name = "Brain Master",
             emoji = "🧠",
             category = AvatarCategory.EPIC,
-            price = 7000,
+            price = 10000,
             status = AvatarStatus.LOCKED,
             description = "Ultimate cosmic intellect with unmatched accuracy and unstoppable streaks.",
             gradientColors = listOf(Color(0xFFEC4899), Color(0xFF9D174D))

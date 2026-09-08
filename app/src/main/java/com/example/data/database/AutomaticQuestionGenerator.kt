@@ -118,13 +118,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("What is the primary organ responsible for pumping blood through the human body?", listOf("Heart", "Lungs", "Brain", "Liver"), "Heart"),
             Triple("What is the physical process of water changing into vapor called?", listOf("Evaporation", "Condensation", "Sublimation", "Precipitation"), "Evaporation")
         )
-        val template = scienceTemplates[(index + token.toInt()) % scienceTemplates.size]
+        val template = scienceTemplates[Math.floorMod(index + token.toInt(), scienceTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_science_${token}_$index",
             categoryId = "science",
-            questionText = "${template.first} [#${index + token % 1000}]",
+            questionText = "${template.first} [#${index + Math.floorMod(token, 1000)}]",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -141,13 +141,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("What is the largest living mammal on Earth?", listOf("Blue Whale", "African Elephant", "Giraffe", "Colossal Squid"), "Blue Whale"),
             Triple("Which organ in the human body is responsible for filtering blood?", listOf("Kidney", "Heart", "Stomach", "Pancreas"), "Kidney")
         )
-        val template = gkTemplates[(index + token.toInt()) % gkTemplates.size]
+        val template = gkTemplates[Math.floorMod(index + token.toInt(), gkTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_gk_${token}_$index",
             categoryId = "gk",
-            questionText = "${template.first} (Ref: GK-${index + token % 500})",
+            questionText = "${template.first} (Ref: GK-${index + Math.floorMod(token, 500)})",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -164,13 +164,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("How many total players are on the field in an official soccer match?", listOf("22", "11", "20", "18"), "22"),
             Triple("How many strikes result in an out in baseball?", listOf("3", "4", "2", "5"), "3")
         )
-        val template = sportsTemplates[(index + token.toInt()) % sportsTemplates.size]
+        val template = sportsTemplates[Math.floorMod(index + token.toInt(), sportsTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_sports_${token}_$index",
             categoryId = "sports",
-            questionText = "${template.first} [Set ${index + token % 100}]",
+            questionText = "${template.first} [Set ${index + Math.floorMod(token, 100)}]",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -187,13 +187,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("In which year did the Magna Carta get signed?", listOf("1215", "1492", "1776", "1066"), "1215"),
             Triple("Who was the British Prime Minister during most of World War II?", listOf("Winston Churchill", "Neville Chamberlain", "Clement Attlee", "Harold Macmillan"), "Winston Churchill")
         )
-        val template = historyTemplates[(index + token.toInt()) % historyTemplates.size]
+        val template = historyTemplates[Math.floorMod(index + token.toInt(), historyTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_history_${token}_$index",
             categoryId = "history",
-            questionText = "${template.first} (History Archive #${index + token % 300})",
+            questionText = "${template.first} (History Archive #${index + Math.floorMod(token, 300)})",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -210,13 +210,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("Who directed the 2010 sci-fi movie 'Inception'?", listOf("Christopher Nolan", "Steven Spielberg", "Quentin Tarantino", "Martin Scorsese"), "Christopher Nolan"),
             Triple("Which movie studio produced 'Toy Story' in 1995?", listOf("Pixar", "DreamWorks", "Disney", "Illumination"), "Pixar")
         )
-        val template = moviesTemplates[(index + token.toInt()) % moviesTemplates.size]
+        val template = moviesTemplates[Math.floorMod(index + token.toInt(), moviesTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_movies_${token}_$index",
             categoryId = "movies",
-            questionText = "${template.first} [Movie ID: ${index + token % 800}]",
+            questionText = "${template.first} [Movie ID: ${index + Math.floorMod(token, 800)}]",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -233,13 +233,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("Which data structure operates on a First-In, First-Out (FIFO) principle?", listOf("Queue", "Stack", "Binary Tree", "Heap"), "Queue"),
             Triple("What is the primary function of an Operating System?", listOf("Manage hardware and software resources", "Compile code", "Design websites", "Format video files"), "Manage hardware and software resources")
         )
-        val template = techTemplates[(index + token.toInt()) % techTemplates.size]
+        val template = techTemplates[Math.floorMod(index + token.toInt(), techTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_tech_${token}_$index",
             categoryId = "tech",
-            questionText = "${template.first} (Tech Code: ${index + token % 900})",
+            questionText = "${template.first} (Tech Code: ${index + Math.floorMod(token, 900)})",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
@@ -256,13 +256,13 @@ class AutomaticQuestionGenerator(private val context: Context? = null) {
             Triple("Which continent contains the Amazon Rainforest?", listOf("South America", "Africa", "Asia", "North America"), "South America"),
             Triple("What body of water separates Europe and Africa?", listOf("Mediterranean Sea", "Red Sea", "Caribbean Sea", "Black Sea"), "Mediterranean Sea")
         )
-        val template = geoTemplates[(index + token.toInt()) % geoTemplates.size]
+        val template = geoTemplates[Math.floorMod(index + token.toInt(), geoTemplates.size)]
         val options = template.second.shuffled()
 
         return QuestionEntity(
             id = "gen_geo_${token}_$index",
             categoryId = "geo",
-            questionText = "${template.first} [Geo Ref: ${index + token % 400}]",
+            questionText = "${template.first} [Geo Ref: ${index + Math.floorMod(token, 400)}]",
             optionA = options[0],
             optionB = options[1],
             optionC = options[2],
