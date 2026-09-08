@@ -18,6 +18,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -81,12 +82,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.components.GlassCard
 import com.example.ui.theme.AccentCoins
 import com.example.ui.theme.AccentCoinsGradientEnd
@@ -127,6 +133,14 @@ data class AvatarShopItem(
 )
 
 object AvatarUtils {
+    fun getAvatarDrawableRes(avatarId: String): Int? {
+        return when (avatarId.lowercase().trim()) {
+            "student_boy" -> R.drawable.avatar_student_boy
+            "programmer" -> R.drawable.avatar_programmer
+            else -> null
+        }
+    }
+
     fun getEmoji(avatarId: String): String {
         val shopItem = AvatarShopData.SAMPLE_AVATARS.find { it.id == avatarId }
         if (shopItem != null) return shopItem.emoji
@@ -160,6 +174,33 @@ object AvatarUtils {
             "tiger" -> "🐯"
             else -> "🧠"
         }
+    }
+}
+
+@Composable
+fun AvatarVisualContent(
+    avatarId: String,
+    emoji: String,
+    contentDescription: String?,
+    fontSize: TextUnit,
+    imagePadding: Dp = 4.dp,
+    modifier: Modifier = Modifier
+) {
+    val drawableRes = AvatarUtils.getAvatarDrawableRes(avatarId)
+    if (drawableRes != null) {
+        Image(
+            painter = painterResource(id = drawableRes),
+            contentDescription = contentDescription,
+            modifier = modifier
+                .fillMaxSize()
+                .padding(imagePadding),
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Text(
+            text = emoji,
+            fontSize = fontSize
+        )
     }
 }
 
@@ -689,9 +730,12 @@ fun AvatarCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = avatar.emoji,
-                    fontSize = 42.sp
+                AvatarVisualContent(
+                    avatarId = avatar.id,
+                    emoji = avatar.emoji,
+                    contentDescription = avatar.name,
+                    fontSize = 42.sp,
+                    imagePadding = 4.dp
                 )
             }
 
@@ -1010,9 +1054,12 @@ fun AvatarDetailBottomSheet(
                     .border(3.dp, GlassBorder, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = avatar.emoji,
-                    fontSize = 64.sp
+                AvatarVisualContent(
+                    avatarId = avatar.id,
+                    emoji = avatar.emoji,
+                    contentDescription = avatar.name,
+                    fontSize = 64.sp,
+                    imagePadding = 6.dp
                 )
             }
 
@@ -1238,7 +1285,13 @@ fun BuyConfirmationDialog(
                         .border(2.dp, GlassBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = avatar.emoji, fontSize = 36.sp)
+                    AvatarVisualContent(
+                        avatarId = avatar.id,
+                        emoji = avatar.emoji,
+                        contentDescription = avatar.name,
+                        fontSize = 36.sp,
+                        imagePadding = 4.dp
+                    )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
@@ -1355,7 +1408,13 @@ fun SuccessUnlockedDialog(
                             .border(3.dp, PrimaryPurpleLight, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = avatar.emoji, fontSize = 46.sp)
+                        AvatarVisualContent(
+                            avatarId = avatar.id,
+                            emoji = avatar.emoji,
+                            contentDescription = avatar.name,
+                            fontSize = 46.sp,
+                            imagePadding = 4.dp
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
