@@ -14,6 +14,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -78,6 +79,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -260,12 +263,12 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 val strings = LocalAppStrings.current
-                // Profile Header Title
+                // Profile Header Bar (Title + Direct Settings Action)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.Center,
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -278,46 +281,78 @@ fun ProfileScreen(
                         color = TextWhite,
                         modifier = Modifier.testTag("profile_title")
                     )
+
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onOpenSettings()
+                            showSettingsScreen = true
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(DarkCardSurface)
+                            .border(1.dp, GlassBorder, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = PrimaryPurpleLight,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // ------------------------------------------------
-                // 1. HERO PROFILE CARD WITH ANIMATED XP RING & AVATAR
+                // 1. INSTAGRAM-INSPIRED SOCIAL HERO PROFILE HEADER
                 // ------------------------------------------------
+                val isGuestSession = (playerEmail == "Guest Account" || playerEmail == "guest@brainquiz.ai") || (playerName == "Guest")
+                val formattedName = if (isGuestSession) {
+                    if (playerName.isBlank() || playerName == "Player" || playerName == "Guest Player") "Guest" else playerName
+                } else {
+                    when {
+                        playerName.isNotBlank() && playerName != "Player" && playerName != "Guest Player" && playerName != "Guest" -> playerName
+                        playerEmail.isNotBlank() -> playerEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                        else -> "Player"
+                    }
+                }
+                val formattedEmail = if (isGuestSession) "Guest Account" else playerEmail
+
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(26.dp),
                     backgroundColor = DarkCardSurface,
-                    borderColor = PrimaryPurpleLight.copy(alpha = 0.4f),
-                    elevation = 12.dp
+                    borderColor = PrimaryPurpleLight.copy(alpha = 0.45f),
+                    elevation = 14.dp
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(horizontal = 20.dp, vertical = 22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Avatar Box with Animated XP Circular Ring
+                        // Prominent Centered Equipped Avatar with Animated Level Progress Ring
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            modifier = Modifier.padding(bottom = 6.dp)
                         ) {
-                            // Animated XP Canvas Progress Ring around Avatar
-                            Canvas(modifier = Modifier.size(126.dp)) {
-                                val strokeWidth = 6.dp.toPx()
+                            // High-end Glowing Progress Ring
+                            Canvas(modifier = Modifier.size(136.dp)) {
+                                val strokeWidth = 5.dp.toPx()
                                 val radius = (size.minDimension - strokeWidth) / 2
                                 val centerOffset = Offset(size.width / 2, size.height / 2)
 
                                 // Track circle
                                 drawCircle(
-                                    color = Color.White.copy(alpha = 0.12f),
+                                    color = Color.White.copy(alpha = 0.08f),
                                     radius = radius,
                                     center = centerOffset,
                                     style = Stroke(width = strokeWidth)
                                 )
 
-                                // Active XP Sweep Arc
+                                // Active XP Gradient Arc
                                 drawArc(
                                     brush = Brush.sweepGradient(
                                         colors = listOf(
@@ -334,18 +369,30 @@ fun ProfileScreen(
                                 )
                             }
 
-                            // Avatar Circle Container
+                            // Premium Glass / Rounded Frame for Full-Body Avatar (ContentScale.Fit, No Circular Crop)
                             Box(
                                 modifier = Modifier
-                                    .size(110.dp)
-                                    .clip(CircleShape)
+                                    .size(118.dp)
+                                    .clip(RoundedCornerShape(24.dp))
                                     .background(
                                         brush = Brush.linearGradient(
-                                            colors = listOf(PrimaryPurple, PrimaryPurpleLight)
+                                            colors = listOf(
+                                                Color(0xFF261D3B),
+                                                Color(0xFF1B1429)
+                                            )
                                         )
                                     )
-                                    .border(3.dp, GlassBorder, CircleShape)
-                                    .shadow(12.dp, CircleShape, ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
+                                    .border(
+                                        width = 2.dp,
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                PrimaryPurpleLight.copy(alpha = 0.8f),
+                                                PrimaryPurple.copy(alpha = 0.4f)
+                                            )
+                                        ),
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    .shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
                                     .bounceClick(scaleDown = 0.94f) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         SoundEffects.playCoinSound()
@@ -354,9 +401,12 @@ fun ProfileScreen(
                                     .testTag("profile_avatar_box"),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = AvatarUtils.getEmoji(avatarId),
-                                    fontSize = 50.sp
+                                AvatarVisualContent(
+                                    avatarId = avatarId,
+                                    emoji = AvatarUtils.getEmoji(avatarId),
+                                    contentDescription = "Equipped Avatar",
+                                    fontSize = 52.sp,
+                                    imagePadding = 4.dp
                                 )
                             }
 
@@ -365,38 +415,26 @@ fun ProfileScreen(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .offset(y = 10.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(DarkBackground)
-                                    .border(1.5.dp, AccentXP, RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 10.dp, vertical = 2.dp)
+                                    .border(1.5.dp, AccentXP, RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 12.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = "LVL $animatedLevel",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 11.sp,
-                                        letterSpacing = 0.5.sp
+                                        letterSpacing = 0.8.sp
                                     ),
                                     color = AccentXP
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                        // Player Name & Edit Icon Button
-                        val isGuestSession = (playerEmail == "Guest Account" || playerEmail == "guest@brainquiz.ai") || (playerName == "Guest")
-                        val formattedName = if (isGuestSession) {
-                            if (playerName.isBlank() || playerName == "Player" || playerName == "Guest Player") "Guest" else playerName
-                        } else {
-                            when {
-                                playerName.isNotBlank() && playerName != "Player" && playerName != "Guest Player" && playerName != "Guest" -> playerName
-                                playerEmail.isNotBlank() -> playerEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
-                                else -> "Player"
-                            }
-                        }
-                        val formattedEmail = if (isGuestSession) "Guest Account" else playerEmail
-
+                        // Username Row with Edit Button
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
@@ -417,16 +455,16 @@ fun ProfileScreen(
                                     onEditUsername()
                                 },
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(30.dp)
                                     .clip(CircleShape)
-                                    .background(PrimaryPurple.copy(alpha = 0.3f))
+                                    .background(PrimaryPurple.copy(alpha = 0.35f))
                                     .testTag("edit_username_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Username",
                                     tint = PrimaryPurpleLight,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
@@ -438,30 +476,30 @@ fun ProfileScreen(
                             modifier = Modifier.testTag("profile_player_email")
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Shiny Rank Chip
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = PrimaryPurple.copy(alpha = 0.25f),
-                            border = androidx.compose.foundation.BorderStroke(1.2.dp, PrimaryPurpleLight.copy(alpha = 0.8f))
+                            shape = RoundedCornerShape(16.dp),
+                            color = PrimaryPurple.copy(alpha = 0.22f),
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, PrimaryPurpleLight.copy(alpha = 0.7f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.EmojiEvents,
                                     contentDescription = "Rank",
                                     tint = AccentCoins,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = displayRank.uppercase(),
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         letterSpacing = 1.sp
                                     ),
                                     color = TextWhite,
@@ -470,126 +508,108 @@ fun ProfileScreen(
                                 )
                             }
                         }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                // ------------------------------------------------
-                // 2. MINI METRICS ROW (XP | Level | Coins | Streak)
-                // ------------------------------------------------
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MiniMetricCard("XP", "$animatedXp", Icons.Default.Bolt, AccentXP, Modifier.weight(1f))
-                    MiniMetricCard("Level", "$animatedLevel", Icons.Default.MilitaryTech, AccentLevel, Modifier.weight(1f))
-                    MiniMetricCard("Coins", "$animatedCoins", Icons.Default.MonetizationOn, AccentCoins, Modifier.weight(1f))
-                    MiniMetricCard("Streak", "${animatedStreak}d 🔥", Icons.Default.LocalFireDepartment, AccentStreak, Modifier.weight(1f))
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // ------------------------------------------------
-                // 3. LEVEL PROGRESSION CARD
-                // ------------------------------------------------
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    backgroundColor = DarkCardSurface,
-                    borderColor = GlassBorder,
-                    elevation = 6.dp
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Level Progress Bar
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF171226).copy(alpha = 0.7f))
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Speed,
-                                    contentDescription = null,
-                                    tint = AccentXP,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = "LEVEL PROGRESSION",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp,
-                                        letterSpacing = 0.8.sp
+                                    text = "Level Progress",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
                                     ),
                                     color = TextWhite
                                 )
+                                Text(
+                                    text = "$animatedXp / $nextThreshold XP",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = AccentXP
+                                )
                             }
 
-                            Text(
-                                text = "${(animatedLevelProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.sp
-                                ),
-                                color = AccentXP
-                            )
-                        }
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Current: $animatedXp XP",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = TextWhite
-                            )
-                            Text(
-                                text = "Next Level: $nextThreshold XP",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Animated Level XP Bar
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(12.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(DarkBackground)
-                        ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(animatedLevelProgress)
-                                    .height(12.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(AccentXP, AccentXPGradientEnd)
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(DarkBackground)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(animatedLevelProgress)
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(AccentXP, AccentXPGradientEnd)
+                                            )
                                         )
-                                    )
-                                    .shimmerEffect()
-                            )
+                                        .shimmerEffect()
+                                )
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "${LevelUtils.getXpToNextLevel(xp)} XP needed for next level",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Social-Profile Highlights Bar (Instagram Stat Counter Style: XP | Level | Coins | Streak)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color.White.copy(alpha = 0.04f))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(18.dp))
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SocialStatItem(
+                                label = "XP",
+                                value = "$animatedXp",
+                                icon = Icons.Default.Bolt,
+                                iconColor = AccentXP
+                            )
+                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            SocialStatItem(
+                                label = "Level",
+                                value = "$animatedLevel",
+                                icon = Icons.Default.MilitaryTech,
+                                iconColor = AccentLevel
+                            )
+                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            SocialStatItem(
+                                label = "Coins",
+                                value = "$animatedCoins",
+                                icon = Icons.Default.MonetizationOn,
+                                iconColor = AccentCoins
+                            )
+                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            SocialStatItem(
+                                label = "Streak",
+                                value = "${animatedStreak}d 🔥",
+                                icon = Icons.Default.LocalFireDepartment,
+                                iconColor = AccentStreak
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // ------------------------------------------------
                 // 4. CUSTOMIZATION & AVATAR SHOP CARD
