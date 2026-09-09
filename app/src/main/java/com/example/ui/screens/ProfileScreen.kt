@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.HelpOutline
@@ -161,6 +162,7 @@ fun ProfileScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var futureFeatureNotice by remember { mutableStateOf<String?>(null) }
+    var showAvatarPreview by remember { mutableStateOf(false) }
 
     // Number Count-Up Animations for flagship feel
     val currentLevel = LevelUtils.getLevel(xp)
@@ -369,34 +371,34 @@ fun ProfileScreen(
                                 )
                             }
 
-                            // Premium Glass / Rounded Frame for Full-Body Avatar (ContentScale.Fit, No Circular Crop)
+                            // Instagram-Style Circular Profile Avatar with Glassmorphism & Purple Accent
                             Box(
                                 modifier = Modifier
                                     .size(118.dp)
-                                    .clip(RoundedCornerShape(24.dp))
+                                    .clip(CircleShape)
                                     .background(
-                                        brush = Brush.linearGradient(
+                                        brush = Brush.radialGradient(
                                             colors = listOf(
-                                                Color(0xFF261D3B),
+                                                Color(0xFF32244E),
                                                 Color(0xFF1B1429)
                                             )
                                         )
                                     )
                                     .border(
-                                        width = 2.dp,
+                                        width = 2.5.dp,
                                         brush = Brush.linearGradient(
                                             colors = listOf(
-                                                PrimaryPurpleLight.copy(alpha = 0.8f),
-                                                PrimaryPurple.copy(alpha = 0.4f)
+                                                PrimaryPurpleLight.copy(alpha = 0.9f),
+                                                PrimaryPurple.copy(alpha = 0.5f)
                                             )
                                         ),
-                                        shape = RoundedCornerShape(24.dp)
+                                        shape = CircleShape
                                     )
-                                    .shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
+                                    .shadow(16.dp, CircleShape, ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
                                     .bounceClick(scaleDown = 0.94f) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         SoundEffects.playCoinSound()
-                                        onOpenAvatarShop()
+                                        showAvatarPreview = true
                                     }
                                     .testTag("profile_avatar_box"),
                                 contentAlignment = Alignment.Center
@@ -1006,6 +1008,128 @@ fun ProfileScreen(
                         }
                     }
                 )
+            }
+
+            // Large Avatar Preview Overlay Dialog
+            if (showAvatarPreview) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showAvatarPreview = false }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFF2B1D45),
+                                        Color(0xFF161026)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 2.dp,
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        PrimaryPurpleLight.copy(alpha = 0.85f),
+                                        PrimaryPurple.copy(alpha = 0.45f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(28.dp)
+                            )
+                            .shadow(24.dp, RoundedCornerShape(28.dp), ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Top Row: Title and Close Button
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Equipped Avatar",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    ),
+                                    color = TextWhite
+                                )
+
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        showAvatarPreview = false
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .testTag("close_avatar_preview_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close Preview",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Large Center Avatar Display (Full-body, ContentScale.Fit, Undistorted)
+                            Box(
+                                modifier = Modifier
+                                    .size(230.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color.White.copy(alpha = 0.03f))
+                                    .border(
+                                        1.dp,
+                                        Color.White.copy(alpha = 0.08f),
+                                        RoundedCornerShape(24.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AvatarVisualContent(
+                                    avatarId = avatarId,
+                                    emoji = AvatarUtils.getEmoji(avatarId),
+                                    contentDescription = "Equipped Avatar Preview",
+                                    fontSize = 110.sp,
+                                    imagePadding = 12.dp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Avatar Name / Info Tag
+                            val avatarName = AvatarShopData.SAMPLE_AVATARS.find { it.id == avatarId }?.name
+                                ?: avatarId.replace("_", " ").split(" ")
+                                    .joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
+
+                            Text(
+                                text = avatarName,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 20.sp
+                                ),
+                                color = TextWhite
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = "Currently equipped character",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -16,6 +16,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -79,9 +80,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -152,7 +155,16 @@ fun LeaderboardScreen(
     }
 
     val activeLeaderboardData = leaderboardData ?: defaultData
-    val players = activeLeaderboardData.topPlayers
+    val rawPlayers = activeLeaderboardData.topPlayers
+    val players = remember(rawPlayers, currentUserAvatar) {
+        if (currentUserAvatar.isNotBlank()) {
+            rawPlayers.map { player ->
+                if (player.isCurrentUser) player.copy(avatarId = currentUserAvatar) else player
+            }
+        } else {
+            rawPlayers
+        }
+    }
 
     val filteredPlayers = if (searchQuery.isBlank()) {
         players
@@ -164,7 +176,14 @@ fun LeaderboardScreen(
         }
     }
 
-    val currentUserEntry = activeLeaderboardData.currentUserEntry
+    val rawCurrentUserEntry = activeLeaderboardData.currentUserEntry
+    val currentUserEntry = remember(rawCurrentUserEntry, currentUserAvatar) {
+        if (currentUserAvatar.isNotBlank()) {
+            rawCurrentUserEntry.copy(avatarId = currentUserAvatar)
+        } else {
+            rawCurrentUserEntry
+        }
+    }
 
     Box(
         modifier = modifier
@@ -491,7 +510,36 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Avatar Icon Container
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(PrimaryPurple.copy(alpha = 0.4f))
+                        .border(1.5.dp, PrimaryPurpleLight, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val avatarRes = AvatarUtils.getAvatarDrawableRes(user.avatarId)
+                    if (avatarRes != null) {
+                        Image(
+                            painter = painterResource(id = avatarRes),
+                            contentDescription = user.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(2.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = AvatarUtils.getEmoji(user.avatarId),
+                            fontSize = 24.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -740,10 +788,22 @@ private fun PodiumCard(
                         .border(3.dp, badgeColor, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = AvatarUtils.getEmoji(user.avatarId),
-                        fontSize = emojiFontSize
-                    )
+                    val avatarRes = AvatarUtils.getAvatarDrawableRes(user.avatarId)
+                    if (avatarRes != null) {
+                        Image(
+                            painter = painterResource(id = avatarRes),
+                            contentDescription = user.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(3.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = AvatarUtils.getEmoji(user.avatarId),
+                            fontSize = emojiFontSize
+                        )
+                    }
                 }
             }
 
@@ -882,10 +942,22 @@ private fun LeaderboardRowCard(user: LeaderboardUser) {
                         .border(1.dp, GlassBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = AvatarUtils.getEmoji(user.avatarId),
-                        fontSize = 22.sp
-                    )
+                    val avatarRes = AvatarUtils.getAvatarDrawableRes(user.avatarId)
+                    if (avatarRes != null) {
+                        Image(
+                            painter = painterResource(id = avatarRes),
+                            contentDescription = user.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(2.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = AvatarUtils.getEmoji(user.avatarId),
+                            fontSize = 22.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))
