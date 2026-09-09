@@ -584,21 +584,21 @@ fun ProfileScreen(
                                 icon = Icons.Default.Bolt,
                                 iconColor = AccentXP
                             )
-                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            Box(modifier = Modifier.height(28.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Level",
                                 value = "$animatedLevel",
                                 icon = Icons.Default.MilitaryTech,
                                 iconColor = AccentLevel
                             )
-                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            Box(modifier = Modifier.height(28.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Coins",
                                 value = "$animatedCoins",
                                 icon = Icons.Default.MonetizationOn,
                                 iconColor = AccentCoins
                             )
-                            VerticalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.height(28.dp).width(1.dp))
+                            Box(modifier = Modifier.height(28.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Streak",
                                 value = "${animatedStreak}d 🔥",
@@ -1008,6 +1008,49 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SocialStatItem(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    iconColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 6.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = iconColor,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                ),
+                color = TextWhite,
+                maxLines = 1
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp
+            ),
+            color = TextSecondary
+        )
     }
 }
 

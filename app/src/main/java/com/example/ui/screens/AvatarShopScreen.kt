@@ -137,6 +137,12 @@ object AvatarUtils {
         return when (avatarId.lowercase().trim()) {
             "student_boy" -> R.drawable.avatar_student_boy
             "programmer" -> R.drawable.avatar_programmer
+            "student_girl" -> R.drawable.avatar_student_girl
+            "reader" -> R.drawable.avatar_reader
+            "gamer" -> R.drawable.avatar_gamer
+            "robot" -> R.drawable.avatar_robot
+            "detective" -> R.drawable.avatar_detective
+            "scientist" -> R.drawable.avatar_scientist
             else -> null
         }
     }
@@ -151,6 +157,7 @@ object AvatarUtils {
             "programmer" -> "👨‍💻"
             "gamer" -> "🎮"
             "robot" -> "🤖"
+            "detective" -> "🕵️"
             "scientist" -> "🔬"
             "astronaut" -> "👨‍🚀"
             "quiz_king" -> "👑"
@@ -278,6 +285,16 @@ object AvatarShopData {
             status = AvatarStatus.BUY,
             description = "Analytical researcher who dissects complex questions with scientific precision.",
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
+        ),
+        AvatarShopItem(
+            id = "detective",
+            name = "Detective",
+            emoji = "🕵️",
+            category = AvatarCategory.RARE,
+            price = 5000,
+            status = AvatarStatus.BUY,
+            description = "Master sleuth uncovering secrets and clues to tough trivia riddles.",
+            gradientColors = listOf(Color(0xFFFB923C), Color(0xFFC2410C))
         ),
         AvatarShopItem(
             id = "astronaut",
