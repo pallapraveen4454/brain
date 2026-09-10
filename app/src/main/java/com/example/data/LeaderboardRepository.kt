@@ -190,7 +190,7 @@ class LeaderboardRepository(
                 val achievementsCount = doc.getLong("achievementsCount")?.toInt() ?: 0
                 val score = doc.getLong("score")?.toInt() ?: calculateScore(xp, quizzesPlayed, achievementsCount)
                 val countryFlag = doc.getString("countryFlag") ?: "🌟"
-                val isCurrent = id == currentUid
+                val isCurrent = currentUid.isNotBlank() && id == currentUid
 
                 remoteUsers.add(
                     LeaderboardUser(

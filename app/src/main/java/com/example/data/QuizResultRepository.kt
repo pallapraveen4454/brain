@@ -219,6 +219,24 @@ class QuizResultRepository(
                         val currentStats = getUserStats()
                         val calculatedScore = totalXp + (currentProf.unlockedAchievements.size * 50) + ((currentStats.totalQuizzesPlayed + 1) * 15)
 
+                        val calendar = java.util.Calendar.getInstance().apply {
+                            firstDayOfWeek = java.util.Calendar.MONDAY
+                            set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                            if (timeInMillis > System.currentTimeMillis()) {
+                                add(java.util.Calendar.DAY_OF_YEAR, -7)
+                            }
+                        }
+                        val startOfWeek = calendar.timeInMillis
+                        val calculatedWeeklyXp = if (currentProf.quizHistory.isNotEmpty()) {
+                            currentProf.quizHistory.filter { it.timestamp >= startOfWeek }.sumOf { it.xpEarned } + xpEarned
+                        } else {
+                            xpEarned
+                        }
+
                         firestore.collection("leaderboard")
                             .document(userId)
                             .set(
@@ -227,6 +245,8 @@ class QuizResultRepository(
                                     "name" to currentProf.name.ifBlank { "Player" },
                                     "avatarId" to currentProf.avatarId.ifBlank { "brain" },
                                     "xp" to totalXp,
+                                    "weeklyXp" to calculatedWeeklyXp,
+                                    "weekStart" to startOfWeek,
                                     "level" to com.example.utils.LevelUtils.getLevel(totalXp),
                                     "rankBadge" to RankUtils.getRankForXp(totalXp),
                                     "quizzesPlayed" to (currentStats.totalQuizzesPlayed + 1),
