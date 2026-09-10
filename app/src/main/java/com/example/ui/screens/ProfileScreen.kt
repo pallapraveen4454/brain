@@ -324,25 +324,25 @@ fun ProfileScreen(
 
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     backgroundColor = DarkCardSurface,
                     borderColor = PrimaryPurpleLight.copy(alpha = 0.45f),
-                    elevation = 12.dp
+                    elevation = 10.dp
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp),
+                            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Prominent Centered Equipped Avatar with Animated Level Progress Ring
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            modifier = Modifier.padding(bottom = 2.dp)
                         ) {
                             // High-end Glowing Progress Ring
-                            Canvas(modifier = Modifier.size(126.dp)) {
-                                val strokeWidth = 4.5.dp.toPx()
+                            Canvas(modifier = Modifier.size(120.dp)) {
+                                val strokeWidth = 4.dp.toPx()
                                 val radius = (size.minDimension - strokeWidth) / 2
                                 val centerOffset = Offset(size.width / 2, size.height / 2)
 
@@ -374,7 +374,7 @@ fun ProfileScreen(
                             // Instagram-Style Circular Profile Avatar with Glassmorphism & Purple Accent
                             Box(
                                 modifier = Modifier
-                                    .size(110.dp)
+                                    .size(104.dp)
                                     .clip(CircleShape)
                                     .background(
                                         brush = Brush.radialGradient(
@@ -385,7 +385,7 @@ fun ProfileScreen(
                                         )
                                     )
                                     .border(
-                                        width = 2.5.dp,
+                                        width = 2.dp,
                                         brush = Brush.linearGradient(
                                             colors = listOf(
                                                 PrimaryPurpleLight.copy(alpha = 0.9f),
@@ -394,7 +394,7 @@ fun ProfileScreen(
                                         ),
                                         shape = CircleShape
                                     )
-                                    .shadow(12.dp, CircleShape, ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
+                                    .shadow(10.dp, CircleShape, ambientColor = PrimaryPurple, spotColor = PrimaryPurpleLight)
                                     .bounceClick(scaleDown = 0.94f) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         SoundEffects.playCoinSound()
@@ -407,7 +407,7 @@ fun ProfileScreen(
                                     avatarId = avatarId,
                                     emoji = AvatarUtils.getEmoji(avatarId),
                                     contentDescription = "Equipped Avatar",
-                                    fontSize = 48.sp,
+                                    fontSize = 46.sp,
                                     imagePadding = 4.dp
                                 )
                             }
@@ -416,11 +416,11 @@ fun ProfileScreen(
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .offset(y = 8.dp)
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .offset(y = 6.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(DarkBackground)
-                                    .border(1.5.dp, AccentXP, RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 10.dp, vertical = 2.dp)
+                                    .border(1.5.dp, AccentXP, RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 9.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "LVL $animatedLevel",
@@ -434,7 +434,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Username Row with Edit Button
                         Row(
@@ -445,7 +445,7 @@ fun ProfileScreen(
                                 text = formattedName,
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 20.sp
+                                    fontSize = 19.sp
                                 ),
                                 color = TextWhite,
                                 modifier = Modifier.testTag("profile_player_name")
@@ -457,7 +457,7 @@ fun ProfileScreen(
                                     onEditUsername()
                                 },
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(26.dp)
                                     .clip(CircleShape)
                                     .background(PrimaryPurple.copy(alpha = 0.35f))
                                     .testTag("edit_username_button")
@@ -466,7 +466,7 @@ fun ProfileScreen(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Username",
                                     tint = PrimaryPurpleLight,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }
@@ -480,25 +480,25 @@ fun ProfileScreen(
                             modifier = Modifier.testTag("profile_player_email")
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         // Shiny Rank Chip
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = PrimaryPurple.copy(alpha = 0.22f),
                             border = androidx.compose.foundation.BorderStroke(1.2.dp, PrimaryPurpleLight.copy(alpha = 0.7f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.EmojiEvents,
                                     contentDescription = "Rank",
                                     tint = AccentCoins,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
                                     text = displayRank.uppercase(),
                                     style = MaterialTheme.typography.labelLarge.copy(
@@ -513,15 +513,15 @@ fun ProfileScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Level Progress Bar
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0xFF171226).copy(alpha = 0.7f))
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -532,33 +532,34 @@ fun ProfileScreen(
                                     text = "Level Progress",
                                     style = MaterialTheme.typography.labelMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp
                                     ),
                                     color = TextWhite
                                 )
                                 Text(
                                     text = "$animatedXp / $nextThreshold XP",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.sp
                                     ),
                                     color = AccentXP
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(5.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
 
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(7.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
                                     .background(DarkBackground)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth(animatedLevelProgress)
-                                        .height(7.dp)
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp))
                                         .background(
                                             brush = Brush.horizontalGradient(
                                                 colors = listOf(AccentXP, AccentXPGradientEnd)
@@ -569,16 +570,16 @@ fun ProfileScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Social-Profile Highlights Bar (Instagram Stat Counter Style: XP | Level | Coins | Streak)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(Color.White.copy(alpha = 0.04f))
-                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
-                                .padding(vertical = 10.dp),
+                                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                                .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -588,24 +589,24 @@ fun ProfileScreen(
                                 icon = Icons.Default.Bolt,
                                 iconColor = AccentXP
                             )
-                            Box(modifier = Modifier.height(26.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
+                            Box(modifier = Modifier.height(22.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Level",
                                 value = "$animatedLevel",
                                 icon = Icons.Default.MilitaryTech,
                                 iconColor = AccentLevel
                             )
-                            Box(modifier = Modifier.height(26.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
+                            Box(modifier = Modifier.height(22.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Coins",
                                 value = "$animatedCoins",
                                 icon = Icons.Default.MonetizationOn,
                                 iconColor = AccentCoins
                             )
-                            Box(modifier = Modifier.height(26.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
+                            Box(modifier = Modifier.height(22.dp).width(1.dp).background(Color.White.copy(alpha = 0.1f)))
                             SocialStatItem(
                                 label = "Streak",
-                                value = "${animatedStreak}d 🔥",
+                                value = "${animatedStreak}d",
                                 icon = Icons.Default.LocalFireDepartment,
                                 iconColor = AccentStreak
                             )
