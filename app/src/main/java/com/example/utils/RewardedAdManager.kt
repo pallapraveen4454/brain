@@ -33,13 +33,17 @@ object RewardedAdManager {
         if (!isMobileAdsInitialized) {
             synchronized(this) {
                 if (!isMobileAdsInitialized) {
-                    try {
-                        MobileAds.initialize(context.applicationContext) {}
-                        isMobileAdsInitialized = true
-                        Log.d(TAG, "MobileAds initialized successfully")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to initialize MobileAds: ${e.message}", e)
-                    }
+                    val appContext = context.applicationContext ?: context
+                    Thread {
+                        try {
+                            MobileAds.initialize(appContext) {
+                                isMobileAdsInitialized = true
+                                Log.d(TAG, "MobileAds initialized successfully in background")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to initialize MobileAds: ${e.message}", e)
+                        }
+                    }.start()
                 }
             }
         }

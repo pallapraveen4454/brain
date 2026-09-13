@@ -143,6 +143,8 @@ object AvatarUtils {
             "robot" -> R.drawable.avatar_robot
             "detective" -> R.drawable.avatar_detective
             "scientist" -> R.drawable.avatar_scientist
+            "quiz_king" -> R.drawable.avatar_quiz_king
+            "quiz_queen" -> R.drawable.avatar_quiz_queen
             else -> null
         }
     }
@@ -161,6 +163,7 @@ object AvatarUtils {
             "scientist" -> "🔬"
             "astronaut" -> "👨‍🚀"
             "quiz_king" -> "👑"
+            "quiz_queen" -> "👑"
             "brain_master" -> "🧠"
             "brain" -> "🧠"
             "wizard" -> "🧙"
@@ -316,6 +319,16 @@ object AvatarShopData {
             status = AvatarStatus.LOCKED,
             description = "Royal trivia monarch ruling at the top of the BrainQuiz leaderboard.",
             gradientColors = listOf(Color(0xFFFBBF24), Color(0xFFD97706))
+        ),
+        AvatarShopItem(
+            id = "quiz_queen",
+            name = "Quiz Queen",
+            emoji = "👑",
+            category = AvatarCategory.EPIC,
+            price = 10000,
+            status = AvatarStatus.LOCKED,
+            description = "Regal trivia sovereign commanding absolute wisdom and elegance in every duel.",
+            gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
         ),
         AvatarShopItem(
             id = "brain_master",
