@@ -195,7 +195,7 @@ fun LeaderboardScreen(
 
         val top3 = remember(filteredPlayers, searchQuery) { filteredPlayers.take(3) }
         val listItems = remember(filteredPlayers, searchQuery) {
-            if (searchQuery.isBlank() && filteredPlayers.size > 3) {
+            if (searchQuery.isBlank()) {
                 filteredPlayers.drop(3)
             } else {
                 filteredPlayers
@@ -659,14 +659,57 @@ private fun LeaderboardSearchBar(
 
 @Composable
 private fun PodiumSection(top3: List<LeaderboardUser>) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        if (top3.size >= 2) {
+    if (top3.isEmpty()) return
+
+    if (top3.size == 1) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            PodiumCard(
+                user = top3[0],
+                rankNumber = 1,
+                modifier = Modifier.width(180.dp),
+                badgeColor = AccentCoins,
+                medalEmoji = "👑 🥇",
+                columnHeightDp = 220
+            )
+        }
+    } else if (top3.size == 2) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            PodiumCard(
+                user = top3[1],
+                rankNumber = 2,
+                modifier = Modifier.weight(1f),
+                badgeColor = Color(0xFFD0D0E0),
+                medalEmoji = "🥈",
+                columnHeightDp = 185
+            )
+            PodiumCard(
+                user = top3[0],
+                rankNumber = 1,
+                modifier = Modifier.weight(1.15f),
+                badgeColor = AccentCoins,
+                medalEmoji = "👑 🥇",
+                columnHeightDp = 220
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
             // Rank 2 (Silver - Left)
             PodiumCard(
                 user = top3[1],
@@ -676,8 +719,6 @@ private fun PodiumSection(top3: List<LeaderboardUser>) {
                 medalEmoji = "🥈",
                 columnHeightDp = 185
             )
-        }
-        if (top3.isNotEmpty()) {
             // Rank 1 (Gold - Center - Taller & Eye-catching)
             PodiumCard(
                 user = top3[0],
@@ -687,8 +728,6 @@ private fun PodiumSection(top3: List<LeaderboardUser>) {
                 medalEmoji = "👑 🥇",
                 columnHeightDp = 220
             )
-        }
-        if (top3.size >= 3) {
             // Rank 3 (Bronze - Right)
             PodiumCard(
                 user = top3[2],

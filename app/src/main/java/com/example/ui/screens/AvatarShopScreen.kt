@@ -161,10 +161,12 @@ object AvatarUtils {
             "robot" -> "🤖"
             "detective" -> "🕵️"
             "scientist" -> "🔬"
-            "astronaut" -> "👨‍🚀"
             "quiz_king" -> "👑"
             "quiz_queen" -> "👑"
-            "brain_master" -> "🧠"
+            "chess_master" -> "♟️"
+            "mystic_scholar" -> "🔮"
+            "cyber_sage" -> "⚡"
+            "mythic_phoenix" -> "🔥"
             "brain" -> "🧠"
             "wizard" -> "🧙"
             "rocket" -> "🚀"
@@ -280,6 +282,16 @@ object AvatarShopData {
             gradientColors = listOf(Color(0xFFC084FC), Color(0xFF7E22CE))
         ),
         AvatarShopItem(
+            id = "detective",
+            name = "Detective",
+            emoji = "🕵️",
+            category = AvatarCategory.RARE,
+            price = 3000,
+            status = AvatarStatus.BUY,
+            description = "Master sleuth uncovering secrets and clues to tough trivia riddles.",
+            gradientColors = listOf(Color(0xFFFB923C), Color(0xFFC2410C))
+        ),
+        AvatarShopItem(
             id = "scientist",
             name = "Scientist",
             emoji = "🔬",
@@ -290,24 +302,14 @@ object AvatarShopData {
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
         ),
         AvatarShopItem(
-            id = "detective",
-            name = "Detective",
-            emoji = "🕵️",
+            id = "chess_master",
+            name = "Chess Master",
+            emoji = "♟️",
             category = AvatarCategory.RARE,
-            price = 5000,
+            price = 4500,
             status = AvatarStatus.BUY,
-            description = "Master sleuth uncovering secrets and clues to tough trivia riddles.",
-            gradientColors = listOf(Color(0xFFFB923C), Color(0xFFC2410C))
-        ),
-        AvatarShopItem(
-            id = "astronaut",
-            name = "Astronaut",
-            emoji = "👨‍🚀",
-            category = AvatarCategory.RARE,
-            price = 6000,
-            status = AvatarStatus.BUY,
-            description = "Space explorer discovering new frontiers of cosmic general knowledge.",
-            gradientColors = listOf(Color(0xFFF59E0B), Color(0xFFB45309))
+            description = "Tactical grandmaster thinking multiple moves ahead on every trivia puzzle.",
+            gradientColors = listOf(Color(0xFF0EA5E9), Color(0xFF0369A1))
         ),
         // EPIC
         AvatarShopItem(
@@ -331,14 +333,34 @@ object AvatarShopData {
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
         ),
         AvatarShopItem(
-            id = "brain_master",
-            name = "Brain Master",
-            emoji = "🧠",
+            id = "mystic_scholar",
+            name = "Mystic Scholar",
+            emoji = "🔮",
             category = AvatarCategory.EPIC,
-            price = 10000,
+            price = 12000,
             status = AvatarStatus.LOCKED,
-            description = "Ultimate cosmic intellect with unmatched accuracy and unstoppable streaks.",
-            gradientColors = listOf(Color(0xFFEC4899), Color(0xFF9D174D))
+            description = "Arcane sage unlocking the ancient mysteries of science and history.",
+            gradientColors = listOf(Color(0xFFA855F7), Color(0xFF6B21A8))
+        ),
+        AvatarShopItem(
+            id = "cyber_sage",
+            name = "Cyber Sage",
+            emoji = "⚡",
+            category = AvatarCategory.EPIC,
+            price = 15000,
+            status = AvatarStatus.LOCKED,
+            description = "Digital oracle commanding cutting-edge technology and cyber wisdom.",
+            gradientColors = listOf(Color(0xFF06B6D4), Color(0xFF0E7490))
+        ),
+        AvatarShopItem(
+            id = "mythic_phoenix",
+            name = "Mythic Phoenix",
+            emoji = "🔥",
+            category = AvatarCategory.EPIC,
+            price = 20000,
+            status = AvatarStatus.LOCKED,
+            description = "Legendary reborn avatar radiating brilliance, power, and unstoppable quiz streaks.",
+            gradientColors = listOf(Color(0xFFF97316), Color(0xFFC2410C))
         )
     )
 }

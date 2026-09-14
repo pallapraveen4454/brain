@@ -9,6 +9,8 @@ import com.example.utils.RankUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -120,15 +122,15 @@ class LeaderboardRepository(
             isCurrentUser = true
         )
 
-        // Filter out duplicate current user entries from cached players
+        // Filter out duplicate current user entries from cached players and any fake bots
         val otherPlayers = cachedPlayers
-            .filterNot { it.id == currentUserEntry.id || it.isCurrentUser }
+            .filterNot { it.id == currentUserEntry.id || it.isCurrentUser || it.id.startsWith("comm_player_") }
             .map { it.copy(isCurrentUser = false) }
 
         val rankedList = when (period) {
             LeaderboardPeriod.WEEKLY -> {
                 val eligibleOther = otherPlayers.map { player ->
-                    val wXp = if (player.weeklyXp > 0) player.weeklyXp else maxOf(50, (player.xp * 0.15).toInt())
+                    val wXp = if (player.weeklyXp > 0) player.weeklyXp else maxOf(0, (player.xp * 0.15).toInt())
                     val wScore = calculateScore(wXp, maxOf(1, player.quizzesPlayed / 4), 0)
                     player.copy(xp = wXp, weeklyXp = wXp, score = wScore)
                 }
@@ -154,12 +156,12 @@ class LeaderboardRepository(
                 }
             }
             LeaderboardPeriod.FRIENDS -> {
-                // In Friends mode, display registered app users and community peers
-                val registeredUsers = loadRegisteredAppUsers()
-                    .filterNot { it.id == currentUserEntry.id }
+                // In Friends mode, display ONLY real registered users, saved accounts, and friends - strictly ZERO fake bots
+                val registeredUsers = (loadRegisteredAppUsers() + otherPlayers)
+                    .filterNot { it.id == currentUserEntry.id || it.id.startsWith("comm_player_") || it.id.startsWith("guest_") }
                     .map { it.copy(isCurrentUser = false) }
-                val peers = (otherPlayers.take(6) + registeredUsers).distinctBy { it.id }
-                val allFriends = (peers + currentUserEntry).distinctBy { it.id }
+                    .distinctBy { it.id }
+                val allFriends = (registeredUsers + currentUserEntry).distinctBy { it.id }
                 allFriends.sortedWith(
                     compareByDescending<LeaderboardUser> { it.xp }
                         .thenByDescending { it.score }
@@ -180,6 +182,87 @@ class LeaderboardRepository(
         )
     }
 
+    /**
+     * Attaches a real-time Firestore listener to "leaderboard" so any new score from friends or family
+     * across different devices is received instantly.
+     */
+    fun observeRemoteLeaderboard(
+        period: LeaderboardPeriod,
+        onLeaderboardUpdated: (LeaderboardData) -> Unit
+    ): com.google.firebase.firestore.ListenerRegistration? {
+        val firestore = getFirestore() ?: return null
+        return try {
+            firestore.collection("leaderboard")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.w("LeaderboardRepository", "Firestore leaderboard listener error: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null) {
+                        val currentProfile = userProfileStore.getProfile()
+                        val currentUid = currentProfile.uid
+                        val startOfWeek = getStartOfWeekMillis()
+                        val remoteUsers = snapshot.documents.mapNotNull { doc ->
+                            try {
+                                val id = doc.getString("id") ?: doc.getString("uid") ?: doc.id
+                                if (id.isBlank() || id.startsWith("comm_player_") || id.startsWith("guest_")) {
+                                    return@mapNotNull null
+                                }
+                                val nameRaw = doc.getString("name") ?: ""
+                                val email = doc.getString("email") ?: ""
+                                val name = when {
+                                    nameRaw.isNotBlank() && nameRaw != "Player" && nameRaw != "Guest Player" -> nameRaw
+                                    email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                    else -> nameRaw.ifBlank { "Player" }
+                                }
+                                val avatarId = doc.getString("avatarId") ?: "brain"
+                                val xp = doc.getLong("xp")?.toInt() ?: 0
+                                val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
+                                val docWeekStart = doc.getLong("weekStart") ?: 0L
+                                val validWeeklyXp = if (docWeekStart >= startOfWeek) docWeeklyXp else maxOf(0, (xp * 0.15).toInt())
+                                val level = doc.getLong("level")?.toInt() ?: LevelUtils.getLevel(xp)
+                                val rankBadge = doc.getString("rankBadge") ?: RankUtils.getRankForXp(xp)
+                                val quizzesPlayed = doc.getLong("quizzesPlayed")?.toInt() ?: 0
+                                val achievementsCount = doc.getLong("achievementsCount")?.toInt() ?: 0
+                                val score = doc.getLong("score")?.toInt() ?: calculateScore(xp, quizzesPlayed, achievementsCount)
+                                val countryFlag = doc.getString("countryFlag") ?: "🌟"
+                                val isCurrent = currentUid.isNotBlank() && id == currentUid
+
+                                LeaderboardUser(
+                                    rank = 0,
+                                    id = id,
+                                    name = name,
+                                    avatarId = avatarId,
+                                    xp = xp,
+                                    weeklyXp = validWeeklyXp,
+                                    level = level,
+                                    rankBadge = rankBadge,
+                                    quizzesPlayed = quizzesPlayed,
+                                    achievementsCount = achievementsCount,
+                                    score = score,
+                                    countryFlag = countryFlag,
+                                    rankChange = 0,
+                                    isCurrentUser = isCurrent
+                                )
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+
+                        if (remoteUsers.isNotEmpty()) {
+                            saveCachedLeaderboard(remoteUsers)
+                            saveRegisteredAppUsers(remoteUsers)
+                            val freshData = getLeaderboard(period)
+                            onLeaderboardUpdated(freshData)
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e("LeaderboardRepository", "Error setting up leaderboard snapshot listener", e)
+            null
+        }
+    }
+
     suspend fun fetchRemoteLeaderboard(period: LeaderboardPeriod = LeaderboardPeriod.GLOBAL): List<LeaderboardUser> {
         try {
             val firestore = getFirestore() ?: return loadCachedLeaderboard()
@@ -188,101 +271,113 @@ class LeaderboardRepository(
             val currentUid = currentProfile.uid
             val startOfWeek = getStartOfWeekMillis()
 
-            // 1. Fetch from 'leaderboard' collection
-            try {
-                val leaderboardSnapshot = firestore.collection("leaderboard")
-                    .limit(100)
-                    .get()
-                    .await()
+            withContext(NonCancellable) {
+                withTimeoutOrNull(15000L) {
+                    // 1. Fetch from 'leaderboard' collection
+                    try {
+                        val leaderboardSnapshot = firestore.collection("leaderboard")
+                            .limit(100)
+                            .get()
+                            .await()
 
-                for (doc in leaderboardSnapshot.documents) {
-                    val id = doc.getString("id") ?: doc.id
-                    val name = doc.getString("name") ?: "Player"
-                    val avatarId = doc.getString("avatarId") ?: "brain"
-                    val xp = doc.getLong("xp")?.toInt() ?: 0
-                    val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
-                    val docWeekStart = doc.getLong("weekStart") ?: 0L
-                    val validWeeklyXp = if (docWeekStart >= startOfWeek) docWeeklyXp else maxOf(0, (xp * 0.15).toInt())
-                    val level = doc.getLong("level")?.toInt() ?: LevelUtils.getLevel(xp)
-                    val rankBadge = doc.getString("rankBadge") ?: RankUtils.getRankForXp(xp)
-                    val quizzesPlayed = doc.getLong("quizzesPlayed")?.toInt() ?: 0
-                    val achievementsCount = doc.getLong("achievementsCount")?.toInt() ?: 0
-                    val score = doc.getLong("score")?.toInt() ?: calculateScore(xp, quizzesPlayed, achievementsCount)
-                    val countryFlag = doc.getString("countryFlag") ?: "🌟"
-                    val isCurrent = currentUid.isNotBlank() && id == currentUid
+                        for (doc in leaderboardSnapshot.documents) {
+                            val id = doc.getString("id") ?: doc.getString("uid") ?: doc.id
+                            if (id.isBlank() || id.startsWith("comm_player_") || id.startsWith("guest_")) continue
+                            val nameRaw = doc.getString("name") ?: ""
+                            val email = doc.getString("email") ?: ""
+                            val name = when {
+                                nameRaw.isNotBlank() && nameRaw != "Player" && nameRaw != "Guest Player" -> nameRaw
+                                email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                else -> nameRaw.ifBlank { "Player" }
+                            }
+                            val avatarId = doc.getString("avatarId") ?: "brain"
+                            val xp = doc.getLong("xp")?.toInt() ?: 0
+                            val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
+                            val docWeekStart = doc.getLong("weekStart") ?: 0L
+                            val validWeeklyXp = if (docWeekStart >= startOfWeek) docWeeklyXp else maxOf(0, (xp * 0.15).toInt())
+                            val level = doc.getLong("level")?.toInt() ?: LevelUtils.getLevel(xp)
+                            val rankBadge = doc.getString("rankBadge") ?: RankUtils.getRankForXp(xp)
+                            val quizzesPlayed = doc.getLong("quizzesPlayed")?.toInt() ?: 0
+                            val achievementsCount = doc.getLong("achievementsCount")?.toInt() ?: 0
+                            val score = doc.getLong("score")?.toInt() ?: calculateScore(xp, quizzesPlayed, achievementsCount)
+                            val countryFlag = doc.getString("countryFlag") ?: "🌟"
+                            val isCurrent = currentUid.isNotBlank() && id == currentUid
 
-                    remoteUsersMap[id] = LeaderboardUser(
-                        rank = 0,
-                        id = id,
-                        name = name,
-                        avatarId = avatarId,
-                        xp = xp,
-                        weeklyXp = validWeeklyXp,
-                        level = level,
-                        rankBadge = rankBadge,
-                        quizzesPlayed = quizzesPlayed,
-                        achievementsCount = achievementsCount,
-                        score = score,
-                        countryFlag = countryFlag,
-                        rankChange = 0,
-                        isCurrentUser = isCurrent
-                    )
-                }
-            } catch (e: Exception) {
-                Log.w("LeaderboardRepository", "Firestore 'leaderboard' collection query skipped or failed: ${e.message}")
-            }
-
-            // 2. Fetch from 'users' collection to capture every user who signed in / registered
-            try {
-                val usersSnapshot = firestore.collection("users")
-                    .limit(100)
-                    .get()
-                    .await()
-
-                for (doc in usersSnapshot.documents) {
-                    val id = doc.getString("uid") ?: doc.id
-                    val existing = remoteUsersMap[id]
-                    val email = doc.getString("email") ?: ""
-                    val nameRaw = doc.getString("name") ?: ""
-                    val name = when {
-                        nameRaw.isNotBlank() && nameRaw != "Player" && nameRaw != "Guest Player" -> nameRaw
-                        email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
-                        existing != null && existing.name.isNotBlank() && existing.name != "Player" -> existing.name
-                        else -> nameRaw.ifBlank { "Player" }
+                            remoteUsersMap[id] = LeaderboardUser(
+                                rank = 0,
+                                id = id,
+                                name = name,
+                                avatarId = avatarId,
+                                xp = xp,
+                                weeklyXp = validWeeklyXp,
+                                level = level,
+                                rankBadge = rankBadge,
+                                quizzesPlayed = quizzesPlayed,
+                                achievementsCount = achievementsCount,
+                                score = score,
+                                countryFlag = countryFlag,
+                                rankChange = 0,
+                                isCurrentUser = isCurrent
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.w("LeaderboardRepository", "Firestore 'leaderboard' collection query skipped or failed: ${e.message}")
                     }
-                    val avatarId = doc.getString("avatarId") ?: existing?.avatarId ?: "brain"
-                    val xp = maxOf(doc.getLong("xp")?.toInt() ?: 0, existing?.xp ?: 0)
-                    val level = maxOf(doc.getLong("level")?.toInt() ?: 1, existing?.level ?: 1, LevelUtils.getLevel(xp))
-                    val rankBadge = doc.getString("rank") ?: existing?.rankBadge ?: RankUtils.getRankForXp(xp)
-                    val quizzesPlayed = maxOf(doc.getLong("totalQuizzesPlayed")?.toInt() ?: 0, existing?.quizzesPlayed ?: 0)
-                    val achievementsList = doc.get("unlockedAchievements") as? List<*>
-                    val achievementsCount = maxOf(achievementsList?.size ?: 0, existing?.achievementsCount ?: 0)
-                    val score = calculateScore(xp, quizzesPlayed, achievementsCount)
-                    val validWeeklyXp = existing?.weeklyXp ?: maxOf(0, (xp * 0.15).toInt())
-                    val isCurrent = currentUid.isNotBlank() && id == currentUid
 
-                    remoteUsersMap[id] = LeaderboardUser(
-                        rank = 0,
-                        id = id,
-                        name = name,
-                        avatarId = avatarId,
-                        xp = xp,
-                        weeklyXp = validWeeklyXp,
-                        level = level,
-                        rankBadge = rankBadge,
-                        quizzesPlayed = quizzesPlayed,
-                        achievementsCount = achievementsCount,
-                        score = score,
-                        countryFlag = existing?.countryFlag ?: "🌟",
-                        rankChange = 0,
-                        isCurrentUser = isCurrent
-                    )
+                    // 2. Fetch from 'users' collection to capture every user who signed in / registered
+                    try {
+                        val usersSnapshot = firestore.collection("users")
+                            .limit(100)
+                            .get()
+                            .await()
+
+                        for (doc in usersSnapshot.documents) {
+                            val id = doc.getString("uid") ?: doc.id
+                            if (id.isBlank() || id.startsWith("comm_player_") || id.startsWith("guest_")) continue
+                            val existing = remoteUsersMap[id]
+                            val email = doc.getString("email") ?: ""
+                            val nameRaw = doc.getString("name") ?: ""
+                            val name = when {
+                                nameRaw.isNotBlank() && nameRaw != "Player" && nameRaw != "Guest Player" -> nameRaw
+                                email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                existing != null && existing.name.isNotBlank() && existing.name != "Player" -> existing.name
+                                else -> nameRaw.ifBlank { "Player" }
+                            }
+                            val avatarId = doc.getString("avatarId") ?: existing?.avatarId ?: "brain"
+                            val xp = maxOf(doc.getLong("xp")?.toInt() ?: 0, existing?.xp ?: 0)
+                            val level = maxOf(doc.getLong("level")?.toInt() ?: 1, existing?.level ?: 1, LevelUtils.getLevel(xp))
+                            val rankBadge = doc.getString("rank") ?: existing?.rankBadge ?: RankUtils.getRankForXp(xp)
+                            val quizzesPlayed = maxOf(doc.getLong("totalQuizzesPlayed")?.toInt() ?: 0, existing?.quizzesPlayed ?: 0)
+                            val achievementsList = doc.get("unlockedAchievements") as? List<*>
+                            val achievementsCount = maxOf(achievementsList?.size ?: 0, existing?.achievementsCount ?: 0)
+                            val score = calculateScore(xp, quizzesPlayed, achievementsCount)
+                            val validWeeklyXp = existing?.weeklyXp ?: maxOf(0, (xp * 0.15).toInt())
+                            val isCurrent = currentUid.isNotBlank() && id == currentUid
+
+                            remoteUsersMap[id] = LeaderboardUser(
+                                rank = 0,
+                                id = id,
+                                name = name,
+                                avatarId = avatarId,
+                                xp = xp,
+                                weeklyXp = validWeeklyXp,
+                                level = level,
+                                rankBadge = rankBadge,
+                                quizzesPlayed = quizzesPlayed,
+                                achievementsCount = achievementsCount,
+                                score = score,
+                                countryFlag = existing?.countryFlag ?: "🌟",
+                                rankChange = 0,
+                                isCurrentUser = isCurrent
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.w("LeaderboardRepository", "Firestore 'users' collection query skipped or failed: ${e.message}")
+                    }
                 }
-            } catch (e: Exception) {
-                Log.w("LeaderboardRepository", "Firestore 'users' collection query skipped or failed: ${e.message}")
             }
 
-            val remoteUsers = remoteUsersMap.values.toList()
+            val remoteUsers = remoteUsersMap.values.filterNot { it.id.startsWith("comm_player_") }
             if (remoteUsers.isNotEmpty()) {
                 saveCachedLeaderboard(remoteUsers)
                 saveRegisteredAppUsers(remoteUsers)
@@ -396,11 +491,31 @@ class LeaderboardRepository(
                 "updatedAt" to System.currentTimeMillis()
             )
 
-            withTimeoutOrNull(3500L) {
-                firestore.collection("leaderboard")
-                    .document(userProfile.uid)
-                    .set(entry)
-                    .await()
+            withContext(NonCancellable) {
+                withTimeoutOrNull(15000L) {
+                    firestore.collection("leaderboard")
+                        .document(userProfile.uid)
+                        .set(entry)
+                        .await()
+
+                    // Also merge with users collection so both places have fresh name & XP
+                    firestore.collection("users")
+                        .document(userProfile.uid)
+                        .set(
+                            mapOf(
+                                "uid" to userProfile.uid,
+                                "name" to displayName,
+                                "email" to userProfile.email,
+                                "avatarId" to userProfile.avatarId.ifBlank { "brain" },
+                                "xp" to userProfile.xp,
+                                "level" to maxOf(1, userProfile.level),
+                                "totalQuizzesPlayed" to quizzesCount,
+                                "updatedAt" to System.currentTimeMillis()
+                            ),
+                            com.google.firebase.firestore.SetOptions.merge()
+                        )
+                        .await()
+                }
             }
 
             Log.d("LeaderboardRepository", "Successfully synced user ${userProfile.uid} ($displayName) to Firestore leaderboard (XP: ${userProfile.xp})")
@@ -424,10 +539,12 @@ class LeaderboardRepository(
                 val list = mutableListOf<LeaderboardUser>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val id = obj.optString("id", "")
+                    if (id.startsWith("comm_player_")) continue
                     list.add(
                         LeaderboardUser(
                             rank = obj.optInt("rank", 0),
-                            id = obj.optString("id", ""),
+                            id = id,
                             name = obj.optString("name", "Player"),
                             avatarId = obj.optString("avatarId", "brain"),
                             xp = obj.optInt("xp", 0),
@@ -456,7 +573,7 @@ class LeaderboardRepository(
             val prefs = getPrefs() ?: return
             val existing = loadRegisteredAppUsers().associateBy { it.id }.toMutableMap()
             users.forEach { user ->
-                if (user.id.isNotBlank()) {
+                if (user.id.isNotBlank() && !user.id.startsWith("comm_player_")) {
                     existing[user.id] = user.copy(isCurrentUser = false)
                 }
             }
@@ -487,7 +604,7 @@ class LeaderboardRepository(
     private fun loadCachedLeaderboard(): List<LeaderboardUser> {
         val resultList = mutableListOf<LeaderboardUser>()
 
-        // 1. Read stored cached JSON
+        // 1. Read stored cached JSON (skipping any legacy fake community players)
         val prefs = getPrefs()
         val jsonStr = prefs?.getString("cached_leaderboard_json", "") ?: ""
         if (jsonStr.isNotBlank()) {
@@ -495,10 +612,13 @@ class LeaderboardRepository(
                 val array = JSONArray(jsonStr)
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val id = obj.optString("id", "user_${i + 1}")
+                    if (id.startsWith("comm_player_")) continue
+
                     resultList.add(
                         LeaderboardUser(
                             rank = obj.optInt("rank", i + 1),
-                            id = obj.optString("id", "user_${i + 1}"),
+                            id = id,
                             name = obj.optString("name", "Player"),
                             avatarId = obj.optString("avatarId", "brain"),
                             xp = obj.optInt("xp", 0),
@@ -519,15 +639,15 @@ class LeaderboardRepository(
             }
         }
 
-        // 2. Include all users registered in app
-        val registered = loadRegisteredAppUsers()
+        // 2. Include all real users registered in app
+        val registered = loadRegisteredAppUsers().filterNot { it.id.startsWith("comm_player_") }
         resultList.addAll(registered)
 
         // 3. Include all saved profiles stored on this device
         try {
             val savedProfiles = userProfileStore.getAllSavedProfiles()
             for (p in savedProfiles) {
-                if (p.uid.isNotBlank()) {
+                if (p.uid.isNotBlank() && !p.uid.startsWith("comm_player_") && !p.uid.startsWith("guest_")) {
                     val name = when {
                         p.name.isNotBlank() && p.name != "Player" && p.name != "Guest Player" -> p.name
                         p.email.isNotBlank() && !p.email.startsWith("Guest") -> p.email.substringBefore("@").replaceFirstChar { it.uppercase() }
@@ -558,16 +678,17 @@ class LeaderboardRepository(
             Log.e("LeaderboardRepository", "Error fetching saved profiles for leaderboard", e)
         }
 
-        // 4. Merge with baseline community contestants to guarantee a full leaderboard
-        val combined = (resultList + DEFAULT_COMMUNITY_PLAYERS).distinctBy { it.id }
-        return combined
+        // Return real users only - no fake bots
+        val cleanList = resultList.filterNot { it.id.startsWith("comm_player_") }.distinctBy { it.id }
+        return cleanList
     }
 
     private fun saveCachedLeaderboard(players: List<LeaderboardUser>) {
         try {
             val prefs = getPrefs() ?: return
+            val cleanPlayers = players.filterNot { it.id.startsWith("comm_player_") }
             val array = JSONArray()
-            players.forEach { player ->
+            cleanPlayers.forEach { player ->
                 val obj = JSONObject().apply {
                     put("rank", player.rank)
                     put("id", player.id)
@@ -592,247 +713,6 @@ class LeaderboardRepository(
     }
 
     companion object {
-        val DEFAULT_COMMUNITY_PLAYERS = listOf(
-            LeaderboardUser(
-                rank = 1,
-                id = "comm_player_1",
-                name = "Aarav Sharma",
-                avatarId = "quiz_king",
-                xp = 4850,
-                weeklyXp = 820,
-                level = 15,
-                rankBadge = "Grandmaster",
-                quizzesPlayed = 52,
-                achievementsCount = 14,
-                score = 6330,
-                countryFlag = "🇮🇳",
-                rankChange = 0,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 2,
-                id = "comm_player_2",
-                name = "Elena Rostova",
-                avatarId = "scientist",
-                xp = 4320,
-                weeklyXp = 750,
-                level = 14,
-                rankBadge = "Master",
-                quizzesPlayed = 46,
-                achievementsCount = 12,
-                score = 5610,
-                countryFlag = "🇩🇪",
-                rankChange = 1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 3,
-                id = "comm_player_3",
-                name = "Priya Patel",
-                avatarId = "quiz_queen",
-                xp = 3980,
-                weeklyXp = 690,
-                level = 13,
-                rankBadge = "Master",
-                quizzesPlayed = 41,
-                achievementsCount = 11,
-                score = 5145,
-                countryFlag = "🇮🇳",
-                rankChange = -1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 4,
-                id = "comm_player_4",
-                name = "Lucas Miller",
-                avatarId = "detective",
-                xp = 3560,
-                weeklyXp = 580,
-                level = 12,
-                rankBadge = "Expert",
-                quizzesPlayed = 38,
-                achievementsCount = 10,
-                score = 4630,
-                countryFlag = "🇺🇸",
-                rankChange = 2,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 5,
-                id = "comm_player_5",
-                name = "Ananya Rao",
-                avatarId = "brain_master",
-                xp = 3120,
-                weeklyXp = 510,
-                level = 11,
-                rankBadge = "Expert",
-                quizzesPlayed = 34,
-                achievementsCount = 9,
-                score = 4080,
-                countryFlag = "🇮🇳",
-                rankChange = 0,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 6,
-                id = "comm_player_6",
-                name = "Kenji Sato",
-                avatarId = "robot",
-                xp = 2750,
-                weeklyXp = 460,
-                level = 10,
-                rankBadge = "Scholar",
-                quizzesPlayed = 29,
-                achievementsCount = 8,
-                score = 3585,
-                countryFlag = "🇯🇵",
-                rankChange = -1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 7,
-                id = "comm_player_7",
-                name = "Sophia Davis",
-                avatarId = "student_girl",
-                xp = 2380,
-                weeklyXp = 410,
-                level = 9,
-                rankBadge = "Scholar",
-                quizzesPlayed = 25,
-                achievementsCount = 7,
-                score = 3105,
-                countryFlag = "🇬🇧",
-                rankChange = 1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 8,
-                id = "comm_player_8",
-                name = "Rahul Verma",
-                avatarId = "student_boy",
-                xp = 2050,
-                weeklyXp = 360,
-                level = 8,
-                rankBadge = "Thinker",
-                quizzesPlayed = 22,
-                achievementsCount = 6,
-                score = 2680,
-                countryFlag = "🇮🇳",
-                rankChange = 0,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 9,
-                id = "comm_player_9",
-                name = "Mateo Hernandez",
-                avatarId = "gamer",
-                xp = 1720,
-                weeklyXp = 310,
-                level = 7,
-                rankBadge = "Thinker",
-                quizzesPlayed = 19,
-                achievementsCount = 5,
-                score = 2255,
-                countryFlag = "🇪🇸",
-                rankChange = 3,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 10,
-                id = "comm_player_10",
-                name = "Kavya Reddy",
-                avatarId = "reader",
-                xp = 1420,
-                weeklyXp = 270,
-                level = 6,
-                rankBadge = "Apprentice",
-                quizzesPlayed = 16,
-                achievementsCount = 5,
-                score = 1910,
-                countryFlag = "🇮🇳",
-                rankChange = -2,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 11,
-                id = "comm_player_11",
-                name = "David Chen",
-                avatarId = "programmer",
-                xp = 1150,
-                weeklyXp = 220,
-                level = 5,
-                rankBadge = "Apprentice",
-                quizzesPlayed = 13,
-                achievementsCount = 4,
-                score = 1545,
-                countryFlag = "🇨🇦",
-                rankChange = 1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 12,
-                id = "comm_player_12",
-                name = "Sneha Kulkarni",
-                avatarId = "student_girl",
-                xp = 880,
-                weeklyXp = 180,
-                level = 4,
-                rankBadge = "Novice",
-                quizzesPlayed = 10,
-                achievementsCount = 3,
-                score = 1180,
-                countryFlag = "🇮🇳",
-                rankChange = 0,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 13,
-                id = "comm_player_13",
-                name = "Vikram Singh",
-                avatarId = "student_boy",
-                xp = 620,
-                weeklyXp = 140,
-                level = 3,
-                rankBadge = "Novice",
-                quizzesPlayed = 7,
-                achievementsCount = 2,
-                score = 825,
-                countryFlag = "🇮🇳",
-                rankChange = -1,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 14,
-                id = "comm_player_14",
-                name = "Fatima Al-Mansoor",
-                avatarId = "brain",
-                xp = 390,
-                weeklyXp = 90,
-                level = 2,
-                rankBadge = "Beginner",
-                quizzesPlayed = 4,
-                achievementsCount = 1,
-                score = 500,
-                countryFlag = "🇦🇪",
-                rankChange = 0,
-                isCurrentUser = false
-            ),
-            LeaderboardUser(
-                rank = 15,
-                id = "comm_player_15",
-                name = "Marcus Aurelius",
-                avatarId = "quiz_king",
-                xp = 210,
-                weeklyXp = 50,
-                level = 2,
-                rankBadge = "Beginner",
-                quizzesPlayed = 3,
-                achievementsCount = 1,
-                score = 305,
-                countryFlag = "🇮🇹",
-                rankChange = 0,
-                isCurrentUser = false
-            )
-        )
+        val DEFAULT_COMMUNITY_PLAYERS = emptyList<LeaderboardUser>()
     }
 }

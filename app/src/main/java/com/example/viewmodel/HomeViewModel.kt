@@ -111,6 +111,7 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private var leaderboardListenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
 
     init {
         loadUserProfile()
@@ -133,7 +134,17 @@ class HomeViewModel(
             Log.e("HomeViewModel", "Error reading local leaderboard", e)
         }
 
-        // 2. Refresh from Firestore and sync current user in background
+        // 2. Real-time Firestore snapshot listener for instant synchronization with friends
+        try {
+            leaderboardListenerRegistration?.remove()
+            leaderboardListenerRegistration = leaderboardRepository.observeRemoteLeaderboard(period) { freshData ->
+                _uiState.update { it.copy(leaderboardData = freshData) }
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "Error attaching leaderboard listener", e)
+        }
+
+        // 3. Refresh from Firestore and sync current user in background
         viewModelScope.launch {
             try {
                 val profile = authRepository.getPersistentGuestProfile()
@@ -421,6 +432,16 @@ class HomeViewModel(
     fun resetGuestAccount() {
         authRepository.resetGuestAccount()
         loadUserProfile()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            leaderboardListenerRegistration?.remove()
+            leaderboardListenerRegistration = null
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "Error detaching leaderboard listener", e)
+        }
     }
 }
 
