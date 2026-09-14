@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ad-services-config>
+    <!-- Disable ad measurement attribution binding in virtual / sandbox environment -->
+    <attribution allowAllToAccess="false" />
+    <topics allowAllToAccess="false" />
+</ad-services-config>

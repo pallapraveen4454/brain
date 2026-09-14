@@ -435,6 +435,28 @@ class UserProfileStore(
         }
     }
 
+    fun getAllSavedProfiles(): List<UserProfile> {
+        val list = mutableListOf<UserProfile>()
+        try {
+            val allEntries = getPrefs()?.all ?: return emptyList()
+            for ((key, value) in allEntries) {
+                if (key.startsWith("auth_user_profile_") && value is String && value.isNotBlank()) {
+                    try {
+                        val p = profileFromJson(JSONObject(value))
+                        if (p.uid.isNotBlank()) {
+                            list.add(p)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("UserProfileStore", "Failed to parse saved profile for key $key", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("UserProfileStore", "Error getting all saved profiles", e)
+        }
+        return list
+    }
+
     private fun syncLegacyPrefs(profile: UserProfile) {
         try {
             val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null } ?: return

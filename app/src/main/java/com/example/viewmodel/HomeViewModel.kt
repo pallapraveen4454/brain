@@ -133,13 +133,11 @@ class HomeViewModel(
             Log.e("HomeViewModel", "Error reading local leaderboard", e)
         }
 
-        // 2. Refresh from Firestore and sync current authenticated user in background
+        // 2. Refresh from Firestore and sync current user in background
         viewModelScope.launch {
             try {
-                if (!authRepository.isGuestSessionActive() && authRepository.currentUser != null) {
-                    val profile = authRepository.getPersistentGuestProfile()
-                    leaderboardRepository.syncCurrentUserToLeaderboard(profile)
-                }
+                val profile = authRepository.getPersistentGuestProfile()
+                leaderboardRepository.syncCurrentUserToLeaderboard(profile)
                 leaderboardRepository.fetchRemoteLeaderboard(period)
                 val freshData = leaderboardRepository.getLeaderboard(period)
                 _uiState.update { it.copy(leaderboardData = freshData) }

@@ -546,6 +546,12 @@ class AuthRepository(
     suspend fun saveUserProfileToFirestore(profile: UserProfile): Boolean {
         Log.d("XP_TRACE", "[AuthRepository] saveUserProfileToFirestore: profile.xp=${profile.xp}")
         userProfileStore.saveProfile(profile)
+        try {
+            val leaderboardRepo = LeaderboardRepository(context)
+            leaderboardRepo.recordUserForLeaderboard(profile)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error recording user to leaderboard", e)
+        }
         return try {
             val firestore = getFirestore() ?: return true
             if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") && !isGuestSessionActive()) {
