@@ -68,13 +68,19 @@ class GeminiQuizService {
         question: String,
         recentHistory: List<Pair<String, String>> = emptyList()
     ): Result<String> = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val rawKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = rawKey.trim().removeSurrounding("\"").removeSurrounding("'").trim()
         val trimmedQuestion = question.trim()
         if (trimmedQuestion.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Question cannot be empty"))
         }
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        val isPlaceholder = apiKey.isBlank() ||
+                apiKey == "MY_GEMINI_API_KEY" ||
+                apiKey == "AIzaSyDummyKeyForTesting" ||
+                apiKey == "your_gemini_api_key_here" ||
+                apiKey.contains("DummyKey", ignoreCase = true)
+        if (isPlaceholder) {
             Log.w("GeminiQuizService", "Cannot call Gemini Quick Answer: API key is not configured.")
             return@withContext Result.failure(IllegalStateException("Gemini API key is not configured. Please check your settings."))
         }
@@ -221,10 +227,13 @@ class GeminiQuizService {
                     }
                     lastException = Exception(errorMsg)
 
-                    // Client/auth errors (400, 401, 403) will not succeed with fallback; fast-fail immediately
-                    if (code == 400 || code == 401 || code == 403) {
+                    // Client auth / invalid key errors where the API key is completely rejected across all models
+                    val isGlobalAuthError = code == 401 || code == 403 ||
+                            (code == 400 && (body?.contains("API_KEY", ignoreCase = true) == true || body?.contains("API key", ignoreCase = true) == true))
+                    if (isGlobalAuthError) {
                         break
                     }
+                    // For model-specific errors (e.g. 404 model not found, or model-specific 400 parameters), continue to fallback model
                 }
             } catch (e: CancellationException) {
                 // Preserve coroutine cancellation when user leaves screen or newer request cancels it
@@ -264,11 +273,17 @@ class GeminiQuizService {
      * Generates exactly 10 genuinely topic-specific multiple-choice quiz questions for the selected topic.
      */
     suspend fun generateQuizForTopic(topic: String): List<QuizQuestion> = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val rawKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = rawKey.trim().removeSurrounding("\"").removeSurrounding("'").trim()
+        val isPlaceholder = apiKey.isBlank() ||
+                apiKey == "MY_GEMINI_API_KEY" ||
+                apiKey == "AIzaSyDummyKeyForTesting" ||
+                apiKey == "your_gemini_api_key_here" ||
+                apiKey.contains("DummyKey", ignoreCase = true)
         val trimmedTopic = topic.trim()
-        Log.d("GeminiQuizService", "Generating quiz for topic: '$trimmedTopic' (API Key present: ${apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"})")
+        Log.d("GeminiQuizService", "Generating quiz for topic: '$trimmedTopic' (API Key configured: ${!isPlaceholder})")
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        if (isPlaceholder) {
             Log.d("GeminiQuizService", "Using TopicKnowledgeEngine for topic: '$trimmedTopic'")
             return@withContext TopicKnowledgeEngine.generateQuestionsForTopic(trimmedTopic)
         }
