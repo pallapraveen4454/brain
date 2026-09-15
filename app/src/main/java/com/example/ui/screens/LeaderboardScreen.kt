@@ -548,8 +548,10 @@ private fun CurrentUserRankBanner(user: LeaderboardUser) {
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = PrimaryPurpleLight
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        RankMovementIndicator(user.rankChange)
+                        if (user.rankChange != 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            RankMovementIndicator(user.rankChange)
+                        }
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -1109,19 +1111,7 @@ private fun RankMovementIndicator(change: Int) {
             }
         }
         else -> {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Remove,
-                    contentDescription = "Same Position",
-                    tint = TextMuted,
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(
-                    text = "0",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextMuted
-                )
-            }
+            // Hide indicator when rank change is 0 or unchanged; do not show a placeholder rank of 0
         }
     }
 }
