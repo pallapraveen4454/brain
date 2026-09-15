@@ -493,28 +493,36 @@ class LeaderboardRepository(
 
             withContext(NonCancellable) {
                 withTimeoutOrNull(15000L) {
-                    firestore.collection("leaderboard")
-                        .document(userProfile.uid)
-                        .set(entry)
-                        .await()
+                    try {
+                        firestore.collection("leaderboard")
+                            .document(userProfile.uid)
+                            .set(entry)
+                            .await()
+                    } catch (e: Exception) {
+                        Log.e("LeaderboardRepository", "Error setting leaderboard document for ${userProfile.uid}: ${e.message}")
+                    }
 
                     // Also merge with users collection so both places have fresh name & XP
-                    firestore.collection("users")
-                        .document(userProfile.uid)
-                        .set(
-                            mapOf(
-                                "uid" to userProfile.uid,
-                                "name" to displayName,
-                                "email" to userProfile.email,
-                                "avatarId" to userProfile.avatarId.ifBlank { "brain" },
-                                "xp" to userProfile.xp,
-                                "level" to maxOf(1, userProfile.level),
-                                "totalQuizzesPlayed" to quizzesCount,
-                                "updatedAt" to System.currentTimeMillis()
-                            ),
-                            com.google.firebase.firestore.SetOptions.merge()
-                        )
-                        .await()
+                    try {
+                        firestore.collection("users")
+                            .document(userProfile.uid)
+                            .set(
+                                mapOf(
+                                    "uid" to userProfile.uid,
+                                    "name" to displayName,
+                                    "email" to userProfile.email,
+                                    "avatarId" to userProfile.avatarId.ifBlank { "brain" },
+                                    "xp" to userProfile.xp,
+                                    "level" to maxOf(1, userProfile.level),
+                                    "totalQuizzesPlayed" to quizzesCount,
+                                    "updatedAt" to System.currentTimeMillis()
+                                ),
+                                com.google.firebase.firestore.SetOptions.merge()
+                            )
+                            .await()
+                    } catch (e: Exception) {
+                        Log.w("LeaderboardRepository", "Error merging users document for ${userProfile.uid}: ${e.message}")
+                    }
                 }
             }
 

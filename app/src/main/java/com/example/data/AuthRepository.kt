@@ -556,10 +556,14 @@ class AuthRepository(
             val firestore = getFirestore() ?: return true
             if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") && !isGuestSessionActive()) {
                 withContext(NonCancellable) {
-                    withTimeoutOrNull(3000L) {
-                        firestore.collection("users").document(profile.uid)
-                            .set(profile)
-                            .await()
+                    try {
+                        withTimeoutOrNull(10000L) {
+                            firestore.collection("users").document(profile.uid)
+                                .set(profile)
+                                .await()
+                        }
+                    } catch (e: Exception) {
+                        Log.w("AuthRepository", "Failed saving profile to users collection: ${e.message}")
                     }
                     try {
                         val leaderboardRepo = LeaderboardRepository(context)

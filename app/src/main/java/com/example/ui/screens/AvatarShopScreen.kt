@@ -163,10 +163,6 @@ object AvatarUtils {
             "scientist" -> "🔬"
             "quiz_king" -> "👑"
             "quiz_queen" -> "👑"
-            "chess_master" -> "♟️"
-            "mystic_scholar" -> "🔮"
-            "cyber_sage" -> "⚡"
-            "mythic_phoenix" -> "🔥"
             "brain" -> "🧠"
             "wizard" -> "🧙"
             "rocket" -> "🚀"
@@ -301,16 +297,6 @@ object AvatarShopData {
             description = "Analytical researcher who dissects complex questions with scientific precision.",
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
         ),
-        AvatarShopItem(
-            id = "chess_master",
-            name = "Chess Master",
-            emoji = "♟️",
-            category = AvatarCategory.RARE,
-            price = 4500,
-            status = AvatarStatus.BUY,
-            description = "Tactical grandmaster thinking multiple moves ahead on every trivia puzzle.",
-            gradientColors = listOf(Color(0xFF0EA5E9), Color(0xFF0369A1))
-        ),
         // EPIC
         AvatarShopItem(
             id = "quiz_king",
@@ -331,36 +317,6 @@ object AvatarShopData {
             status = AvatarStatus.LOCKED,
             description = "Regal trivia sovereign commanding absolute wisdom and elegance in every duel.",
             gradientColors = listOf(Color(0xFFF43F5E), Color(0xFFBE123C))
-        ),
-        AvatarShopItem(
-            id = "mystic_scholar",
-            name = "Mystic Scholar",
-            emoji = "🔮",
-            category = AvatarCategory.EPIC,
-            price = 12000,
-            status = AvatarStatus.LOCKED,
-            description = "Arcane sage unlocking the ancient mysteries of science and history.",
-            gradientColors = listOf(Color(0xFFA855F7), Color(0xFF6B21A8))
-        ),
-        AvatarShopItem(
-            id = "cyber_sage",
-            name = "Cyber Sage",
-            emoji = "⚡",
-            category = AvatarCategory.EPIC,
-            price = 15000,
-            status = AvatarStatus.LOCKED,
-            description = "Digital oracle commanding cutting-edge technology and cyber wisdom.",
-            gradientColors = listOf(Color(0xFF06B6D4), Color(0xFF0E7490))
-        ),
-        AvatarShopItem(
-            id = "mythic_phoenix",
-            name = "Mythic Phoenix",
-            emoji = "🔥",
-            category = AvatarCategory.EPIC,
-            price = 20000,
-            status = AvatarStatus.LOCKED,
-            description = "Legendary reborn avatar radiating brilliance, power, and unstoppable quiz streaks.",
-            gradientColors = listOf(Color(0xFFF97316), Color(0xFFC2410C))
         )
     )
 }

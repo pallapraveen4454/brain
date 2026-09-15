@@ -18,10 +18,11 @@ service cloud.firestore {
       }
     }
 
-    // Global leaderboard collection (public read for global competition, user-only write)
+    // Global leaderboard collection (authenticated users can read; write only own document)
     match /leaderboard/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     // Deny all other access by default
