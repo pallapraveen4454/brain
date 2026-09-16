@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import android.content.Context
 import android.util.Log
+import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +43,8 @@ import com.google.android.gms.ads.LoadAdError
 
 /**
  * Standard AdMob Banner Component for BrainQuizAI.
- * Formatted with safe insets, glassmorphism border, and fallback layout.
+ * Dynamically displays the banner once loaded, reserving zero space
+ * when loading, failed, or when no ad is available.
  */
 @Composable
 fun AdMobBanner(
@@ -47,18 +53,55 @@ fun AdMobBanner(
 ) {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
+    var isAdLoaded by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .testTag("admob_banner_container"),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isPreview) {
-            AdBannerPlaceholder()
-        } else {
+    if (isPreview) {
+        return
+    }
+
+    val adView = remember(context, adUnitId) {
+        RewardedAdManager.ensureMobileAdsInitialized(context)
+        AdView(context).apply {
+            setAdSize(AdSize.BANNER)
+            setAdUnitId(adUnitId)
+            adListener = object : AdListener() {
+                override fun onAdLoaded() {
+                    isAdLoaded = true
+                    Log.d("AdMobBanner", "Banner ad loaded successfully")
+                }
+
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    isAdLoaded = false
+                    Log.w("AdMobBanner", "Banner failed to load: ${error.message}")
+                }
+            }
+            try {
+                loadAd(AdRequest.Builder().build())
+            } catch (e: Exception) {
+                Log.e("AdMobBanner", "Error loading banner ad", e)
+            }
+        }
+    }
+
+    DisposableEffect(adView) {
+        onDispose {
+            try {
+                adView.destroy()
+            } catch (e: Exception) {
+                Log.w("AdMobBanner", "Error destroying adView", e)
+            }
+        }
+    }
+
+    if (isAdLoaded) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .testTag("admob_banner_container"),
+            contentAlignment = Alignment.Center
+        ) {
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -66,26 +109,9 @@ fun AdMobBanner(
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkCardSurface.copy(alpha = 0.6f))
                     .border(0.8.dp, GlassBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
-                factory = { ctx ->
-                    RewardedAdManager.ensureMobileAdsInitialized(ctx)
-                    AdView(ctx).apply {
-                        setAdSize(AdSize.BANNER)
-                        setAdUnitId(adUnitId)
-                        adListener = object : AdListener() {
-                            override fun onAdLoaded() {
-                                Log.d("AdMobBanner", "Banner ad loaded successfully")
-                            }
-
-                            override fun onAdFailedToLoad(error: LoadAdError) {
-                                Log.w("AdMobBanner", "Banner failed to load: ${error.message}")
-                            }
-                        }
-                        try {
-                            loadAd(AdRequest.Builder().build())
-                        } catch (e: Exception) {
-                            Log.e("AdMobBanner", "Error loading banner ad", e)
-                        }
-                    }
+                factory = {
+                    (adView.parent as? ViewGroup)?.removeView(adView)
+                    adView
                 }
             )
         }
