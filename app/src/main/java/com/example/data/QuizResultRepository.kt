@@ -243,7 +243,7 @@ class QuizResultRepository(
                                 hashMapOf(
                                     "id" to userId,
                                     "name" to currentProf.name.ifBlank { "Player" },
-                                    "avatarId" to currentProf.avatarId.ifBlank { "brain" },
+                                    "avatarId" to currentProf.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
                                     "xp" to totalXp,
                                     "weeklyXp" to calculatedWeeklyXp,
                                     "weekStart" to startOfWeek,

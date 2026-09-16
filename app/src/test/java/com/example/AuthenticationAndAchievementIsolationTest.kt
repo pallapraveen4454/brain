@@ -153,4 +153,62 @@ class AuthenticationAndAchievementIsolationTest {
         assertFalse("isUserLoggedIn must be false after signOut", authRepository.isUserLoggedIn())
         assertFalse("hasSavedUserSession must be false after signOut", authRepository.hasSavedUserSession())
     }
+
+    @Test
+    fun testDeleteGuestAccountClearsAllLocalGuestData() {
+        val userProfileStore = UserProfileStore(context)
+        val authRepository = AuthRepository(context = context, userProfileStore = userProfileStore)
+
+        // Setup guest account with data
+        val guest = userProfileStore.createOrGetGuestProfile()
+        authRepository.setGuestSessionActive(true)
+        val guestKey = "guest_${userProfileStore.getGuestId()}"
+        context.getSharedPreferences("quiz_results_prefs_$guestKey", Context.MODE_PRIVATE)
+            .edit().putInt("user_total_xp", 500).commit()
+        context.getSharedPreferences("achievements_prefs_$guestKey", Context.MODE_PRIVATE)
+            .edit().putBoolean("ach_unlocked_first_step", true).commit()
+
+        // Execute delete account (synchronous coroutine run)
+        kotlinx.coroutines.runBlocking {
+            val result = authRepository.deleteAccount()
+            assertTrue("Guest deletion should succeed", result.isSuccess)
+        }
+
+        // Verify session is cleared
+        assertFalse("Guest session should be inactive", authRepository.isGuestSessionActive())
+        assertFalse("User should not be logged in", authRepository.isUserLoggedIn())
+
+        // Verify account-specific prefs were cleared
+        val remainingXp = context.getSharedPreferences("quiz_results_prefs_$guestKey", Context.MODE_PRIVATE)
+            .getInt("user_total_xp", -1)
+        assertEquals("Guest quiz prefs should be cleared", -1, remainingXp)
+
+        val remainingAch = context.getSharedPreferences("achievements_prefs_$guestKey", Context.MODE_PRIVATE)
+            .getBoolean("ach_unlocked_first_step", false)
+        assertFalse("Guest achievement prefs should be cleared", remainingAch)
+    }
+
+    @Test
+    fun testClearAuthProfileClearsTargetAccountSharedPreferences() {
+        val userProfileStore = UserProfileStore(context)
+        val testUid = "test_cleanup_uid_12345"
+        val accountKey = "uid_$testUid"
+
+        // Set up dummy data in user-specific prefs
+        context.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)
+            .edit().putInt("user_total_xp", 1200).commit()
+        context.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE)
+            .edit().putBoolean("ach_unlocked_legend", true).commit()
+
+        // Call clearAuthProfile for this uid
+        userProfileStore.clearAuthProfile(testUid)
+
+        val xp = context.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)
+            .getInt("user_total_xp", -1)
+        assertEquals("Account quiz_results_prefs should be cleared", -1, xp)
+
+        val ach = context.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE)
+            .getBoolean("ach_unlocked_legend", false)
+        assertFalse("Account achievements_prefs should be cleared", ach)
+    }
 }

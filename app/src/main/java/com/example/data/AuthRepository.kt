@@ -25,7 +25,7 @@ data class UserProfile(
     val uid: String = "",
     val name: String = "Player",
     val email: String = "",
-    val avatarId: String = "brain",
+    val avatarId: String = "student_boy",
     val xp: Int = 0,
     val level: Int = 1,
     val coins: Int = 0,
@@ -35,7 +35,7 @@ data class UserProfile(
     val rank: String = "Beginner",
     val unlockedAchievements: List<String> = emptyList(),
     val claimedRewards: List<String> = emptyList(),
-    val unlockedAvatars: List<String> = listOf("student_boy", "student_girl", "brain"),
+    val unlockedAvatars: List<String> = listOf("student_boy", "student_girl"),
     val quizHistory: List<QuizResult> = emptyList(),
     val lastQuizCategory: String = "",
     val lastQuizScore: Int = 0,
@@ -54,7 +54,8 @@ data class UserProfile(
 class AuthRepository(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null },
     private val quizResultRepository: QuizResultRepository = QuizResultRepository(),
-    private val userProfileStore: UserProfileStore = UserProfileStore(context)
+    private val userProfileStore: UserProfileStore = UserProfileStore(context),
+    private val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(context, userProfileStore)
 ) {
 
     private fun getAuth(): FirebaseAuth? {
@@ -218,7 +219,7 @@ class AuthRepository(
                 uid = localUid,
                 email = email,
                 name = displayName,
-                avatarId = "brain",
+                avatarId = "student_boy",
                 xp = 0,
                 level = 1,
                 coins = 0,
@@ -226,7 +227,7 @@ class AuthRepository(
                 rank = "Beginner",
                 unlockedAchievements = emptyList(),
                 claimedRewards = emptyList(),
-                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                unlockedAvatars = listOf("student_boy", "student_girl"),
                 quizHistory = emptyList(),
                 totalQuizzesPlayed = 0,
                 totalQuestionsAnswered = 0,
@@ -302,7 +303,7 @@ class AuthRepository(
             }
 
             val tProfileStart = System.currentTimeMillis()
-            val chosenAvatar = if (avatarId.isNotBlank()) avatarId else "brain"
+            val chosenAvatar = if (avatarId.isNotBlank() && avatarId != "brain") avatarId else "student_boy"
             val profile = UserProfile(
                 uid = user.uid,
                 name = displayName,
@@ -315,7 +316,7 @@ class AuthRepository(
                 rank = "Beginner",
                 unlockedAchievements = emptyList(),
                 claimedRewards = emptyList(),
-                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                unlockedAvatars = listOf("student_boy", "student_girl"),
                 quizHistory = emptyList(),
                 totalQuizzesPlayed = 0,
                 totalQuestionsAnswered = 0,
@@ -600,7 +601,7 @@ class AuthRepository(
                         uid = user.uid,
                         name = displayName,
                         email = user.email ?: "",
-                        avatarId = "brain",
+                        avatarId = "student_boy",
                         xp = 0,
                         level = 1,
                         coins = 0,
@@ -608,7 +609,7 @@ class AuthRepository(
                         rank = "Beginner",
                         unlockedAchievements = emptyList(),
                         claimedRewards = emptyList(),
-                        unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                        unlockedAvatars = listOf("student_boy", "student_girl"),
                         quizHistory = emptyList(),
                         totalQuizzesPlayed = 0,
                         totalQuestionsAnswered = 0,
@@ -748,32 +749,99 @@ class AuthRepository(
     suspend fun deleteAccount(currentPassword: String? = null): Result<Unit> {
         return try {
             if (isGuestSessionActive()) {
+                val guestProfile = userProfileStore.getProfile()
+                val guestUid = guestProfile.uid
+                val accountKey = "guest_${userProfileStore.getGuestId()}"
+
+                // Clear guest local SharedPreferences
+                val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+                if (ctx != null) {
+                    ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                    ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                }
+
+                leaderboardRepository.removeUserFromLeaderboard(guestUid)
                 userProfileStore.resetGuestAccount()
                 signOut()
                 return Result.success(Unit)
             }
+
             val user = currentUser ?: return Result.failure(Exception("No active account session found to delete."))
+            val uid = user.uid
             val email = user.email
 
-            // Re-authenticate if password is provided
+            // 1. Re-authenticate if password is provided or re-auth required
             if (!currentPassword.isNullOrBlank() && !email.isNullOrBlank()) {
                 val credential = EmailAuthProvider.getCredential(email, currentPassword)
                 user.reauthenticate(credential).await()
             }
 
-            // Delete Firestore user data
+            // 2. Explicitly delete Firestore subcollections and documents while auth token is valid
             try {
                 val firestore = getFirestore()
-                firestore?.collection("users")?.document(user.uid)?.delete()?.await()
-            } catch (e: Exception) {
-                Log.w("AuthRepository", "Failed to delete firestore user document: ${e.message}")
+                if (firestore != null) {
+                    // a. Delete all users/{uid}/quiz_results/{resultId} documents
+                    try {
+                        val quizResultsSnapshot = firestore.collection("users")
+                            .document(uid)
+                            .collection("quiz_results")
+                            .get()
+                            .await()
+                        for (doc in quizResultsSnapshot.documents) {
+                            try {
+                                doc.reference.delete().await()
+                            } catch (docEx: Exception) {
+                                Log.w("AuthRepository", "Failed deleting quiz_result ${doc.id}: ${docEx.message}")
+                            }
+                        }
+                    } catch (qrEx: Exception) {
+                        Log.w("AuthRepository", "Failed to query quiz_results subcollection for $uid: ${qrEx.message}")
+                    }
+
+                    // b. Delete all users/{uid}/backups/{backupId} documents
+                    try {
+                        val backupsSnapshot = firestore.collection("users")
+                            .document(uid)
+                            .collection("backups")
+                            .get()
+                            .await()
+                        for (doc in backupsSnapshot.documents) {
+                            try {
+                                doc.reference.delete().await()
+                            } catch (docEx: Exception) {
+                                Log.w("AuthRepository", "Failed deleting backup ${doc.id}: ${docEx.message}")
+                            }
+                        }
+                    } catch (bEx: Exception) {
+                        Log.w("AuthRepository", "Failed to query backups subcollection for $uid: ${bEx.message}")
+                    }
+
+                    // c. Delete leaderboard/{uid} document
+                    try {
+                        firestore.collection("leaderboard").document(uid).delete().await()
+                    } catch (lbEx: Exception) {
+                        Log.w("AuthRepository", "Failed deleting leaderboard document for $uid: ${lbEx.message}")
+                    }
+
+                    // d. Delete main users/{uid} document
+                    try {
+                        firestore.collection("users").document(uid).delete().await()
+                    } catch (uEx: Exception) {
+                        Log.w("AuthRepository", "Failed deleting main user document for $uid: ${uEx.message}")
+                    }
+                }
+            } catch (fsEx: Exception) {
+                Log.w("AuthRepository", "Failed during Firestore cleanup for $uid: ${fsEx.message}")
             }
 
-            // Delete Firebase user
+            // 3. Remove from leaderboard local caches & registered user lists
+            leaderboardRepository.removeUserFromLeaderboard(uid)
+
+            // 4. Delete Firebase Authentication user account
             user.delete().await()
 
-            // Clear local storage and sign out
-            userProfileStore.clearAuthProfile()
+            // 5. Clear all local user-specific data & sign out
+            userProfileStore.clearAuthProfile(uid)
             signOut()
             Result.success(Unit)
         } catch (e: Exception) {

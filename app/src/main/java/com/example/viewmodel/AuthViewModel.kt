@@ -45,7 +45,7 @@ data class AuthUiState(
     val passwordInput: String = "",
     val confirmPasswordInput: String = "",
     val nameInput: String = "",
-    val selectedAvatarId: String = "brain",
+    val selectedAvatarId: String = "student_boy",
     val isPasswordVisible: Boolean = false,
     val isConfirmPasswordVisible: Boolean = false,
     val isSignUpMode: Boolean = false,
@@ -110,7 +110,7 @@ class AuthViewModel(
                                 uid = user.uid,
                                 name = user.displayName ?: user.email?.substringBefore("@") ?: "Player",
                                 email = user.email ?: "",
-                                avatarId = "brain",
+                                avatarId = "student_boy",
                                 xp = 0,
                                 level = 1,
                                 coins = 0,
@@ -669,7 +669,7 @@ class AuthViewModel(
                                         uid = user.uid,
                                         name = displayName,
                                         email = userEmail,
-                                        avatarId = localProfile.avatarId.ifBlank { "brain" },
+                                        avatarId = localProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
                                         xp = localProfile.xp,
                                         level = localProfile.level,
                                         coins = localProfile.coins,
@@ -895,7 +895,7 @@ class AuthViewModel(
                                 uid = user.uid,
                                 name = displayName,
                                 email = email,
-                                avatarId = localProfile.avatarId.ifBlank { "brain" }
+                                avatarId = localProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it }
                             )
                         }
                         Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")

@@ -109,7 +109,7 @@ class LeaderboardRepository(
             rank = 0,
             id = currentUserId,
             name = currentUserName,
-            avatarId = userProfile.avatarId.ifBlank { "brain" },
+            avatarId = userProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
             xp = if (period == LeaderboardPeriod.WEEKLY) userWeeklyXp else userProfile.xp,
             weeklyXp = userWeeklyXp,
             level = maxOf(1, userProfile.level),
@@ -215,7 +215,7 @@ class LeaderboardRepository(
                                     email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
                                     else -> nameRaw.ifBlank { "Player" }
                                 }
-                                val avatarId = doc.getString("avatarId") ?: "brain"
+                                val avatarId = doc.getString("avatarId")?.let { if (it == "brain" || it.isBlank()) "student_boy" else it } ?: "student_boy"
                                 val xp = doc.getLong("xp")?.toInt() ?: 0
                                 val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
                                 val docWeekStart = doc.getLong("weekStart") ?: 0L
@@ -290,7 +290,7 @@ class LeaderboardRepository(
                                 email.isNotBlank() && !email.startsWith("guest") -> email.substringBefore("@").replaceFirstChar { it.uppercase() }
                                 else -> nameRaw.ifBlank { "Player" }
                             }
-                            val avatarId = doc.getString("avatarId") ?: "brain"
+                            val avatarId = doc.getString("avatarId")?.let { if (it == "brain" || it.isBlank()) "student_boy" else it } ?: "student_boy"
                             val xp = doc.getLong("xp")?.toInt() ?: 0
                             val docWeeklyXp = doc.getLong("weeklyXp")?.toInt() ?: 0
                             val docWeekStart = doc.getLong("weekStart") ?: 0L
@@ -343,7 +343,7 @@ class LeaderboardRepository(
                                 existing != null && existing.name.isNotBlank() && existing.name != "Player" -> existing.name
                                 else -> nameRaw.ifBlank { "Player" }
                             }
-                            val avatarId = doc.getString("avatarId") ?: existing?.avatarId ?: "brain"
+                            val avatarId = (doc.getString("avatarId") ?: existing?.avatarId)?.let { if (it == "brain" || it.isBlank()) "student_boy" else it } ?: "student_boy"
                             val xp = maxOf(doc.getLong("xp")?.toInt() ?: 0, existing?.xp ?: 0)
                             val level = maxOf(doc.getLong("level")?.toInt() ?: 1, existing?.level ?: 1, LevelUtils.getLevel(xp))
                             val rankBadge = doc.getString("rank") ?: existing?.rankBadge ?: RankUtils.getRankForXp(xp)
@@ -419,7 +419,7 @@ class LeaderboardRepository(
             rank = 0,
             id = profile.uid,
             name = name,
-            avatarId = profile.avatarId.ifBlank { "brain" },
+            avatarId = profile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
             xp = profile.xp,
             weeklyXp = weeklyXp,
             level = maxOf(1, profile.level),
@@ -476,7 +476,7 @@ class LeaderboardRepository(
                 "uid" to userProfile.uid,
                 "name" to displayName,
                 "email" to userProfile.email,
-                "avatarId" to userProfile.avatarId.ifBlank { "brain" },
+                "avatarId" to userProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
                 "xp" to userProfile.xp,
                 "weeklyXp" to weeklyXp,
                 "weekStart" to startOfWeek,
@@ -511,7 +511,7 @@ class LeaderboardRepository(
                                     "uid" to userProfile.uid,
                                     "name" to displayName,
                                     "email" to userProfile.email,
-                                    "avatarId" to userProfile.avatarId.ifBlank { "brain" },
+                                    "avatarId" to userProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
                                     "xp" to userProfile.xp,
                                     "level" to maxOf(1, userProfile.level),
                                     "totalQuizzesPlayed" to quizzesCount,
@@ -554,7 +554,7 @@ class LeaderboardRepository(
                             rank = obj.optInt("rank", 0),
                             id = id,
                             name = obj.optString("name", "Player"),
-                            avatarId = obj.optString("avatarId", "brain"),
+                            avatarId = obj.optString("avatarId", "student_boy").let { if (it == "brain" || it.isBlank()) "student_boy" else it },
                             xp = obj.optInt("xp", 0),
                             weeklyXp = obj.optInt("weeklyXp", 0),
                             level = obj.optInt("level", 1),
@@ -628,7 +628,7 @@ class LeaderboardRepository(
                             rank = obj.optInt("rank", i + 1),
                             id = id,
                             name = obj.optString("name", "Player"),
-                            avatarId = obj.optString("avatarId", "brain"),
+                            avatarId = obj.optString("avatarId", "student_boy").let { if (it == "brain" || it.isBlank()) "student_boy" else it },
                             xp = obj.optInt("xp", 0),
                             weeklyXp = obj.optInt("weeklyXp", 0),
                             level = obj.optInt("level", 1),
@@ -667,7 +667,7 @@ class LeaderboardRepository(
                             rank = 0,
                             id = p.uid,
                             name = name,
-                            avatarId = p.avatarId.ifBlank { "brain" },
+                            avatarId = p.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
                             xp = p.xp,
                             weeklyXp = maxOf(0, (p.xp * 0.15).toInt()),
                             level = maxOf(1, p.level),
@@ -717,6 +717,52 @@ class LeaderboardRepository(
             prefs.edit().putString("cached_leaderboard_json", array.toString()).apply()
         } catch (e: Exception) {
             Log.e("LeaderboardRepository", "Error saving cached leaderboard", e)
+        }
+    }
+
+    suspend fun removeUserFromLeaderboard(uid: String) {
+        if (uid.isBlank()) return
+        try {
+            // 1. Remove from local registered users
+            val remainingRegistered = loadRegisteredAppUsers().filterNot { it.id == uid }
+            val prefs = getPrefs()
+            if (prefs != null) {
+                val arrayReg = JSONArray()
+                remainingRegistered.forEach { user ->
+                    val obj = JSONObject().apply {
+                        put("id", user.id)
+                        put("name", user.name)
+                        put("avatarId", user.avatarId)
+                        put("xp", user.xp)
+                        put("weeklyXp", user.weeklyXp)
+                        put("level", user.level)
+                        put("rankBadge", user.rankBadge)
+                        put("quizzesPlayed", user.quizzesPlayed)
+                        put("achievementsCount", user.achievementsCount)
+                        put("score", user.score)
+                        put("countryFlag", user.countryFlag)
+                        put("rankChange", user.rankChange)
+                    }
+                    arrayReg.put(obj)
+                }
+                prefs.edit().putString("registered_app_users_json", arrayReg.toString()).apply()
+
+                // 2. Remove from local cached leaderboard
+                val remainingCached = loadCachedLeaderboard().filterNot { it.id == uid }
+                saveCachedLeaderboard(remainingCached)
+            }
+        } catch (e: Exception) {
+            Log.w("LeaderboardRepository", "Error removing user $uid from local leaderboard cache: ${e.message}")
+        }
+
+        // 3. Remove from remote Firestore leaderboard document
+        if (!uid.startsWith("guest_")) {
+            try {
+                val firestore = getFirestore()
+                firestore?.collection("leaderboard")?.document(uid)?.delete()?.await()
+            } catch (e: Exception) {
+                Log.w("LeaderboardRepository", "Error deleting leaderboard firestore doc for $uid: ${e.message}")
+            }
         }
     }
 

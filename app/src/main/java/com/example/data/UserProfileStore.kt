@@ -125,7 +125,8 @@ class UserProfileStore(
         val guestStreak = currentJson?.streak ?: 0
         val guestLongestStreak = maxOf(currentJson?.longestStreak ?: 0, guestStreak)
         val guestHistory = currentJson?.quizHistory ?: emptyList()
-        val guestAvatar = currentJson?.avatarId?.ifBlank { "brain" } ?: "brain"
+        val rawGuestAvatar = currentJson?.avatarId ?: ""
+        val guestAvatar = if (rawGuestAvatar.isBlank() || rawGuestAvatar == "brain") "student_boy" else rawGuestAvatar
         val rawName = currentJson?.name ?: ""
         val guestName = if (rawName.isNotBlank() && rawName != "Player" && rawName != "Guest Player" && !rawName.contains("@")) rawName else "Guest"
         val guestActiveDate = currentJson?.lastActiveDate ?: ""
@@ -200,7 +201,7 @@ class UserProfileStore(
                 uid = guestId,
                 name = "Guest",
                 email = "Guest Account",
-                avatarId = "brain",
+                avatarId = "student_boy",
                 xp = 0,
                 level = 1,
                 coins = 0,
@@ -208,7 +209,7 @@ class UserProfileStore(
                 rank = "Beginner",
                 unlockedAchievements = emptyList(),
                 claimedRewards = emptyList(),
-                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                unlockedAvatars = listOf("student_boy", "student_girl"),
                 quizHistory = emptyList(),
                 totalQuizzesPlayed = 0,
                 totalQuestionsAnswered = 0,
@@ -226,7 +227,7 @@ class UserProfileStore(
                 uid = fbUser.uid,
                 name = defaultName,
                 email = defaultEmail,
-                avatarId = "brain",
+                avatarId = "student_boy",
                 xp = 0,
                 level = 1,
                 coins = 0,
@@ -234,7 +235,7 @@ class UserProfileStore(
                 rank = "Beginner",
                 unlockedAchievements = emptyList(),
                 claimedRewards = emptyList(),
-                unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+                unlockedAvatars = listOf("student_boy", "student_girl"),
                 quizHistory = emptyList(),
                 totalQuizzesPlayed = 0,
                 totalQuestionsAnswered = 0,
@@ -249,7 +250,7 @@ class UserProfileStore(
             uid = "",
             name = "Player",
             email = "",
-            avatarId = "brain",
+            avatarId = "student_boy",
             xp = 0,
             level = 1,
             coins = 0,
@@ -257,7 +258,7 @@ class UserProfileStore(
             rank = "Beginner",
             unlockedAchievements = emptyList(),
             claimedRewards = emptyList(),
-            unlockedAvatars = listOf("student_boy", "student_girl", "brain"),
+            unlockedAvatars = listOf("student_boy", "student_girl"),
             quizHistory = emptyList(),
             totalQuizzesPlayed = 0,
             totalQuestionsAnswered = 0,
@@ -279,10 +280,10 @@ class UserProfileStore(
         return createOrGetGuestProfile()
     }
 
-    fun clearAuthProfile() {
+    fun clearAuthProfile(targetUid: String? = null) {
         try {
             val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
-            val currentUid = auth?.currentUser?.uid
+            val currentUid = targetUid ?: auth?.currentUser?.uid
             val editor = getPrefs()?.edit()
             editor?.remove(keyAuthProfileJson)
             editor?.remove(keyProfileJson)
@@ -290,6 +291,14 @@ class UserProfileStore(
                 editor?.remove("auth_user_profile_$currentUid")
             }
             editor?.apply()
+
+            // Also clean up user-specific SharedPreferences files for this account
+            val accountKey = if (!currentUid.isNullOrBlank()) "uid_$currentUid" else null
+            val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+            if (ctx != null && accountKey != null) {
+                ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+            }
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error during clearAuthProfile", e)
         }
@@ -346,9 +355,7 @@ class UserProfileStore(
             val mergedAvatar = when {
                 profile.avatarId.isNotBlank() && profile.avatarId != "brain" -> profile.avatarId
                 currentAvatar.isNotBlank() && currentAvatar != "brain" -> currentAvatar
-                profile.avatarId.isNotBlank() -> profile.avatarId
-                currentAvatar.isNotBlank() -> currentAvatar
-                else -> "brain"
+                else -> "student_boy"
             }
 
             val mergedXp = if (isSameUser) maxOf(profile.xp, current?.xp ?: 0) else profile.xp
@@ -360,7 +367,11 @@ class UserProfileStore(
 
             val mergedUnlocked = if (isSameUser) ((current?.unlockedAchievements ?: emptyList()) + profile.unlockedAchievements).distinct() else profile.unlockedAchievements
             val mergedClaimed = if (isSameUser) ((current?.claimedRewards ?: emptyList()) + profile.claimedRewards).distinct() else profile.claimedRewards
-            val mergedUnlockedAvatars = if (isSameUser) ((current?.unlockedAvatars ?: listOf("student_boy", "student_girl", "brain")) + profile.unlockedAvatars).distinct() else profile.unlockedAvatars.ifEmpty { listOf("student_boy", "student_girl", "brain") }
+            val mergedUnlockedAvatars = if (isSameUser) {
+                (((current?.unlockedAvatars ?: listOf("student_boy", "student_girl")) + profile.unlockedAvatars).filter { it != "brain" }).distinct()
+            } else {
+                profile.unlockedAvatars.filter { it != "brain" }.ifEmpty { listOf("student_boy", "student_girl") }
+            }
 
             val rawHistory = if (isSameUser) (profile.quizHistory + (current?.quizHistory ?: emptyList())) else profile.quizHistory
             val combinedHistory = rawHistory
@@ -601,11 +612,14 @@ class UserProfileStore(
             }
         }
 
-        val unlockedAvatarsSet = mutableSetOf<String>("student_boy", "student_girl", "brain")
+        val unlockedAvatarsSet = mutableSetOf<String>("student_boy", "student_girl")
         val unlockedAvatarsArr = json.optJSONArray("unlockedAvatars")
         if (unlockedAvatarsArr != null) {
             for (i in 0 until unlockedAvatarsArr.length()) {
-                unlockedAvatarsSet.add(unlockedAvatarsArr.getString(i))
+                val item = unlockedAvatarsArr.getString(i)
+                if (item != "brain") {
+                    unlockedAvatarsSet.add(item)
+                }
             }
         }
 
@@ -636,7 +650,7 @@ class UserProfileStore(
             uid = json.optString("uid", ""),
             name = json.optString("name", "Player"),
             email = json.optString("email", "guest@brainquiz.ai"),
-            avatarId = json.optString("avatarId", "brain"),
+            avatarId = json.optString("avatarId", "student_boy").let { if (it == "brain" || it.isBlank()) "student_boy" else it },
             xp = xp,
             level = level,
             coins = json.optInt("coins", 0),

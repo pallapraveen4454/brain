@@ -14,8 +14,8 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 object RewardedAdManager {
     private const val TAG = "REWARDED_AD_MANAGER"
     
-    // Official Google Mobile Ads Test Rewarded Ad Unit ID
-    private const val TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+    // Production Rewarded Ad Unit ID for BrainQuizAI
+    private const val REWARDED_AD_UNIT_ID = "ca-app-pub-6636916633195809/3627590056"
 
     @Volatile
     private var isAdActive = false
@@ -63,7 +63,7 @@ object RewardedAdManager {
 
         RewardedAd.load(
             appContext,
-            TEST_REWARDED_AD_UNIT_ID,
+            REWARDED_AD_UNIT_ID,
             adRequest,
             object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(rewardedAd: RewardedAd) {
@@ -147,7 +147,7 @@ object RewardedAdManager {
 
             RewardedAd.load(
                 activity,
-                TEST_REWARDED_AD_UNIT_ID,
+                REWARDED_AD_UNIT_ID,
                 adRequest,
                 object : RewardedAdLoadCallback() {
                     override fun onAdLoaded(rewardedAd: RewardedAd) {

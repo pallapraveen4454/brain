@@ -43,7 +43,7 @@ import com.google.android.gms.ads.LoadAdError
 @Composable
 fun AdMobBanner(
     modifier: Modifier = Modifier,
-    adUnitId: String = "ca-app-pub-3940256099942544/6300978111" // Official Google Test Banner Ad Unit ID
+    adUnitId: String = "ca-app-pub-6636916633195809/8442776346" // Production AdMob Banner Ad Unit ID
 ) {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current

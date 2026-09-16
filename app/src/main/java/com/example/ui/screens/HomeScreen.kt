@@ -304,6 +304,10 @@ fun HomeScreen(
                         onSignOut = {
                             viewModel.signOut()
                             onNavigateToLogin()
+                        },
+                        onDeleteAccount = {
+                            viewModel.signOut()
+                            onNavigateToLogin()
                         }
                     )
                 }

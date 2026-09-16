@@ -132,7 +132,7 @@ import kotlin.random.Random
 fun ProfileScreen(
     playerName: String,
     playerEmail: String,
-    avatarId: String = "brain",
+    avatarId: String = "student_boy",
     xp: Int,
     level: Int,
     coins: Int,
@@ -153,6 +153,7 @@ fun ProfileScreen(
     onResetAccount: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit = onSignOut,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -237,6 +238,10 @@ fun ProfileScreen(
             playerEmail = playerEmail,
             onEditUsername = { _ -> onEditUsername() },
             onSignOut = onSignOut,
+            onDeleteAccount = {
+                showSettingsScreen = false
+                onDeleteAccount()
+            },
             onResetAccount = {
                 showSettingsScreen = false
                 onResetAccount()

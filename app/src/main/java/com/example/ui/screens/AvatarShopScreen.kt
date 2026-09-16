@@ -325,8 +325,8 @@ object AvatarShopData {
 @Composable
 fun AvatarShopScreen(
     userCoins: Int = 850,
-    equippedAvatarId: String = "brain",
-    unlockedAvatars: Set<String> = setOf("student_boy", "student_girl", "brain"),
+    equippedAvatarId: String = "student_boy",
+    unlockedAvatars: Set<String> = setOf("student_boy", "student_girl"),
     onBuyAvatar: (String, Int) -> Boolean = { _, _ -> false },
     onEquipAvatar: (String) -> Unit = {},
     onNavigateToQuiz: () -> Unit = {},
