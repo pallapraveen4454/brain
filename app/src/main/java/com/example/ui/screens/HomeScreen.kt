@@ -100,6 +100,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.R
 import com.example.ui.components.AchievementUnlockedDialog
+import com.example.ui.components.AdMobBanner
 import com.example.ui.components.CategoryCard
 import com.example.ui.components.GlassCard
 import com.example.ui.components.NotificationPermissionDialog
@@ -791,9 +792,18 @@ private fun MainHomeContent(
             )
         }
 
+        // 9. Bottom AdMob Banner
+        item(span = { GridItemSpan(2) }) {
+            AdMobBanner(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            )
+        }
+
         // Bottom Spacer
         item(span = { GridItemSpan(2) }) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

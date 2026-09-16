@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
 import com.example.data.LeaderboardRepository
+import com.example.ui.components.AdMobBanner
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
@@ -311,6 +312,15 @@ fun LeaderboardScreen(
                 ) { _, user ->
                     LeaderboardRowCard(user = user)
                 }
+            }
+
+            // 8. AdMob Banner
+            item(key = "leaderboard_ad_banner") {
+                AdMobBanner(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                )
             }
 
             // Bottom spacing item to guarantee bottom content is never clipped or overlapping with navigation bar

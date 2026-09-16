@@ -104,6 +104,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.AchievementRepository
 import com.example.data.model.Achievement
 import com.example.data.model.QuizResult
+import com.example.ui.components.AdMobBanner
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
@@ -972,7 +973,16 @@ fun ProfileScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // AdMob Banner
+                AdMobBanner(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
             // Help & Support Dialog
