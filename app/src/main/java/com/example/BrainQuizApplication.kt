@@ -3,6 +3,7 @@ package com.example
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.google.android.gms.ads.MobileAds
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 
@@ -63,6 +64,13 @@ class BrainQuizApplication : Application() {
         instance = this
         Log.d("BrainQuizApplication", "Application onCreate() - Initializing FirebaseApp...")
         ensureFirebaseInitialized(this)
+
+        try {
+            MobileAds.initialize(this)
+            Log.d("BrainQuizApplication", "MobileAds.initialize(this) initialized successfully")
+        } catch (e: Exception) {
+            Log.e("BrainQuizApplication", "Failed to initialize MobileAds in Application.onCreate()", e)
+        }
 
         try {
             com.example.utils.GoogleAuthDiagnostics.logRuntimeCertCheck(this)
