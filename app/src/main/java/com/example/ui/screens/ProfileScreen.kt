@@ -104,7 +104,6 @@ import androidx.compose.ui.unit.sp
 import com.example.data.AchievementRepository
 import com.example.data.model.Achievement
 import com.example.data.model.QuizResult
-import com.example.ui.components.AdMobBanner
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
@@ -264,8 +263,7 @@ fun ProfileScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .padding(horizontal = 18.dp)
                         .verticalScroll(rememberScrollState())
                         .testTag("profile_screen"),
@@ -979,13 +977,6 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
             }
-
-            // Bottom AdMob Banner anchored outside scrollable content
-            AdMobBanner(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            )
         }
 
             // Help & Support Dialog

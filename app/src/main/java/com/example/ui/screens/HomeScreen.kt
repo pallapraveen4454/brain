@@ -247,72 +247,85 @@ fun HomeScreen(
             )
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when (uiState.selectedTab) {
-                BottomNavTab.Home -> {
-                    MainHomeContent(
-                        uiState = uiState,
-                        onNavigateToQuiz = onNavigateToQuiz,
-                        onNavigateToAiGenerator = onNavigateToAiGenerator,
-                        onNavigateToAiQuickAnswer = onNavigateToAiQuickAnswer
-                    )
-                }
-                BottomNavTab.Leaderboard -> {
-                    LeaderboardScreen(
-                        currentUserName = uiState.playerName,
-                        currentUserXp = uiState.xp,
-                        currentUserLevel = uiState.level,
-                        currentUserAvatar = uiState.avatarId,
-                        leaderboardData = uiState.leaderboardData,
-                        selectedPeriod = uiState.leaderboardPeriod,
-                        onPeriodSelected = { period -> viewModel.loadLeaderboard(period) }
-                    )
-                }
-                BottomNavTab.Achievements -> {
-                    AchievementsScreen(
-                        userXp = uiState.xp,
-                        userStreak = uiState.streakDays,
-                        achievements = uiState.achievements
-                    )
-                }
-                BottomNavTab.Profile -> {
-                    ProfileScreen(
-                        playerName = uiState.playerName,
-                        playerEmail = uiState.playerEmail,
-                        avatarId = uiState.avatarId,
-                        xp = uiState.xp,
-                        level = uiState.level,
-                        coins = uiState.coins,
-                        streakDays = uiState.streakDays,
-                        rank = uiState.rank,
-                        unlockedAchievementsCount = uiState.unlockedAchievementsCount,
-                        totalAchievementsCount = uiState.totalAchievementsCount,
-                        totalQuizzesPlayed = uiState.totalQuizzesPlayed,
-                        totalQuestionsAnswered = uiState.totalQuestionsAnswered,
-                        totalCorrectAnswers = uiState.totalCorrectAnswers,
-                        accuracyPercentage = uiState.accuracyPercentage,
-                        bestScore = uiState.bestScore,
-                        longestStreak = uiState.longestStreak,
-                        quizHistory = uiState.quizHistory,
-                        achievements = uiState.achievements,
-                        onEditUsername = { viewModel.setShowEditUsernameDialog(true) },
-                        onOpenAvatarShop = onNavigateToAvatarShop,
-                        onResetAccount = { viewModel.resetGuestAccount() },
-                        onSignOut = {
-                            viewModel.signOut()
-                            onNavigateToLogin()
-                        },
-                        onDeleteAccount = {
-                            viewModel.signOut()
-                            onNavigateToLogin()
-                        }
-                    )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when (uiState.selectedTab) {
+                    BottomNavTab.Home -> {
+                        MainHomeContent(
+                            uiState = uiState,
+                            onNavigateToQuiz = onNavigateToQuiz,
+                            onNavigateToAiGenerator = onNavigateToAiGenerator,
+                            onNavigateToAiQuickAnswer = onNavigateToAiQuickAnswer
+                        )
+                    }
+                    BottomNavTab.Leaderboard -> {
+                        LeaderboardScreen(
+                            currentUserName = uiState.playerName,
+                            currentUserXp = uiState.xp,
+                            currentUserLevel = uiState.level,
+                            currentUserAvatar = uiState.avatarId,
+                            leaderboardData = uiState.leaderboardData,
+                            selectedPeriod = uiState.leaderboardPeriod,
+                            onPeriodSelected = { period -> viewModel.loadLeaderboard(period) }
+                        )
+                    }
+                    BottomNavTab.Achievements -> {
+                        AchievementsScreen(
+                            userXp = uiState.xp,
+                            userStreak = uiState.streakDays,
+                            achievements = uiState.achievements
+                        )
+                    }
+                    BottomNavTab.Profile -> {
+                        ProfileScreen(
+                            playerName = uiState.playerName,
+                            playerEmail = uiState.playerEmail,
+                            avatarId = uiState.avatarId,
+                            xp = uiState.xp,
+                            level = uiState.level,
+                            coins = uiState.coins,
+                            streakDays = uiState.streakDays,
+                            rank = uiState.rank,
+                            unlockedAchievementsCount = uiState.unlockedAchievementsCount,
+                            totalAchievementsCount = uiState.totalAchievementsCount,
+                            totalQuizzesPlayed = uiState.totalQuizzesPlayed,
+                            totalQuestionsAnswered = uiState.totalQuestionsAnswered,
+                            totalCorrectAnswers = uiState.totalCorrectAnswers,
+                            accuracyPercentage = uiState.accuracyPercentage,
+                            bestScore = uiState.bestScore,
+                            longestStreak = uiState.longestStreak,
+                            quizHistory = uiState.quizHistory,
+                            achievements = uiState.achievements,
+                            onEditUsername = { viewModel.setShowEditUsernameDialog(true) },
+                            onOpenAvatarShop = onNavigateToAvatarShop,
+                            onResetAccount = { viewModel.resetGuestAccount() },
+                            onSignOut = {
+                                viewModel.signOut()
+                                onNavigateToLogin()
+                            },
+                            onDeleteAccount = {
+                                viewModel.signOut()
+                                onNavigateToLogin()
+                            }
+                        )
+                    }
                 }
             }
+
+            // Persistent bottom AdMob Banner across all bottom-navigation tabs
+            AdMobBanner(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            )
         }
     }
 }
@@ -324,16 +337,14 @@ private fun MainHomeContent(
     onNavigateToAiGenerator: () -> Unit,
     onNavigateToAiQuickAnswer: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         // 1. Premium Hero Welcome Header
         item(span = { GridItemSpan(2) }) {
             GlassCard(
@@ -799,14 +810,6 @@ private fun MainHomeContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-
-    // Bottom AdMob Banner
-    AdMobBanner(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    )
-}
 }
 
 @Composable
