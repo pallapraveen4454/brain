@@ -203,18 +203,22 @@ fun LeaderboardScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("leaderboard_screen"),
-            contentPadding = PaddingValues(
-                start = 18.dp,
-                end = 18.dp,
-                top = 8.dp,
-                bottom = 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag("leaderboard_screen"),
+                contentPadding = PaddingValues(
+                    start = 18.dp,
+                    end = 18.dp,
+                    top = 8.dp,
+                    bottom = 16.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // ------------------------------------------------
             // 1. HERO HEADER WITH SHINY TROPHY & TITLE
             // ------------------------------------------------
@@ -314,24 +318,23 @@ fun LeaderboardScreen(
                 }
             }
 
-            // 8. AdMob Banner
-            item(key = "leaderboard_ad_banner") {
-                AdMobBanner(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                )
-            }
-
             // Bottom spacing item to guarantee bottom content is never clipped or overlapping with navigation bar
             item(key = "leaderboard_bottom_spacer") {
                 Spacer(
                     modifier = Modifier
                         .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                        .height(32.dp)
+                        .height(20.dp)
                 )
             }
         }
+
+        // Bottom AdMob Banner
+        AdMobBanner(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        )
+    }
     }
 }
 

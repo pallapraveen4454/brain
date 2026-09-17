@@ -31,6 +31,9 @@
         <meta-data
             android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
             android:value="true" />
+        <meta-data
+            android:name="com.google.android.libraries.ads.mobile.sdk.flag.DISABLE_AD_INSPECTOR"
+            android:value="true" />
 
         <property
             android:name="android.adservices.AD_SERVICES_CONFIG"

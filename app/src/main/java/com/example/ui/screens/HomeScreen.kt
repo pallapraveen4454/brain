@@ -324,14 +324,16 @@ private fun MainHomeContent(
     onNavigateToAiGenerator: () -> Unit,
     onNavigateToAiQuickAnswer: () -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         // 1. Premium Hero Welcome Header
         item(span = { GridItemSpan(2) }) {
             GlassCard(
@@ -792,20 +794,19 @@ private fun MainHomeContent(
             )
         }
 
-        // 9. Bottom AdMob Banner
+        // Bottom Spacer for grid content
         item(span = { GridItemSpan(2) }) {
-            AdMobBanner(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            )
-        }
-
-        // Bottom Spacer
-        item(span = { GridItemSpan(2) }) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
+
+    // Bottom AdMob Banner
+    AdMobBanner(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    )
+}
 }
 
 @Composable

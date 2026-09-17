@@ -73,6 +73,14 @@ class BrainQuizApplication : Application() {
         }
 
         try {
+            // Ensure WebView HTTP cache directory tree exists to avoid Chromium opendir errors on first boot
+            val wasmCacheDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm")
+            if (!wasmCacheDir.exists()) {
+                wasmCacheDir.mkdirs()
+            }
+        } catch (_: Exception) {}
+
+        try {
             com.example.utils.GoogleAuthDiagnostics.logRuntimeCertCheck(this)
         } catch (e: Exception) {
             Log.e("BrainQuizApplication", "Failed to run GoogleAuthDiagnostics cert check", e)
