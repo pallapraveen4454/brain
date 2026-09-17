@@ -79,6 +79,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,6 +121,7 @@ import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import com.example.utils.InterstitialAdManager
 import com.example.utils.RankUtils
 import com.example.utils.SoundEffects
 import com.example.utils.VibrationUtils
@@ -151,8 +153,32 @@ fun QuizScreen(
     val networkObserver = remember { com.example.utils.NetworkConnectivityObserver.getInstance(context) }
     val isOnline by networkObserver.isOnline.collectAsState()
 
+    // Flag to ensure at most one interstitial ad is shown per completed 10-question quiz run
+    var hasShownCompletionInterstitial by rememberSaveable(key = "quiz_interstitial_${categoryId}") {
+        mutableStateOf(false)
+    }
+
+    // Preload Interstitial Ad when starting or resuming the quiz so it is ready on completion
     LaunchedEffect(categoryId) {
+        hasShownCompletionInterstitial = false
+        InterstitialAdManager.preloadInterstitialAd(context)
         viewModel.loadQuiz(categoryId)
+    }
+
+    // Trigger Interstitial ad once when quiz is complete
+    LaunchedEffect(uiState.isQuizComplete) {
+        if (uiState.isQuizComplete && !hasShownCompletionInterstitial) {
+            hasShownCompletionInterstitial = true
+            val activity = context.findActivity()
+            if (activity != null) {
+                InterstitialAdManager.showInterstitialAd(
+                    activity = activity,
+                    onAdDismissed = {
+                        // Continue normally; user is already viewing the Result screen
+                    }
+                )
+            }
+        }
     }
 
     LaunchedEffect(isOnline) {
@@ -199,7 +225,10 @@ fun QuizScreen(
             } else if (uiState.isQuizComplete) {
                 QuizCompleteView(
                     uiState = uiState,
-                    onRestart = { viewModel.restartQuiz() },
+                    onRestart = {
+                        hasShownCompletionInterstitial = false
+                        viewModel.restartQuiz()
+                    },
                     onBackHome = onNavigateBack
                 )
             } else {
