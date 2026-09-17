@@ -260,13 +260,17 @@ fun ProfileScreen(
             ProfileAmbientParticlesCanvas()
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 18.dp)
-                    .verticalScroll(rememberScrollState())
-                    .testTag("profile_screen"),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxSize()
             ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp)
+                        .verticalScroll(rememberScrollState())
+                        .testTag("profile_screen"),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                 val strings = LocalAppStrings.current
                 // Profile Header Bar (Title + Direct Settings Action)
                 Row(
@@ -973,17 +977,16 @@ fun ProfileScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // AdMob Banner
-                AdMobBanner(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                )
-
                 Spacer(modifier = Modifier.height(28.dp))
             }
+
+            // Bottom AdMob Banner anchored outside scrollable content
+            AdMobBanner(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            )
+        }
 
             // Help & Support Dialog
             if (showHelpDialog) {

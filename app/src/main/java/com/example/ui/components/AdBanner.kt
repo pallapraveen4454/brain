@@ -59,7 +59,7 @@ fun AdMobBanner(
         return
     }
 
-    val adView = remember(context, adUnitId) {
+    val adView = remember(adUnitId) {
         RewardedAdManager.ensureMobileAdsInitialized(context)
         AdView(context).apply {
             setAdSize(AdSize.BANNER)
@@ -71,7 +71,7 @@ fun AdMobBanner(
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    isAdLoaded = false
+                    // Once successfully loaded, keep banner stable; if initial load fails, remains zero-space
                     Log.w("AdMobBanner", "Banner failed to load: ${error.message}")
                 }
             }
@@ -86,6 +86,7 @@ fun AdMobBanner(
     DisposableEffect(adView) {
         onDispose {
             try {
+                (adView.parent as? ViewGroup)?.removeView(adView)
                 adView.destroy()
             } catch (e: Exception) {
                 Log.w("AdMobBanner", "Error destroying adView", e)

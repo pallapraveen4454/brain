@@ -162,55 +162,68 @@ fun QuizScreen(
         }
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(DarkBackground)
             .testTag("quiz_screen")
     ) {
-        if (uiState.newlyUnlockedAchievements.isNotEmpty()) {
-            AchievementUnlockedDialog(
-                achievement = uiState.newlyUnlockedAchievements.first(),
-                onDismiss = { viewModel.dismissAchievementDialog() }
-            )
-        }
-
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    color = PrimaryPurpleLight,
-                    modifier = Modifier.testTag("quiz_loading_indicator")
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            if (uiState.newlyUnlockedAchievements.isNotEmpty()) {
+                AchievementUnlockedDialog(
+                    achievement = uiState.newlyUnlockedAchievements.first(),
+                    onDismiss = { viewModel.dismissAchievementDialog() }
                 )
             }
-        } else if (uiState.questions.isEmpty()) {
-            EmptyQuestionsView(
-                categoryTitle = uiState.categoryTitle,
-                onNavigateBack = onNavigateBack
-            )
-        } else if (uiState.isQuizComplete) {
-            QuizCompleteView(
-                uiState = uiState,
-                onRestart = { viewModel.restartQuiz() },
-                onBackHome = onNavigateBack
-            )
-        } else {
-            val context = LocalContext.current
-            QuizActiveView(
-                uiState = uiState,
-                onSelectOption = { viewModel.submitAnswer(it) },
-                onRequestHint = {
-                    val activity = context.findActivity()
-                    if (activity != null) {
-                        viewModel.requestHint(activity)
-                    }
-                },
-                onClearHintError = { viewModel.clearHintError() },
-                onNavigateBack = onNavigateBack
-            )
+
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = PrimaryPurpleLight,
+                        modifier = Modifier.testTag("quiz_loading_indicator")
+                    )
+                }
+            } else if (uiState.questions.isEmpty()) {
+                EmptyQuestionsView(
+                    categoryTitle = uiState.categoryTitle,
+                    onNavigateBack = onNavigateBack
+                )
+            } else if (uiState.isQuizComplete) {
+                QuizCompleteView(
+                    uiState = uiState,
+                    onRestart = { viewModel.restartQuiz() },
+                    onBackHome = onNavigateBack
+                )
+            } else {
+                val context = LocalContext.current
+                QuizActiveView(
+                    uiState = uiState,
+                    onSelectOption = { viewModel.submitAnswer(it) },
+                    onRequestHint = {
+                        val activity = context.findActivity()
+                        if (activity != null) {
+                            viewModel.requestHint(activity)
+                        }
+                    },
+                    onClearHintError = { viewModel.clearHintError() },
+                    onNavigateBack = onNavigateBack
+                )
+            }
         }
+
+        // Bottom AdMob Banner Safe Area
+        AdMobBanner(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        )
     }
 }
 
@@ -340,24 +353,15 @@ fun QuizActiveView(
         }
 
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(
+                    horizontal = if (isCompactScreen) 14.dp else 18.dp,
+                    vertical = if (isCompactScreen) 6.dp else 10.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 8.dp else 10.dp)
         ) {
-            // Main scrollable quiz content area
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(
-                            horizontal = if (isCompactScreen) 14.dp else 18.dp,
-                            vertical = if (isCompactScreen) 6.dp else 10.dp
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(if (isCompactScreen) 8.dp else 10.dp)
-                ) {
                     // 1. Premium Header Bar
                     GlassCard(
                         modifier = Modifier
@@ -869,15 +873,6 @@ fun QuizActiveView(
 
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-            }
-
-            // 8. Bottom AdMob Banner Safe Area
-            AdMobBanner(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(DarkBackground)
-            )
-        }
     }
 }
 
