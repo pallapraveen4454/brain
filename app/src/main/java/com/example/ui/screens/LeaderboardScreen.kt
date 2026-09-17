@@ -317,15 +317,6 @@ fun LeaderboardScreen(
                     LeaderboardRowCard(user = user)
                 }
             }
-
-            // Bottom spacing item to guarantee bottom content is never clipped or overlapping with navigation bar
-            item(key = "leaderboard_bottom_spacer") {
-                Spacer(
-                    modifier = Modifier
-                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                        .height(20.dp)
-                )
-            }
         }
 
         // Bottom AdMob Banner

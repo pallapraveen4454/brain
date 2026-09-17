@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -98,18 +99,12 @@ fun AdMobBanner(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
                 .testTag("admob_banner_container"),
             contentAlignment = Alignment.Center
         ) {
             AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCardSurface.copy(alpha = 0.6f))
-                    .border(0.8.dp, GlassBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                modifier = Modifier.wrapContentSize(),
                 factory = {
                     (adView.parent as? ViewGroup)?.removeView(adView)
                     adView
