@@ -53,7 +53,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Terminal
@@ -140,7 +139,6 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToQuiz: (String) -> Unit = {},
     onNavigateToAiGenerator: () -> Unit = {},
-    onNavigateToAiQuickAnswer: () -> Unit = {},
     onNavigateToAvatarShop: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -262,8 +260,7 @@ fun HomeScreen(
                         MainHomeContent(
                             uiState = uiState,
                             onNavigateToQuiz = onNavigateToQuiz,
-                            onNavigateToAiGenerator = onNavigateToAiGenerator,
-                            onNavigateToAiQuickAnswer = onNavigateToAiQuickAnswer
+                            onNavigateToAiGenerator = onNavigateToAiGenerator
                         )
                     }
                     BottomNavTab.Leaderboard -> {
@@ -334,8 +331,7 @@ fun HomeScreen(
 private fun MainHomeContent(
     uiState: com.example.viewmodel.HomeUiState,
     onNavigateToQuiz: (String) -> Unit,
-    onNavigateToAiGenerator: () -> Unit,
-    onNavigateToAiQuickAnswer: () -> Unit
+    onNavigateToAiGenerator: () -> Unit
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -744,14 +740,12 @@ private fun MainHomeContent(
                     items(uiState.quickPlayOptions) { option ->
                         val icon = when (option.id) {
                             "quick" -> Icons.Default.PlayArrow
-                            "ai_quick_answer" -> Icons.Default.SmartToy
                             "daily" -> Icons.Default.AutoAwesome
                             "ai_custom" -> Icons.Default.AutoAwesome
                             else -> Icons.Default.Psychology
                         }
                         val colors = when (option.id) {
                             "quick" -> listOf(PrimaryPurple, PrimaryPurpleLight)
-                            "ai_quick_answer" -> listOf(AccentLevel, AccentLevelGradientEnd)
                             "daily" -> listOf(AccentCoins, AccentCoinsGradientEnd)
                             "ai_custom" -> listOf(PrimaryPurple, PrimaryPurpleLight)
                             else -> listOf(DarkCardBorder, TextMuted)
@@ -763,11 +757,10 @@ private fun MainHomeContent(
                             badgeText = option.badgeText,
                             icon = icon,
                             accentColors = colors,
-                            actionText = if (option.id == "ai_quick_answer") "Ask Now" else null,
+                            actionText = null,
                             isComingSoon = false,
                             onClick = {
                                 when (option.id) {
-                                    "ai_quick_answer" -> onNavigateToAiQuickAnswer()
                                     "ai_custom" -> onNavigateToAiGenerator()
                                     else -> onNavigateToQuiz(option.id)
                                 }

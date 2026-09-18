@@ -27,7 +27,6 @@ class GeminiQuizService {
 
     companion object {
         private const val TAG = "GeminiQuizService"
-        private const val FUNCTION_QUICK_ANSWER = "geminiQuickAnswer"
         private const val FUNCTION_QUIZ_GENERATOR = "geminiQuizGenerator"
     }
 
@@ -47,67 +46,6 @@ class GeminiQuizService {
             }
         } catch (e: Exception) {
             Log.w(TAG, "ensureFirebaseAuth notice: ${e.message}")
-        }
-    }
-
-    /**
-     * Answers general user questions accurately, directly, and concisely.
-     * Routes request to the secured Firebase Cloud Functions backend.
-     */
-    suspend fun generateQuickAnswer(
-        question: String,
-        recentHistory: List<Pair<String, String>> = emptyList()
-    ): Result<String> = withContext(Dispatchers.IO) {
-        val trimmedQuestion = question.trim()
-        if (trimmedQuestion.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("Question cannot be empty"))
-        }
-
-        try {
-            ensureFirebaseAuth()
-
-            val boundedHistory = recentHistory.takeLast(2).map { (prevUser, prevModel) ->
-                mapOf("user" to prevUser.trim(), "model" to prevModel.trim())
-            }
-
-            val payload = hashMapOf(
-                "question" to trimmedQuestion,
-                "recentHistory" to boundedHistory
-            )
-
-            val functions = FirebaseFunctions.getInstance()
-            val result = functions.getHttpsCallable(FUNCTION_QUICK_ANSWER).call(payload).await()
-
-            val data = result.data as? Map<*, *>
-            val answer = data?.get("answer") as? String
-
-            if (!answer.isNullOrBlank()) {
-                Log.d(TAG, "Quick answer received successfully from backend (model=${data["model"] ?: "server"})")
-                return@withContext Result.success(answer.trim())
-            }
-
-            return@withContext Result.failure(Exception("Couldn't get an answer right now. Please try again."))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: FirebaseFunctionsException) {
-            Log.w(TAG, "FirebaseFunctionsException: code=${e.code}, message=${e.message}")
-            val friendlyError = when (e.code) {
-                FirebaseFunctionsException.Code.UNAUTHENTICATED,
-                FirebaseFunctionsException.Code.PERMISSION_DENIED ->
-                    Exception("AI service is currently unavailable. Please verify API configuration.")
-                FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
-                    Exception("AI service is busy right now. Please wait a moment and try again.")
-                FirebaseFunctionsException.Code.INVALID_ARGUMENT ->
-                    Exception("Unable to process question. Please rephrase and try again.")
-                FirebaseFunctionsException.Code.UNAVAILABLE ->
-                    Exception("AI service encountered a temporary error. Please try again.")
-                else ->
-                    Exception(e.message ?: "Couldn't get an answer right now. Please try again.")
-            }
-            return@withContext Result.failure(friendlyError)
-        } catch (e: Exception) {
-            Log.w(TAG, "Quick answer request failed: ${e.message}")
-            return@withContext Result.failure(e)
         }
     }
 

@@ -96,7 +96,6 @@ data class HomeUiState(
     ),
     val quickPlayOptions: List<QuickPlayOption> = listOf(
         QuickPlayOption("quick", "Quick Play", "10 random questions", "POPULAR"),
-        QuickPlayOption("ai_quick_answer", "AI Quick Answer", "Ask anything. Get instant answers.", "AI"),
         QuickPlayOption("ai_custom", "AI Quiz Generator", "Generate custom topic quizzes with Gemini", "GEMINI AI", isComingSoon = false)
     )
 )
