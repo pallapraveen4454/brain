@@ -19,6 +19,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,9 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Standard AdMob Banner Component for BrainQuizAI.
@@ -54,29 +58,69 @@ fun AdMobBanner(
 ) {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
+    val coroutineScope = rememberCoroutineScope()
     var isAdLoaded by remember { mutableStateOf(false) }
 
     if (isPreview) {
         return
     }
 
+    val retryJobRef = remember { mutableStateOf<Job?>(null) }
+
     val adView = remember(adUnitId) {
         RewardedAdManager.ensureMobileAdsInitialized(context)
+        val maxRetries = 3
+        val retryDelaysMs = longArrayOf(10_000L, 30_000L, 60_000L)
+        var retryCount = 0
+
         AdView(context).apply {
             setAdSize(AdSize.BANNER)
             setAdUnitId(adUnitId)
             adListener = object : AdListener() {
                 override fun onAdLoaded() {
                     isAdLoaded = true
-                    Log.d("AdMobBanner", "Banner ad loaded successfully. ResponseInfo: ${responseInfo?.toString() ?: "None"}")
+                    retryJobRef.value?.cancel()
+                    retryJobRef.value = null
+                    Log.d(
+                        "AdMobBanner",
+                        "Banner ad loaded successfully. ResponseInfo: ${responseInfo?.toString() ?: "None"}"
+                    )
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    // Once successfully loaded, keep banner stable; if initial load fails, remains zero-space
                     Log.w(
                         "AdMobBanner",
                         "Banner failed to load: code=${error.code}, domain=${error.domain}, message=${error.message}, responseInfo=${error.responseInfo?.toString() ?: "None"}"
                     )
+                    if (isAdLoaded) {
+                        return
+                    }
+                    if (retryCount < maxRetries) {
+                        val delayMs = retryDelaysMs.getOrElse(retryCount) { 60_000L }
+                        val nextAttempt = retryCount + 1
+                        retryCount = nextAttempt
+                        Log.d(
+                            "AdMobBanner",
+                            "Scheduling banner retry #$nextAttempt in ${delayMs / 1000}s (due to code ${error.code}: ${error.message})"
+                        )
+                        retryJobRef.value?.cancel()
+                        retryJobRef.value = coroutineScope.launch {
+                            delay(delayMs)
+                            if (!isAdLoaded) {
+                                Log.d(
+                                    "AdMobBanner",
+                                    "Executing banner retry #$nextAttempt for unitId: $adUnitId"
+                                )
+                                try {
+                                    this@apply.loadAd(AdRequest.Builder().build())
+                                } catch (e: Exception) {
+                                    Log.e("AdMobBanner", "Error executing banner retry #$nextAttempt", e)
+                                }
+                            }
+                        }
+                    } else {
+                        Log.w("AdMobBanner", "Maximum retry limit ($maxRetries) reached for banner ad. Stopping retries.")
+                    }
                 }
             }
             try {
@@ -90,6 +134,8 @@ fun AdMobBanner(
 
     DisposableEffect(adView) {
         onDispose {
+            retryJobRef.value?.cancel()
+            retryJobRef.value = null
             try {
                 (adView.parent as? ViewGroup)?.removeView(adView)
                 adView.destroy()
