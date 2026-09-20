@@ -123,12 +123,6 @@ fun AdMobBanner(
                     }
                 }
             }
-            try {
-                Log.d("AdMobBanner", "Banner ad load started for unitId: $adUnitId")
-                loadAd(AdRequest.Builder().build())
-            } catch (e: Exception) {
-                Log.e("AdMobBanner", "Error loading banner ad", e)
-            }
         }
     }
 
@@ -145,22 +139,26 @@ fun AdMobBanner(
         }
     }
 
-    if (isAdLoaded) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-                .testTag("admob_banner_container"),
-            contentAlignment = Alignment.Center
-        ) {
-            AndroidView(
-                modifier = Modifier.wrapContentSize(),
-                factory = {
-                    (adView.parent as? ViewGroup)?.removeView(adView)
-                    adView
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .testTag("admob_banner_container"),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            modifier = Modifier.wrapContentSize(),
+            factory = {
+                (adView.parent as? ViewGroup)?.removeView(adView)
+                try {
+                    Log.d("AdMobBanner", "Banner ad load started for unitId: $adUnitId")
+                    adView.loadAd(AdRequest.Builder().build())
+                } catch (e: Exception) {
+                    Log.e("AdMobBanner", "Error loading banner ad", e)
                 }
-            )
-        }
+                adView
+            }
+        )
     }
 }
 

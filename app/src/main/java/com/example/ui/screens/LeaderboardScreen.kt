@@ -93,7 +93,6 @@ import androidx.compose.ui.unit.sp
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
 import com.example.data.LeaderboardRepository
-import com.example.ui.components.AdMobBanner
 import com.example.ui.components.GlassCard
 import com.example.ui.localization.LocalAppStrings
 import com.example.ui.theme.AccentCoins
@@ -318,13 +317,6 @@ fun LeaderboardScreen(
                 }
             }
         }
-
-        // Bottom AdMob Banner
-        AdMobBanner(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        )
     }
     }
 }
