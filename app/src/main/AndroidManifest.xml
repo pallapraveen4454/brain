@@ -55,7 +55,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link / App Link handler for Firebase Password Reset -->
+            <!-- HTTPS App Link handler for Firebase Password Reset (autoVerify) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
 
@@ -69,7 +69,15 @@
                 <data
                     android:scheme="https"
                     android:host="brainquiz-ai-app.web.app" />
-                <!-- Custom scheme deep link -->
+            </intent-filter>
+
+            <!-- Custom scheme deep link handler for BrainQuizAI -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
                 <data
                     android:scheme="brainquizai"
                     android:host="reset-password" />

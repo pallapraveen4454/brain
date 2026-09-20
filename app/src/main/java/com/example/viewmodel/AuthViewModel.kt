@@ -867,7 +867,30 @@ class AuthViewModel(
                     Log.d("GOOGLE_AUTH_FLOW", "STEP 10 Firebase signInWithCredential started (idToken length=${idToken.length})")
                 }
 
-                val firebaseResult = authRepository.signInWithGoogleCredential(idToken)
+                val firebaseResult = try {
+                    withTimeout(15_000L) {
+                        authRepository.signInWithGoogleCredential(idToken)
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    if (context != null) {
+                        GoogleAuthDiagnostics.logEvent(
+                            context = context,
+                            stage = "STAGE_6_FIREBASE_AUTH_TIMEOUT",
+                            flowStep = "Firebase auth timed out after 15s",
+                            exception = e
+                        )
+                    } else {
+                        Log.e("GOOGLE_AUTH_FLOW", "Firebase signInWithCredential timed out after 15 seconds")
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isGoogleSignInLoading = false,
+                            errorMessage = "Google Sign-In timed out. Please check your connection and try again."
+                        )
+                    }
+                    return@launch
+                }
                 firebaseResult.fold(
                     onSuccess = { user ->
                         if (context != null) {

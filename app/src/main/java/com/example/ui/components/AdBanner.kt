@@ -68,15 +68,19 @@ fun AdMobBanner(
             adListener = object : AdListener() {
                 override fun onAdLoaded() {
                     isAdLoaded = true
-                    Log.d("AdMobBanner", "Banner ad loaded successfully")
+                    Log.d("AdMobBanner", "Banner ad loaded successfully. ResponseInfo: ${responseInfo?.toString() ?: "None"}")
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
                     // Once successfully loaded, keep banner stable; if initial load fails, remains zero-space
-                    Log.w("AdMobBanner", "Banner failed to load: ${error.message}")
+                    Log.w(
+                        "AdMobBanner",
+                        "Banner failed to load: code=${error.code}, domain=${error.domain}, message=${error.message}, responseInfo=${error.responseInfo?.toString() ?: "None"}"
+                    )
                 }
             }
             try {
+                Log.d("AdMobBanner", "Banner ad load started for unitId: $adUnitId")
                 loadAd(AdRequest.Builder().build())
             } catch (e: Exception) {
                 Log.e("AdMobBanner", "Error loading banner ad", e)
