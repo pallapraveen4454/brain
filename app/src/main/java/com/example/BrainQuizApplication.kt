@@ -6,6 +6,7 @@ import android.util.Log
 import com.google.android.gms.ads.MobileAds
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import java.util.concurrent.Executors
 
 class BrainQuizApplication : Application() {
 
@@ -65,17 +66,22 @@ class BrainQuizApplication : Application() {
         Log.d("BrainQuizApplication", "Application onCreate() - Initializing FirebaseApp...")
         ensureFirebaseInitialized(this)
 
-        try {
-            MobileAds.initialize(this)
-            Log.d("BrainQuizApplication", "MobileAds.initialize(this) initialized successfully")
-        } catch (e: Exception) {
-            Log.e("BrainQuizApplication", "Failed to initialize MobileAds in Application.onCreate()", e)
-        }
+        // Offload non-critical AdMob initialization and diagnostics off the startup path
+        Executors.newSingleThreadExecutor().execute {
+            try {
+                MobileAds.initialize(this) {
+                    Log.d("BrainQuizApplication", "MobileAds initialization complete on background thread")
+                }
+                Log.d("BrainQuizApplication", "MobileAds.initialize(this) kicked off on background thread")
+            } catch (e: Exception) {
+                Log.e("BrainQuizApplication", "Failed to initialize MobileAds in Application.onCreate()", e)
+            }
 
-        try {
-            com.example.utils.GoogleAuthDiagnostics.logRuntimeCertCheck(this)
-        } catch (e: Exception) {
-            Log.e("BrainQuizApplication", "Failed to run GoogleAuthDiagnostics cert check", e)
+            try {
+                com.example.utils.GoogleAuthDiagnostics.logRuntimeCertCheck(this)
+            } catch (e: Exception) {
+                Log.e("BrainQuizApplication", "Failed to run GoogleAuthDiagnostics cert check", e)
+            }
         }
 
         try {

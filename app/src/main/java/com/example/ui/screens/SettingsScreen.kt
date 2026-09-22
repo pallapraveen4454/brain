@@ -174,6 +174,8 @@ fun SettingsScreen(
     var deleteAccountPasswordInput by remember { mutableStateOf("") }
     var isChangingPassword by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
+    var isResettingProgress by remember { mutableStateOf(false) }
+    var resetSuccessMessage by remember { mutableStateOf<String?>(null) }
     var changePasswordErrorMessage by remember { mutableStateOf<String?>(null) }
     var deleteAccountErrorMessage by remember { mutableStateOf<String?>(null) }
     var ratingStars by remember { mutableIntStateOf(5) }
@@ -1259,40 +1261,87 @@ fun SettingsScreen(
     // 9. Reset Account Progress Confirmation Dialog
     if (showResetConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showResetConfirmDialog = false },
+            onDismissRequest = { if (!isResettingProgress) showResetConfirmDialog = false },
             containerColor = DarkBackground,
             title = {
                 Text(
                     text = "Reset Account Progress",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = TextWhite
+                    color = Color(0xFFFF5252)
                 )
             },
             text = {
-                Text(
-                    text = "Are you sure you want to reset your game progress (XP, streak, score history, and coins)? Your account identity will remain active.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
+                Column {
+                    Text(
+                        text = "Are you sure you want to reset your complete game progress?",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "This will permanently reset:\n" +
+                                "• XP to 0 and Level to 1\n" +
+                                "• Coins to 0 and Rank to Beginner\n" +
+                                "• Streaks, scores, and quiz history\n" +
+                                "• Unlocked achievements and custom avatars\n" +
+                                "• Daily quiz progress and leaderboard stats\n\n" +
+                                "Your account login ($playerEmail) will remain active.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    if (isResettingProgress) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color(0xFFFF5252),
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Resetting progress...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextWhite
+                            )
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        showResetConfirmDialog = false
-                        onResetAccount()
+                        if (!isResettingProgress) {
+                            isResettingProgress = true
+                            scope.launch {
+                                try {
+                                    onResetAccount()
+                                    delay(400)
+                                } finally {
+                                    isResettingProgress = false
+                                    showResetConfirmDialog = false
+                                }
+                            }
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                    enabled = !isResettingProgress,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD32F2F),
+                        disabledContainerColor = Color(0xFFD32F2F).copy(alpha = 0.5f)
+                    ),
                     modifier = Modifier.testTag("confirm_reset_account_button")
                 ) {
-                    Text("Reset Progress", color = TextWhite)
+                    Text("Yes, Reset Everything", color = TextWhite)
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showResetConfirmDialog = false },
+                    onClick = { if (!isResettingProgress) showResetConfirmDialog = false },
+                    enabled = !isResettingProgress,
                     modifier = Modifier.testTag("cancel_reset_account_button")
                 ) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Keep My Progress", color = TextSecondary)
                 }
             }
         )

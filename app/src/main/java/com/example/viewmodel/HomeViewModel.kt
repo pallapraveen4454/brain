@@ -8,10 +8,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AuthRepository
 import com.example.data.QuizRepository
 import com.example.data.QuizResultRepository
+import com.example.data.AchievementCheckResult
 import com.example.data.AchievementRepository
 import com.example.data.LeaderboardRepository
 import com.example.data.LeaderboardData
 import com.example.data.LeaderboardPeriod
+import com.example.data.UserProfile
 import com.example.data.model.Achievement
 import com.example.data.model.QuizResult
 import com.example.ui.theme.CategoryGK
@@ -25,11 +27,14 @@ import com.example.ui.theme.CategoryTech
 import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
 import com.example.utils.StreakUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class QuizCategory(
     val id: String,
@@ -100,6 +105,26 @@ data class HomeUiState(
     )
 )
 
+private data class ProfileData(
+    val profile: UserProfile,
+    val isGuest: Boolean,
+    val updatedCoins: Int,
+    val localStreak: Int,
+    val localActiveDate: String,
+    val computedRank: String,
+    val achCheck: AchievementCheckResult,
+    val achievementsList: List<Achievement>,
+    val quizzesPlayed: Int,
+    val questionsAnswered: Int,
+    val correctAnswers: Int,
+    val bestScore: Int,
+    val longestStreak: Int,
+    val accuracy: Int,
+    val history: List<QuizResult>,
+    val displayName: String,
+    val displayEmail: String
+)
+
 class HomeViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
     private val quizRepository: QuizRepository = QuizRepository(),
@@ -111,6 +136,7 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var leaderboardListenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
+    private var loadProfileJob: Job? = null
 
     init {
         loadUserProfile()
@@ -167,117 +193,143 @@ class HomeViewModel(
     }
 
     fun loadUserProfile() {
-        try {
-            // 1. Load persistent user profile
-            val profile = authRepository.getPersistentGuestProfile()
+        if (loadProfileJob?.isActive == true) return
+        loadProfileJob = viewModelScope.launch {
+            try {
+                // 1. Offload disk I/O, JSON parsing, stats calculation, and achievements to Dispatchers.IO
+                val profileComputation = withContext(Dispatchers.IO) {
+                    val profile = authRepository.getPersistentGuestProfile()
 
-            // Point 8: Inside HomeViewModel.loadUserProfile
-            val isGuest = authRepository.isGuestSessionActive()
-            val targetKey = if (isGuest) "guest_user_profile_json" else "auth_user_profile_json"
-            Log.d("RUNTIME_TRACE", "[Point 8: Inside HomeViewModel.loadUserProfile] profile loaded: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestActive=$isGuest, targetKey=$targetKey")
+                    // Point 8: Inside HomeViewModel.loadUserProfile
+                    val isGuest = authRepository.isGuestSessionActive()
+                    val targetKey = if (isGuest) "guest_user_profile_json" else "auth_user_profile_json"
+                    Log.d("RUNTIME_TRACE", "[Point 8: Inside HomeViewModel.loadUserProfile] profile loaded: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestActive=$isGuest, targetKey=$targetKey")
 
-            val stats = quizResultRepository.getUserStats()
+                    val stats = quizResultRepository.getUserStats()
 
-            val (calculatedStreak, localActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
-                StreakUtils.calculateStreak(
-                    profile.lastActiveDate,
-                    profile.streak
-                )
-            } else {
-                Pair(profile.streak, profile.lastActiveDate)
-            }
-            val localStreak = calculatedStreak
-            val computedRank = RankUtils.getRankForXp(profile.xp)
+                    val (calculatedStreak, localActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
+                        StreakUtils.calculateStreak(
+                            profile.lastActiveDate,
+                            profile.streak
+                        )
+                    } else {
+                        Pair(profile.streak, profile.lastActiveDate)
+                    }
+                    val localStreak = calculatedStreak
+                    val computedRank = RankUtils.getRankForXp(profile.xp)
 
-            // Check and unlock achievements
-            val achCheck = achievementRepository.checkAndUnlockAchievements(
-                totalXp = profile.xp,
-                totalCoins = profile.coins,
-                currentStreak = localStreak
-            )
-            val updatedCoins = profile.coins + achCheck.extraCoinsEarned
-            val achievementsList = achievementRepository.getAllAchievements(profile.xp, updatedCoins, localStreak)
+                    // Check and unlock achievements
+                    val achCheck = achievementRepository.checkAndUnlockAchievements(
+                        totalXp = profile.xp,
+                        totalCoins = profile.coins,
+                        currentStreak = localStreak
+                    )
+                    val updatedCoins = profile.coins + achCheck.extraCoinsEarned
+                    val achievementsList = achievementRepository.getAllAchievements(profile.xp, updatedCoins, localStreak)
 
-            val quizzesPlayed = maxOf(profile.totalQuizzesPlayed, stats.totalQuizzesPlayed)
-            val questionsAnswered = maxOf(profile.totalQuestionsAnswered, stats.totalQuestionsAnswered)
-            val correctAnswers = maxOf(profile.totalCorrectAnswers, stats.totalCorrectAnswers)
-            val bestScore = maxOf(profile.bestScore, stats.bestScore)
-            val longestStreak = maxOf(profile.longestStreak, stats.longestStreak, localStreak)
-            val accuracy = if (questionsAnswered > 0) ((correctAnswers.toDouble() / questionsAnswered.toDouble()) * 100).toInt() else 0
-            val history = if (profile.quizHistory.isNotEmpty()) profile.quizHistory else quizResultRepository.getLocalQuizResultsList()
+                    val quizzesPlayed = maxOf(profile.totalQuizzesPlayed, stats.totalQuizzesPlayed)
+                    val questionsAnswered = maxOf(profile.totalQuestionsAnswered, stats.totalQuestionsAnswered)
+                    val correctAnswers = maxOf(profile.totalCorrectAnswers, stats.totalCorrectAnswers)
+                    val bestScore = maxOf(profile.bestScore, stats.bestScore)
+                    val longestStreak = maxOf(profile.longestStreak, stats.longestStreak, localStreak)
+                    val accuracy = if (questionsAnswered > 0) ((correctAnswers.toDouble() / questionsAnswered.toDouble()) * 100).toInt() else 0
+                    val history = if (profile.quizHistory.isNotEmpty()) profile.quizHistory else quizResultRepository.getLocalQuizResultsList()
 
-            val currentUser = if (!isGuest) authRepository.currentUser else null
-            val authEmail = currentUser?.email ?: ""
-            val authName = currentUser?.displayName ?: authEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                    val currentUser = if (!isGuest) authRepository.currentUser else null
+                    val authEmail = currentUser?.email ?: ""
+                    val authName = currentUser?.displayName ?: authEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
 
-            val displayName = if (isGuest) {
-                if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name
-            } else {
-                when {
-                    profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player" && profile.name != "Guest" -> profile.name
-                    authName.isNotBlank() && authName != "Player" -> authName
-                    else -> "Player"
+                    val displayName = if (isGuest) {
+                        if (profile.name.isBlank() || profile.name == "Player" || profile.name == "Guest Player") "Guest" else profile.name
+                    } else {
+                        when {
+                            profile.name.isNotBlank() && profile.name != "Player" && profile.name != "Guest Player" && profile.name != "Guest" -> profile.name
+                            authName.isNotBlank() && authName != "Player" -> authName
+                            else -> "Player"
+                        }
+                    }
+
+                    val displayEmail = if (isGuest) {
+                        "Guest Account"
+                    } else {
+                        when {
+                            profile.email.isNotBlank() && profile.email != "Guest Account" && profile.email != "guest@brainquiz.ai" -> profile.email
+                            authEmail.isNotBlank() -> authEmail
+                            else -> ""
+                        }
+                    }
+
+                    ProfileData(
+                        profile = profile,
+                        isGuest = isGuest,
+                        updatedCoins = updatedCoins,
+                        localStreak = localStreak,
+                        localActiveDate = localActiveDate,
+                        computedRank = computedRank,
+                        achCheck = achCheck,
+                        achievementsList = achievementsList,
+                        quizzesPlayed = quizzesPlayed,
+                        questionsAnswered = questionsAnswered,
+                        correctAnswers = correctAnswers,
+                        bestScore = bestScore,
+                        longestStreak = longestStreak,
+                        accuracy = accuracy,
+                        history = history,
+                        displayName = displayName,
+                        displayEmail = displayEmail
+                    )
                 }
-            }
 
-            val displayEmail = if (isGuest) {
-                "Guest Account"
-            } else {
-                when {
-                    profile.email.isNotBlank() && profile.email != "Guest Account" && profile.email != "guest@brainquiz.ai" -> profile.email
-                    authEmail.isNotBlank() -> authEmail
-                    else -> ""
+                // 2. Safe StateFlow update on Main dispatcher
+                _uiState.update {
+                    it.copy(
+                        xp = profileComputation.profile.xp,
+                        level = profileComputation.profile.level,
+                        coins = profileComputation.updatedCoins,
+                        streakDays = profileComputation.localStreak,
+                        rank = profileComputation.computedRank,
+                        playerName = profileComputation.displayName,
+                        playerEmail = profileComputation.displayEmail,
+                        avatarId = profileComputation.profile.avatarId.let { av -> if (av.isBlank() || av == "brain") "student_boy" else av },
+                        unlockedAvatars = if (profileComputation.profile.unlockedAvatars.isNotEmpty()) (profileComputation.profile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
+                        totalQuizzesPlayed = profileComputation.quizzesPlayed,
+                        totalQuestionsAnswered = profileComputation.questionsAnswered,
+                        totalCorrectAnswers = profileComputation.correctAnswers,
+                        accuracyPercentage = profileComputation.accuracy,
+                        bestScore = profileComputation.bestScore,
+                        longestStreak = profileComputation.longestStreak,
+                        quizHistory = profileComputation.history,
+                        lastQuizCategory = profileComputation.profile.lastQuizCategory,
+                        lastQuizScore = profileComputation.profile.lastQuizScore,
+                        lastQuizXpEarned = profileComputation.profile.lastQuizXpEarned,
+                        lastQuizDate = profileComputation.profile.lastQuizDate,
+                        hasQuizHistory = profileComputation.history.isNotEmpty() || profileComputation.profile.lastQuizCategory.isNotBlank(),
+                        achievements = profileComputation.achievementsList,
+                        unlockedAchievementsCount = profileComputation.achievementsList.count { a -> a.isUnlocked },
+                        totalAchievementsCount = profileComputation.achievementsList.size,
+                        newlyUnlockedAchievements = profileComputation.achCheck.newlyUnlocked
+                    )
                 }
-            }
 
-            _uiState.update {
-                it.copy(
-                    xp = profile.xp,
-                    level = profile.level,
-                    coins = updatedCoins,
-                    streakDays = localStreak,
-                    rank = computedRank,
-                    playerName = displayName,
-                    playerEmail = displayEmail,
-                    avatarId = profile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
-                    unlockedAvatars = if (profile.unlockedAvatars.isNotEmpty()) (profile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
-                    totalQuizzesPlayed = quizzesPlayed,
-                    totalQuestionsAnswered = questionsAnswered,
-                    totalCorrectAnswers = correctAnswers,
-                    accuracyPercentage = accuracy,
-                    bestScore = bestScore,
-                    longestStreak = longestStreak,
-                    quizHistory = history,
-                    lastQuizCategory = profile.lastQuizCategory,
-                    lastQuizScore = profile.lastQuizScore,
-                    lastQuizXpEarned = profile.lastQuizXpEarned,
-                    lastQuizDate = profile.lastQuizDate,
-                    hasQuizHistory = history.isNotEmpty() || profile.lastQuizCategory.isNotBlank(),
-                    achievements = achievementsList,
-                    unlockedAchievementsCount = achievementsList.count { a -> a.isUnlocked },
-                    totalAchievementsCount = achievementsList.size,
-                    newlyUnlockedAchievements = achCheck.newlyUnlocked
-                )
-            }
-
-            // Save updated streak and active date
-            viewModelScope.launch {
-                val updatedProfile = profile.copy(
-                    coins = updatedCoins,
-                    streak = localStreak,
-                    lastActiveDate = localActiveDate,
-                    totalQuizzesPlayed = quizzesPlayed,
-                    totalQuestionsAnswered = questionsAnswered,
-                    totalCorrectAnswers = correctAnswers,
-                    bestScore = bestScore,
-                    longestStreak = longestStreak,
-                    quizHistory = history
+                // 3. Save updated streak and sync on IO
+                val updatedProfile = profileComputation.profile.copy(
+                    coins = profileComputation.updatedCoins,
+                    streak = profileComputation.localStreak,
+                    lastActiveDate = profileComputation.localActiveDate,
+                    totalQuizzesPlayed = profileComputation.quizzesPlayed,
+                    totalQuestionsAnswered = profileComputation.questionsAnswered,
+                    totalCorrectAnswers = profileComputation.correctAnswers,
+                    bestScore = profileComputation.bestScore,
+                    longestStreak = profileComputation.longestStreak,
+                    quizHistory = profileComputation.history
                 )
                 authRepository.saveUserProfileToFirestore(updatedProfile)
 
                 // Load recent quiz results from persistent history if authenticated
-                val currentUserId = if (isGuest) profile.uid else (authRepository.currentUser?.uid ?: profile.uid)
-                val recentResults = quizResultRepository.getRecentQuizResults(currentUserId)
+                val currentUserId = if (profileComputation.isGuest) profileComputation.profile.uid else (authRepository.currentUser?.uid ?: profileComputation.profile.uid)
+                val recentResults = withContext(Dispatchers.IO) {
+                    quizResultRepository.getRecentQuizResults(currentUserId)
+                }
                 if (recentResults.isNotEmpty()) {
                     val latest = recentResults.first()
                     _uiState.update {
@@ -293,7 +345,7 @@ class HomeViewModel(
                 }
 
                 // Sync remote profile ONLY if authenticated and NOT in guest mode
-                if (!isGuest) {
+                if (!profileComputation.isGuest) {
                     val user = authRepository.currentUser
                     if (user != null) {
                         try {
@@ -307,19 +359,19 @@ class HomeViewModel(
                                     it.copy(
                                         playerName = userName,
                                         playerEmail = userEmail,
-                                        avatarId = remoteProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
-                                        xp = maxOf(profile.xp, remoteProfile.xp),
-                                        level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
-                                        coins = maxOf(updatedCoins, remoteProfile.coins),
-                                        streakDays = maxOf(localStreak, remoteProfile.streak),
+                                        avatarId = remoteProfile.avatarId.let { av -> if (av.isBlank() || av == "brain") "student_boy" else av },
+                                        xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
+                                        level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
+                                        coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
+                                        streakDays = maxOf(profileComputation.localStreak, remoteProfile.streak),
                                         rank = userRank,
                                         unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) (remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
-                                        totalQuizzesPlayed = maxOf(quizzesPlayed, remoteProfile.totalQuizzesPlayed),
-                                        totalQuestionsAnswered = maxOf(questionsAnswered, remoteProfile.totalQuestionsAnswered),
-                                        totalCorrectAnswers = maxOf(correctAnswers, remoteProfile.totalCorrectAnswers),
-                                        bestScore = maxOf(bestScore, remoteProfile.bestScore),
-                                        longestStreak = maxOf(longestStreak, remoteProfile.longestStreak),
-                                        quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else history
+                                        totalQuizzesPlayed = maxOf(profileComputation.quizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                        totalQuestionsAnswered = maxOf(profileComputation.questionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                        totalCorrectAnswers = maxOf(profileComputation.correctAnswers, remoteProfile.totalCorrectAnswers),
+                                        bestScore = maxOf(profileComputation.bestScore, remoteProfile.bestScore),
+                                        longestStreak = maxOf(profileComputation.longestStreak, remoteProfile.longestStreak),
+                                        quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profileComputation.history
                                     )
                                 }
                             }
@@ -328,9 +380,9 @@ class HomeViewModel(
                         }
                     }
                 }
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Error loading user profile", e)
             }
-        } catch (e: Exception) {
-            Log.e("HomeViewModel", "Error loading user profile", e)
         }
     }
 
@@ -431,6 +483,81 @@ class HomeViewModel(
     fun resetGuestAccount() {
         authRepository.resetGuestAccount()
         loadUserProfile()
+    }
+
+    fun resetAccountProgress(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                val result = authRepository.resetAccountProgress()
+                if (result.isSuccess) {
+                    val cleanProfile = result.getOrNull() ?: authRepository.getPersistentGuestProfile()
+                    val currentUser = if (!authRepository.isGuestSessionActive()) authRepository.currentUser else null
+                    val authEmail = currentUser?.email ?: ""
+                    val authName = currentUser?.displayName ?: authEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+
+                    val displayName = if (authRepository.isGuestSessionActive()) {
+                        if (cleanProfile.name.isBlank() || cleanProfile.name == "Player" || cleanProfile.name == "Guest Player") "Guest" else cleanProfile.name
+                    } else {
+                        when {
+                            cleanProfile.name.isNotBlank() && cleanProfile.name != "Player" && cleanProfile.name != "Guest Player" && cleanProfile.name != "Guest" -> cleanProfile.name
+                            authName.isNotBlank() && authName != "Player" -> authName
+                            else -> "Player"
+                        }
+                    }
+
+                    val displayEmail = if (authRepository.isGuestSessionActive()) {
+                        "Guest Account"
+                    } else {
+                        when {
+                            cleanProfile.email.isNotBlank() && cleanProfile.email != "Guest Account" && cleanProfile.email != "guest@brainquiz.ai" -> cleanProfile.email
+                            authEmail.isNotBlank() -> authEmail
+                            else -> ""
+                        }
+                    }
+
+                    val achievementsList = achievementRepository.getAllAchievements(0, 0, 0)
+
+                    _uiState.update {
+                        it.copy(
+                            xp = 0,
+                            level = 1,
+                            coins = 0,
+                            streakDays = 0,
+                            rank = "Beginner",
+                            playerName = displayName,
+                            playerEmail = displayEmail,
+                            avatarId = "student_boy",
+                            unlockedAvatars = setOf("student_boy", "student_girl"),
+                            totalQuizzesPlayed = 0,
+                            totalQuestionsAnswered = 0,
+                            totalCorrectAnswers = 0,
+                            accuracyPercentage = 0,
+                            bestScore = 0,
+                            longestStreak = 0,
+                            quizHistory = emptyList(),
+                            lastQuizCategory = "",
+                            lastQuizScore = 0,
+                            lastQuizXpEarned = 0,
+                            lastQuizDate = "",
+                            hasQuizHistory = false,
+                            achievements = achievementsList,
+                            unlockedAchievementsCount = 0,
+                            totalAchievementsCount = achievementsList.size,
+                            newlyUnlockedAchievements = emptyList()
+                        )
+                    }
+
+                    // Reload leaderboard to reflect the reset stats
+                    loadLeaderboard(_uiState.value.leaderboardPeriod)
+                    onComplete?.invoke(true)
+                } else {
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Error in resetAccountProgress", e)
+                onComplete?.invoke(false)
+            }
+        }
     }
 
     override fun onCleared() {

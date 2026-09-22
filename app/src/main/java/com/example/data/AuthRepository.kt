@@ -860,4 +860,193 @@ class AuthRepository(
             Log.e("AuthRepository", "Error signing out", e)
         }
     }
+
+    /**
+     * Dedicated Reset Game Progress implementation.
+     * Keeps the user's login account and identity (Firebase Auth user account, UID, email,
+     * login method, display name, createdAt, and installDate) completely intact.
+     *
+     * Completely resets all game progress:
+     * - XP = 0
+     * - Level = 1
+     * - Coins = 0
+     * - Rank = "Beginner"
+     * - Current streak = 0
+     * - Longest streak = 0
+     * - Achievements locked
+     * - Claimed rewards cleared
+     * - Total quizzes played = 0
+     * - Total questions answered = 0
+     * - Total correct answers = 0
+     * - Best score = 0
+     * - Quiz history cleared
+     * - Category progress cleared
+     * - Daily quiz assignment state cleared
+     * - Hint usage state cleared
+     * - Avatars reset to baseline free avatars ("student_boy", "student_girl") with "student_boy" equipped
+     * - Leaderboard XP, score, and stats reset to 0
+     */
+    suspend fun resetAccountProgress(): Result<UserProfile> {
+        return try {
+            val isGuest = isGuestSessionActive()
+            val currentProfile = userProfileStore.getProfile()
+            val user = currentUser
+            val activeUid = if (!isGuest && user != null) user.uid else currentProfile.uid
+            val activeEmail = if (!isGuest && user != null) (user.email ?: currentProfile.email) else currentProfile.email
+            val activeDisplayName = if (!isGuest && user != null) {
+                user.displayName ?: currentProfile.name
+            } else {
+                currentProfile.name
+            }
+
+            Log.d("AuthRepository", "resetAccountProgress starting for uid='$activeUid', isGuest=$isGuest")
+
+            // 1. Clear daily quiz cache and hint state
+            try {
+                com.example.data.database.QuestionSelectionEngine(context).resetDailyQuizAssignmentState()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed resetting daily quiz cache: ${e.message}")
+            }
+            try {
+                HintRepository(context).resetAllHints()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed resetting hints: ${e.message}")
+            }
+
+            // 2. Clear achievement state and local quiz results state
+            try {
+                AchievementRepository(context, userProfileStore).resetAccountAchievements(activeUid)
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed resetting achievements: ${e.message}")
+            }
+            try {
+                quizResultRepository.clearAccountResults(activeUid)
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed clearing account quiz results: ${e.message}")
+            }
+
+            // 3. Overwrite local profile via dedicated overwrite method (bypassing saveProfile merge)
+            val baseForReset = currentProfile.copy(
+                uid = activeUid,
+                email = activeEmail,
+                name = activeDisplayName
+            )
+            val freshCleanProfile = userProfileStore.overwriteResetUserProfile(baseForReset)
+
+            // 4. If logged-in user, clear Firestore quiz_results subcollection and overwrite users/{uid} & leaderboard/{uid}
+            if (!isGuest && user != null && activeUid.isNotBlank()) {
+                val firestore = getFirestore()
+                if (firestore != null) {
+                    withContext(NonCancellable) {
+                        // a. Delete all documents in users/{uid}/quiz_results
+                        try {
+                            val quizResultsSnapshot = firestore.collection("users")
+                                .document(activeUid)
+                                .collection("quiz_results")
+                                .get()
+                                .await()
+                            for (doc in quizResultsSnapshot.documents) {
+                                try {
+                                    doc.reference.delete().await()
+                                } catch (docEx: Exception) {
+                                    Log.w("AuthRepository", "Failed deleting quiz_result ${doc.id}: ${docEx.message}")
+                                }
+                            }
+                            Log.d("AuthRepository", "Deleted all quiz_results documents for $activeUid")
+                        } catch (qrEx: Exception) {
+                            Log.w("AuthRepository", "Error clearing quiz_results subcollection: ${qrEx.message}")
+                        }
+
+                        // b. Delete all users/{uid}/backups documents so old progress cannot be restored
+                        try {
+                            val backupsSnapshot = firestore.collection("users")
+                                .document(activeUid)
+                                .collection("backups")
+                                .get()
+                                .await()
+                            for (doc in backupsSnapshot.documents) {
+                                try {
+                                    doc.reference.delete().await()
+                                } catch (docEx: Exception) {
+                                    Log.w("AuthRepository", "Failed deleting backup ${doc.id}: ${docEx.message}")
+                                }
+                            }
+                            Log.d("AuthRepository", "Deleted all backups documents for $activeUid")
+                        } catch (bEx: Exception) {
+                            Log.w("AuthRepository", "Error clearing backups subcollection: ${bEx.message}")
+                        }
+
+                        // c. Overwrite remote Firestore users/{uid} document with fresh clean profile
+                        try {
+                            firestore.collection("users").document(activeUid).set(freshCleanProfile).await()
+                            Log.d("AuthRepository", "Successfully reset users/$activeUid doc in Firestore")
+                        } catch (uEx: Exception) {
+                            Log.e("AuthRepository", "Error setting users/$activeUid doc", uEx)
+                        }
+
+                        // c. Overwrite or reset leaderboard/{uid} document with zeroed statistics
+                        try {
+                            val startOfWeek = java.util.Calendar.getInstance().apply {
+                                firstDayOfWeek = java.util.Calendar.MONDAY
+                                set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+                                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+
+                            val cleanLeaderboardEntry = hashMapOf(
+                                "id" to activeUid,
+                                "name" to freshCleanProfile.name.ifBlank { "Player" },
+                                "avatarId" to "student_boy",
+                                "xp" to 0,
+                                "weeklyXp" to 0,
+                                "weekStart" to startOfWeek,
+                                "level" to 1,
+                                "rankBadge" to "Beginner",
+                                "quizzesPlayed" to 0,
+                                "achievementsCount" to 0,
+                                "score" to 0,
+                                "countryFlag" to "🌟",
+                                "updatedAt" to System.currentTimeMillis()
+                            )
+                            firestore.collection("leaderboard").document(activeUid).set(cleanLeaderboardEntry).await()
+                            Log.d("AuthRepository", "Successfully reset leaderboard/$activeUid doc in Firestore")
+                        } catch (lbEx: Exception) {
+                            Log.e("AuthRepository", "Error setting leaderboard/$activeUid doc", lbEx)
+                        }
+                    }
+                }
+            }
+
+            // 5. Update local registered user and leaderboard caches
+            try {
+                val cleanLeaderboardUser = com.example.ui.screens.LeaderboardUser(
+                    rank = 0,
+                    id = activeUid,
+                    name = freshCleanProfile.name.ifBlank { "Player" },
+                    avatarId = "student_boy",
+                    xp = 0,
+                    weeklyXp = 0,
+                    level = 1,
+                    rankBadge = "Beginner",
+                    quizzesPlayed = 0,
+                    achievementsCount = 0,
+                    score = 0,
+                    countryFlag = "🌟",
+                    rankChange = 0,
+                    isCurrentUser = true
+                )
+                leaderboardRepository.saveRegisteredAppUsers(listOf(cleanLeaderboardUser))
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed updating leaderboard caches for reset: ${e.message}")
+            }
+
+            Log.d("AuthRepository", "resetAccountProgress complete for uid='$activeUid'")
+            Result.success(freshCleanProfile)
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error resetting account progress", e)
+            Result.failure(e)
+        }
+    }
 }

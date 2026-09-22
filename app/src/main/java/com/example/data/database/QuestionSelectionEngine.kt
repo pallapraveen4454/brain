@@ -585,5 +585,21 @@ class QuestionSelectionEngine(private val context: Context? = null) {
         inMemoryLastDate[dateKey] = todayDate
         inMemoryDayIndex[indexKey] = dayIndex
     }
+
+    /**
+     * Completely clears daily assigned questions cache (SharedPreferences and in-memory caches)
+     * so that daily quiz assignments are cleanly reset.
+     */
+    fun resetDailyQuizAssignmentState() {
+        try {
+            getPrefs()?.edit()?.clear()?.apply()
+            inMemoryAssignedIds.clear()
+            inMemoryLastDate.clear()
+            inMemoryDayIndex.clear()
+            Log.d("QuestionSelectionEngine", "Successfully cleared all daily quiz assigned state and in-memory cache.")
+        } catch (e: Exception) {
+            Log.e("QuestionSelectionEngine", "Error resetting daily quiz assignment state", e)
+        }
+    }
 }
 

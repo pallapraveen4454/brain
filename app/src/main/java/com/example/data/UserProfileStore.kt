@@ -268,6 +268,111 @@ class UserProfileStore(
         )
     }
 
+    /**
+     * Complete, dedicated overwrite-based reset for game progress.
+     * Bypasses the auto-restoration merge logic of saveProfile() (which uses maxOf() and list merging).
+     * Preserves: uid, name, email, createdAt, installDate.
+     * Resets: xp=0, level=1, coins=0, streak=0, rank="Beginner", unlockedAchievements=empty,
+     * claimedRewards=empty, unlockedAvatars=listOf("student_boy", "student_girl"), avatarId="student_boy",
+     * quizHistory=empty, stats=0, lastQuiz*=cleared.
+     */
+    fun overwriteResetUserProfile(baseProfile: UserProfile): UserProfile {
+        val cleanProfile = UserProfile(
+            uid = baseProfile.uid,
+            name = if (baseProfile.name.isNotBlank() && baseProfile.name != "Guest Player") baseProfile.name else "Player",
+            email = baseProfile.email,
+            avatarId = "student_boy",
+            xp = 0,
+            level = 1,
+            coins = 0,
+            streak = 0,
+            lastActiveDate = "",
+            createdAt = baseProfile.createdAt,
+            installDate = baseProfile.installDate,
+            rank = "Beginner",
+            unlockedAchievements = emptyList(),
+            claimedRewards = emptyList(),
+            unlockedAvatars = listOf("student_boy", "student_girl"),
+            quizHistory = emptyList(),
+            lastQuizCategory = "",
+            lastQuizScore = 0,
+            lastQuizXpEarned = 0,
+            lastQuizDate = "",
+            totalQuizzesPlayed = 0,
+            totalQuestionsAnswered = 0,
+            totalCorrectAnswers = 0,
+            bestScore = 0,
+            longestStreak = 0
+        )
+
+        try {
+            val isGuestTarget = cleanProfile.uid.startsWith("guest_") || isGuestActive() || cleanProfile.email == "Guest Account"
+            val targetKey = if (isGuestTarget) {
+                keyGuestProfileJson
+            } else if (cleanProfile.uid.isNotBlank() && !cleanProfile.uid.startsWith("guest_")) {
+                "auth_user_profile_${cleanProfile.uid}"
+            } else {
+                keyAuthProfileJson
+            }
+
+            val jsonObj = profileToJson(cleanProfile)
+            getPrefs()?.edit()?.apply {
+                putString(targetKey, jsonObj.toString())
+                if (!isGuestTarget) {
+                    putString(keyAuthProfileJson, jsonObj.toString())
+                    if (cleanProfile.uid.isNotBlank()) {
+                        putString("auth_user_profile_${cleanProfile.uid}", jsonObj.toString())
+                    }
+                }
+                apply()
+            }
+
+            // Sync clean legacy SharedPreferences files
+            val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+            val accountKey = if (isGuestTarget || cleanProfile.uid.startsWith("guest_")) "guest_${cleanProfile.uid}" else "uid_${cleanProfile.uid}"
+            if (ctx != null) {
+                // Clear user specific quiz results and achievements preferences
+                ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+
+                // Sync clean baseline values
+                ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().apply {
+                    putInt("user_total_xp", 0)
+                    putInt("last_total_xp", 0)
+                    putInt("user_level", 1)
+                    putInt("user_coins", 0)
+                    putInt("user_streak", 0)
+                    putString("user_last_active_date", "")
+                    putString("last_category_name", "")
+                    putInt("last_score_out_of_10", 0)
+                    putInt("last_xp_earned", 0)
+                    putString("last_quiz_date", "")
+                    putBoolean("has_quiz_history", false)
+                    putInt("stats_quizzes_played", 0)
+                    putInt("stats_questions_answered", 0)
+                    putInt("stats_correct_answers", 0)
+                    putInt("stats_best_score", 0)
+                    putInt("stats_longest_streak", 0)
+                    putString("local_quiz_results_list", "[]")
+                    apply()
+                }
+
+                ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit().apply {
+                    putString("saved_custom_username", cleanProfile.name)
+                    putString("saved_avatar_id", "student_boy")
+                    apply()
+                }
+            }
+
+            try { _profileFlow.value = cleanProfile } catch (e: Exception) { }
+            Log.d("UserProfileStore", "overwriteResetUserProfile: successfully wrote fresh clean profile for uid=${cleanProfile.uid}")
+        } catch (e: Exception) {
+            Log.e("UserProfileStore", "Error during overwriteResetUserProfile", e)
+        }
+
+        return cleanProfile
+    }
+
     fun resetGuestAccount(): UserProfile {
         Log.d("GuestAccount", "Guest Account explicitly reset by user")
         try {

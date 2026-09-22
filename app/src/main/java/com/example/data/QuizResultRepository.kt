@@ -313,4 +313,19 @@ class QuizResultRepository(
         }
         return localList
     }
+
+    /**
+     * Clear all local quiz results and stats from SharedPreferences for the given account.
+     */
+    fun clearAccountResults(userId: String) {
+        try {
+            val isGuest = userProfileStore.isGuestActive()
+            val accountKey = if (isGuest || userId.startsWith("guest_")) "guest_$userId" else "uid_$userId"
+            val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+            ctx?.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
+            Log.d("QuizResultRepository", "Successfully cleared quiz_results_prefs_$accountKey")
+        } catch (e: Exception) {
+            Log.e("QuizResultRepository", "Error clearing account quiz results", e)
+        }
+    }
 }

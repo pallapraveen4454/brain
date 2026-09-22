@@ -479,5 +479,25 @@ class AchievementRepository(
             )
         )
     }
+
+    /**
+     * Clear all achievement progress and unlocked/claimed states for a specific account.
+     */
+    fun resetAccountAchievements(targetUid: String? = null) {
+        try {
+            val key = if (!targetUid.isNullOrBlank()) {
+                if (targetUid.startsWith("guest_")) "guest_$targetUid" else "uid_$targetUid"
+            } else {
+                getAccountKey()
+            }
+            context?.getSharedPreferences("achievements_prefs_$key", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.clear()
+                ?.apply()
+            Log.d("AchievementRepository", "Successfully cleared achievements_prefs_$key")
+        } catch (e: Exception) {
+            Log.e("AchievementRepository", "Error resetting account achievements", e)
+        }
+    }
 }
 

@@ -84,6 +84,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -1641,7 +1642,7 @@ private fun ProfileAmbientParticlesCanvas() {
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "profile_ambient_particles")
-    val floatAnim by infiniteTransition.animateFloat(
+    val floatAnim = infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 20f,
         animationSpec = infiniteRepeatable(
@@ -1651,15 +1652,20 @@ private fun ProfileAmbientParticlesCanvas() {
         label = "particleFloat"
     )
 
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        particles.forEachIndexed { idx, particle ->
-            val offsetY = (particle.yPct * size.height) + (if (idx % 2 == 0) floatAnim else -floatAnim)
-            val offsetX = particle.xPct * size.width
-            drawCircle(
-                color = particle.color.copy(alpha = 0.25f),
-                radius = particle.radius.dp.toPx(),
-                center = Offset(offsetX, offsetY)
-            )
-        }
-    }
+    Spacer(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawBehind {
+                val currentFloat = floatAnim.value
+                particles.forEachIndexed { idx, particle ->
+                    val offsetY = (particle.yPct * size.height) + (if (idx % 2 == 0) currentFloat else -currentFloat)
+                    val offsetX = particle.xPct * size.width
+                    drawCircle(
+                        color = particle.color.copy(alpha = 0.25f),
+                        radius = particle.radius.dp.toPx(),
+                        center = Offset(offsetX, offsetY)
+                    )
+                }
+            }
+    )
 }

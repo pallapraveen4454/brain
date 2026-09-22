@@ -80,4 +80,16 @@ class HintRepository(
         val key = getCanonicalCategoryKey(categoryId)
         return getPrefs()?.getString("hint_used_date_$key", "") ?: ""
     }
+
+    /**
+     * Reset all category hint usage state.
+     */
+    fun resetAllHints() {
+        try {
+            getPrefs()?.edit()?.clear()?.apply()
+            Log.d("HINT_SYSTEM", "resetAllHints: Cleared all hint usage preferences.")
+        } catch (e: Exception) {
+            Log.e("HINT_SYSTEM", "resetAllHints failed", e)
+        }
+    }
 }

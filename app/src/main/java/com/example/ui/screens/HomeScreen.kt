@@ -303,7 +303,7 @@ fun HomeScreen(
                             achievements = uiState.achievements,
                             onEditUsername = { viewModel.setShowEditUsernameDialog(true) },
                             onOpenAvatarShop = onNavigateToAvatarShop,
-                            onResetAccount = { viewModel.resetGuestAccount() },
+                            onResetAccount = { viewModel.resetAccountProgress() },
                             onSignOut = {
                                 viewModel.signOut()
                                 onNavigateToLogin()
