@@ -9,6 +9,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.util.Random
 
@@ -39,9 +40,16 @@ class GeminiQuizService {
      */
     private suspend fun ensureFirebaseAuth() {
         try {
-            val auth = FirebaseAuth.getInstance()
+            val auth = try {
+                FirebaseAuth.getInstance()
+            } catch (e: Exception) {
+                null
+            } ?: return
+
             if (auth.currentUser == null) {
-                auth.signInAnonymously().await()
+                withTimeoutOrNull(2000L) {
+                    auth.signInAnonymously().await()
+                }
                 Log.d(TAG, "Initialized anonymous Firebase session for AI request: ${auth.currentUser?.uid}")
             }
         } catch (e: Exception) {
@@ -63,12 +71,18 @@ class GeminiQuizService {
         try {
             ensureFirebaseAuth()
 
-            val functions = FirebaseFunctions.getInstance()
-            val payload = hashMapOf("topic" to trimmedTopic)
-            val result = functions.getHttpsCallable(FUNCTION_QUIZ_GENERATOR).call(payload).await()
+            val rawJson: String? = withTimeoutOrNull(3000L) {
+                val functions = try {
+                    FirebaseFunctions.getInstance()
+                } catch (e: Exception) {
+                    null
+                } ?: return@withTimeoutOrNull null
 
-            val data = result.data as? Map<*, *>
-            val rawJson = data?.get("rawJson") as? String
+                val payload = hashMapOf("topic" to trimmedTopic)
+                val result = functions.getHttpsCallable(FUNCTION_QUIZ_GENERATOR).call(payload).await()
+                val data = result.data as? Map<*, *>
+                data?.get("rawJson") as? String
+            }
 
             if (!rawJson.isNullOrBlank()) {
                 val parsedQuestions = parseAndValidateQuestionsJson(rawJson, trimmedTopic)
