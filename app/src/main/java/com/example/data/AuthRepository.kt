@@ -912,6 +912,11 @@ class AuthRepository(
             } catch (e: Exception) {
                 Log.w("AuthRepository", "Failed resetting hints: ${e.message}")
             }
+            try {
+                QuizRepository(context).resetDailyCategoryCompletions()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Failed resetting category completions: ${e.message}")
+            }
 
             // 2. Clear achievement state and local quiz results state
             try {

@@ -41,7 +41,9 @@ data class QuizCategory(
     val title: String,
     val questionsCount: String? = null,
     val iconName: String,
-    val accentColor: Color
+    val accentColor: Color,
+    val isCompletedToday: Boolean = false,
+    val nextAvailableDate: String? = null
 )
 
 data class QuickPlayOption(
@@ -89,6 +91,8 @@ data class HomeUiState(
     val unlockedAchievementsCount: Int = 0,
     val totalAchievementsCount: Int = 0,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
+    val isDailyChallengeCompletedToday: Boolean = false,
+    val dailyChallengeNextDate: String? = null,
     val categories: List<QuizCategory> = listOf(
         QuizCategory("gk", "General Knowledge", questionsCount = "Daily Quiz\n10 Questions", iconName = "Psychology", accentColor = CategoryGK),
         QuizCategory("science", "Science", questionsCount = "Daily Quiz\n10 Questions", iconName = "Science", accentColor = CategoryScience),
@@ -183,13 +187,29 @@ class HomeViewModel(
         }
     }
 
-    private fun loadCategoryQuestionCounts() {
+    fun refreshCategoryStatuses() {
+        val today = quizRepository.getTodayDateString()
+        val nextDate = quizRepository.getNextAvailableDateString(today)
         _uiState.update { state ->
             val updatedCategories = state.categories.map { category ->
-                category.copy(questionsCount = "Daily Quiz\n10 Questions")
+                val isCompleted = quizRepository.isCategoryCompletedToday(category.id, today)
+                category.copy(
+                    isCompletedToday = isCompleted,
+                    nextAvailableDate = if (isCompleted) nextDate else null,
+                    questionsCount = if (isCompleted) "Completed Today\nNext: $nextDate" else "Daily Quiz\n10 Questions"
+                )
             }
-            state.copy(categories = updatedCategories)
+            val isDailyCompleted = quizRepository.isCategoryCompletedToday("daily", today)
+            state.copy(
+                categories = updatedCategories,
+                isDailyChallengeCompletedToday = isDailyCompleted,
+                dailyChallengeNextDate = if (isDailyCompleted) nextDate else null
+            )
         }
+    }
+
+    private fun loadCategoryQuestionCounts() {
+        refreshCategoryStatuses()
     }
 
     fun loadUserProfile() {
@@ -310,6 +330,7 @@ class HomeViewModel(
                         newlyUnlockedAchievements = profileComputation.achCheck.newlyUnlocked
                     )
                 }
+                refreshCategoryStatuses()
 
                 // 3. Save updated streak and sync on IO
                 val updatedProfile = profileComputation.profile.copy(

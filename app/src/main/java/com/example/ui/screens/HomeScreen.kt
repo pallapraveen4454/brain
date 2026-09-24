@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.Manifest
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -144,7 +145,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val localContext = LocalContext.current
 
     // Point 9: Immediately before HomeScreen receives / renders uiState
     Log.d("RUNTIME_TRACE", "[Point 9: HomeScreen received uiState] playerName=${uiState.playerName}, xp=${uiState.xp}, coins=${uiState.coins}, streakDays=${uiState.streakDays}, level=${uiState.level}")
@@ -155,42 +156,42 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            NotificationHelper.syncReminders(context)
+            NotificationHelper.syncReminders(localContext)
         }
     }
 
     LaunchedEffect(Unit) {
         viewModel.loadUserProfile()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val hasPerm = NotificationHelper.hasNotificationPermission(context)
-            val isPromptShown = NotificationHelper.isNotificationPromptShown(context)
+            val hasPerm = NotificationHelper.hasNotificationPermission(localContext)
+            val isPromptShown = NotificationHelper.isNotificationPromptShown(localContext)
             if (!hasPerm && !isPromptShown) {
                 showNotificationPermissionRationale = true
             } else if (hasPerm) {
-                NotificationHelper.syncReminders(context)
+                NotificationHelper.syncReminders(localContext)
             }
         } else {
-            NotificationHelper.syncReminders(context)
+            NotificationHelper.syncReminders(localContext)
         }
     }
 
     if (showNotificationPermissionRationale) {
         NotificationPermissionDialog(
             onEnableClick = {
-                NotificationHelper.setNotificationPromptShown(context, true)
+                NotificationHelper.setNotificationPromptShown(localContext, true)
                 showNotificationPermissionRationale = false
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    if (!NotificationHelper.hasNotificationPermission(context)) {
+                    if (!NotificationHelper.hasNotificationPermission(localContext)) {
                         permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
-                        NotificationHelper.syncReminders(context)
+                        NotificationHelper.syncReminders(localContext)
                     }
                 } else {
-                    NotificationHelper.syncReminders(context)
+                    NotificationHelper.syncReminders(localContext)
                 }
             },
             onMaybeLaterClick = {
-                NotificationHelper.setNotificationPromptShown(context, true)
+                NotificationHelper.setNotificationPromptShown(localContext, true)
                 showNotificationPermissionRationale = false
             }
         )
@@ -228,12 +229,12 @@ fun HomeScreen(
                 playerName = uiState.playerName,
                 unreadNotifications = uiState.unreadNotificationsCount,
                 onNotificationClick = {
-                    VibrationUtils.vibrateClick(context)
-                    SoundEffects.playCoinSound(context)
+                    VibrationUtils.vibrateClick(localContext)
+                    SoundEffects.playCoinSound(localContext)
                     viewModel.toggleNotificationsDialog(true)
                 },
                 onProfileClick = {
-                    VibrationUtils.vibrateClick(context)
+                    VibrationUtils.vibrateClick(localContext)
                     viewModel.selectNavTab(BottomNavTab.Profile)
                 }
             )
@@ -333,6 +334,8 @@ private fun MainHomeContent(
     onNavigateToQuiz: (String) -> Unit,
     onNavigateToAiGenerator: () -> Unit
 ) {
+    val localContext = LocalContext.current
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier
@@ -555,20 +558,33 @@ private fun MainHomeContent(
 
         // 3. Featured Daily Challenge Card Banner
         item(span = { GridItemSpan(2) }) {
+            val isDailyCompleted = uiState.isDailyChallengeCompletedToday
+            val dailyNextDate = uiState.dailyChallengeNextDate ?: "Tomorrow"
+
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 backgroundColor = DarkCardSurface,
-                borderColor = AccentCoins.copy(alpha = 0.5f),
+                borderColor = if (isDailyCompleted) Color(0xFF2ECC71).copy(alpha = 0.5f) else AccentCoins.copy(alpha = 0.5f),
                 elevation = 6.dp,
-                onClick = { onNavigateToQuiz("daily") }
+                onClick = {
+                    if (isDailyCompleted) {
+                        Toast.makeText(localContext, "Daily Challenge completed for today! Available on: $dailyNextDate", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onNavigateToQuiz("daily")
+                    }
+                }
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             brush = Brush.linearGradient(
-                                colors = listOf(
+                                colors = if (isDailyCompleted) listOf(
+                                    Color(0xFF2ECC71).copy(alpha = 0.15f),
+                                    DarkCardSurface,
+                                    Color(0xFF2ECC71).copy(alpha = 0.08f)
+                                ) else listOf(
                                     AccentCoins.copy(alpha = 0.2f),
                                     DarkCardSurface,
                                     AccentStreak.copy(alpha = 0.15f)
@@ -587,11 +603,11 @@ private fun MainHomeContent(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(AccentCoins)
+                                        .background(if (isDailyCompleted) Color(0xFF2ECC71) else AccentCoins)
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "⚡ 2X REWARDS",
+                                        text = if (isDailyCompleted) "✓ COMPLETED TODAY" else "⚡ 2X REWARDS",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 10.sp
@@ -611,25 +627,31 @@ private fun MainHomeContent(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Earn double Coins & XP today!",
+                                text = if (isDailyCompleted) "Completed today! Next challenge: $dailyNextDate" else "Earn double Coins (2X Coins) today!",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = if (isDailyCompleted) Color(0xFF2ECC71) else TextSecondary
                             )
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Button(
-                            onClick = { onNavigateToQuiz("daily") },
+                            onClick = {
+                                if (isDailyCompleted) {
+                                    Toast.makeText(localContext, "Daily Challenge completed for today! Available on: $dailyNextDate", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onNavigateToQuiz("daily")
+                                }
+                            },
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentCoins,
-                                contentColor = DarkBackground
+                                containerColor = if (isDailyCompleted) Color(0xFF2ECC71).copy(alpha = 0.3f) else AccentCoins,
+                                contentColor = if (isDailyCompleted) Color(0xFF2ECC71) else DarkBackground
                             ),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = "Start",
+                                text = if (isDailyCompleted) "Done" else "Start",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp
@@ -793,7 +815,19 @@ private fun MainHomeContent(
                 questionsCount = category.questionsCount,
                 icon = icon,
                 accentColor = category.accentColor,
-                onClick = { onNavigateToQuiz(category.id) },
+                isCompleted = category.isCompletedToday,
+                nextAvailableDate = category.nextAvailableDate,
+                onClick = {
+                    if (category.isCompletedToday) {
+                        Toast.makeText(
+                            localContext,
+                            "You have already completed ${category.title} today! Available next on: ${category.nextAvailableDate ?: "Tomorrow"}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        onNavigateToQuiz(category.id)
+                    }
+                },
                 testTag = "category_${category.id}"
             )
         }

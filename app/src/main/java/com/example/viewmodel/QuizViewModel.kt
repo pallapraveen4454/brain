@@ -1,15 +1,26 @@
 package com.example.viewmodel
 
+import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.AchievementRepository
 import com.example.data.AuthRepository
 import com.example.data.GeminiQuizService
+import com.example.data.HintRepository
 import com.example.data.QuizRepository
 import com.example.data.QuizResultRepository
 import com.example.data.UserProfile
+import com.example.data.model.Achievement
 import com.example.data.model.QuizQuestion
 import com.example.data.model.QuizResult
+import com.example.utils.LevelUtils
+import com.example.utils.RewardedAdManager
+import com.example.utils.StreakUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,16 +28,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import android.app.Activity
-import com.example.data.AchievementRepository
-import com.example.data.HintRepository
-import com.example.data.model.Achievement
-import com.example.utils.LevelUtils
-import com.example.utils.RewardedAdManager
-import com.example.utils.StreakUtils
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class QuizUiState(
     val categoryId: String = "",
@@ -53,7 +54,10 @@ data class QuizUiState(
     val hiddenOptionIndices: Set<Int> = emptySet(),
     val isHintAvailableToday: Boolean = true,
     val isShowingAdForHint: Boolean = false,
-    val hintErrorMessage: String? = null
+    val hintErrorMessage: String? = null,
+    val isCategoryAlreadyCompletedToday: Boolean = false,
+    val nextAvailableDate: String = "",
+    val isDailyChallenge: Boolean = false
 )
 
 class QuizViewModel(
@@ -71,15 +75,26 @@ class QuizViewModel(
     private var timerJob: Job? = null
     private var advanceJob: Job? = null
 
+    // Guard flags against duplicate rewards and operations
+    private val isProcessingHintReward = AtomicBoolean(false)
+    private var isCompletingQuiz = false
+    private var hasSavedQuizResultData = false
+
     fun loadAiQuiz(topic: String) {
         timerJob?.cancel()
         advanceJob?.cancel()
+        isCompletingQuiz = false
+        hasSavedQuizResultData = false
+        isProcessingHintReward.set(false)
+
         _uiState.update {
             it.copy(
                 categoryId = "ai_custom",
                 categoryTitle = "AI: $topic",
                 isLoading = true,
-                questions = emptyList()
+                questions = emptyList(),
+                isCategoryAlreadyCompletedToday = false,
+                isDailyChallenge = false
             )
         }
 
@@ -107,9 +122,12 @@ class QuizViewModel(
                     isQuizComplete = false,
                     isLoading = false,
                     hiddenOptionIndices = emptySet(),
-                    isHintAvailableToday = hintRepository.isHintAvailableForCategory("ai_custom"),
+                    isHintAvailableToday = hintRepository.isGlobalHintAvailable(),
                     isShowingAdForHint = false,
-                    hintErrorMessage = null
+                    hintErrorMessage = null,
+                    isCategoryAlreadyCompletedToday = false,
+                    nextAvailableDate = "",
+                    isDailyChallenge = false
                 )
             }
 
@@ -127,6 +145,31 @@ class QuizViewModel(
         }
         timerJob?.cancel()
         advanceJob?.cancel()
+        isCompletingQuiz = false
+        hasSavedQuizResultData = false
+        isProcessingHintReward.set(false)
+
+        val title = quizRepository.getCategoryTitle(categoryId)
+        val isDaily = quizRepository.isDailyChallenge(categoryId)
+
+        // 1. One quiz per category per calendar day check
+        val isAlreadyCompleted = quizRepository.isCategoryCompletedToday(categoryId)
+        if (isAlreadyCompleted) {
+            val nextDate = quizRepository.getNextAvailableDateString()
+            Log.d("QuizViewModel", "Category '$categoryId' is already completed today. Next available: $nextDate")
+            _uiState.update {
+                QuizUiState(
+                    categoryId = categoryId,
+                    categoryTitle = title,
+                    isLoading = false,
+                    isCategoryAlreadyCompletedToday = true,
+                    nextAvailableDate = nextDate,
+                    isDailyChallenge = isDaily
+                )
+            }
+            return
+        }
+
         val rawQuestions = quizRepository.getQuestionsForCategory(categoryId)
         val normCategoryId = categoryId.lowercase()
         val isRandomCategory = normCategoryId in listOf("quick", "daily")
@@ -144,7 +187,6 @@ class QuizViewModel(
             }
         }
 
-        val title = quizRepository.getCategoryTitle(categoryId)
         val currentLocalXp = quizResultRepository.getLocalProgress().totalXp
 
         _uiState.update {
@@ -168,9 +210,12 @@ class QuizViewModel(
                 isQuizComplete = false,
                 isLoading = false,
                 hiddenOptionIndices = emptySet(),
-                isHintAvailableToday = hintRepository.isHintAvailableForCategory(categoryId),
+                isHintAvailableToday = hintRepository.isGlobalHintAvailable(),
                 isShowingAdForHint = false,
-                hintErrorMessage = null
+                hintErrorMessage = null,
+                isCategoryAlreadyCompletedToday = false,
+                nextAvailableDate = "",
+                isDailyChallenge = isDaily
             )
         }
 
@@ -335,7 +380,7 @@ class QuizViewModel(
                     hiddenOptionIndices = emptySet(),
                     isShowingAdForHint = false,
                     hintErrorMessage = null,
-                    isHintAvailableToday = hintRepository.isHintAvailableForCategory(it.categoryId)
+                    isHintAvailableToday = hintRepository.isGlobalHintAvailable()
                 )
             }
             startTimer()
@@ -345,9 +390,10 @@ class QuizViewModel(
     }
 
     /**
-     * Request a daily 50/50 hint for the current category.
-     * Triggers the Rewarded Ad flow. The hint is ONLY consumed if the reward is confirmed.
-     * The timer is IMMEDIATELY paused BEFORE starting the ad and resumes from the exact remaining time.
+     * Request a daily 50/50 hint.
+     * Triggers the Rewarded Ad flow. The hint is ONLY consumed if the reward is confirmed and hint unlocked.
+     * Does NOT consume hint on button press, ad opening, ad skip, failure, or dismissal.
+     * Duplicate reward callbacks are prevented.
      */
     fun requestHint(activity: Activity) {
         val currentState = _uiState.value
@@ -355,19 +401,28 @@ class QuizViewModel(
         if (currentState.timeRemaining <= 0) return
         if (currentState.isShowingAdForHint) return
         if (currentState.hiddenOptionIndices.isNotEmpty()) return
-        if (!currentState.isHintAvailableToday) return
+        if (!hintRepository.isGlobalHintAvailable()) {
+            _uiState.update { it.copy(isHintAvailableToday = false) }
+            return
+        }
 
         // 1. Immediately pause timer before ad loads/shows
         pauseTimer()
 
-        // 2. Lock UI state
+        // 2. Lock UI state & reset reward callback processing latch
+        isProcessingHintReward.set(false)
         _uiState.update { it.copy(isShowingAdForHint = true, hintErrorMessage = null) }
 
         // 3. Launch Rewarded Ad
         RewardedAdManager.showRewardedAd(
             activity = activity,
             onRewardEarned = {
-                applyHint5050()
+                // Prevent duplicate reward callbacks from granting multiple hints
+                if (isProcessingHintReward.compareAndSet(false, true)) {
+                    applyHint5050()
+                } else {
+                    Log.d("HINT_SYSTEM", "Duplicate onRewardEarned callback ignored.")
+                }
             },
             onAdClosedWithoutReward = {
                 onHintAdClosedWithoutReward()
@@ -380,6 +435,13 @@ class QuizViewModel(
 
     private fun applyHint5050() {
         val currentState = _uiState.value
+        // Ensure hint has not already been used today
+        if (!hintRepository.isGlobalHintAvailable() || currentState.hiddenOptionIndices.isNotEmpty()) {
+            _uiState.update { it.copy(isShowingAdForHint = false, isHintAvailableToday = false) }
+            resumeTimer()
+            return
+        }
+
         val question = currentState.questions.getOrNull(currentState.currentQuestionIndex) ?: run {
             _uiState.update { it.copy(isShowingAdForHint = false) }
             resumeTimer()
@@ -398,7 +460,8 @@ class QuizViewModel(
         val keptIncorrectIndex = incorrectIndices.random()
         val hiddenIndices = incorrectIndices.filter { it != keptIncorrectIndex }.toSet()
 
-        // Persist hint consumption for today's calendar date for this category ONLY upon confirmed reward!
+        // Persist hint consumption globally and for category ONLY after rewarded ad success and actual hint unlock
+        hintRepository.markGlobalHintUsed()
         hintRepository.markHintUsedForCategory(currentState.categoryId)
 
         _uiState.update {
@@ -415,24 +478,26 @@ class QuizViewModel(
     }
 
     private fun onHintAdClosedWithoutReward() {
+        isProcessingHintReward.set(false)
         _uiState.update {
             it.copy(
                 isShowingAdForHint = false,
                 hintErrorMessage = null
             )
         }
-        // Resume timer from exact remaining seconds
+        // Resume timer from exact remaining seconds without consuming hint
         resumeTimer()
     }
 
     private fun onHintAdFailed(errorMsg: String) {
+        isProcessingHintReward.set(false)
         _uiState.update {
             it.copy(
                 isShowingAdForHint = false,
                 hintErrorMessage = errorMsg
             )
         }
-        // Resume timer from exact remaining seconds
+        // Resume timer from exact remaining seconds without consuming hint
         resumeTimer()
     }
 
@@ -444,17 +509,58 @@ class QuizViewModel(
         timerJob?.cancel()
         advanceJob?.cancel()
         val state = _uiState.value
-        if (state.isQuizComplete) return
+        if (state.isQuizComplete || isCompletingQuiz) return
+        isCompletingQuiz = true
 
         val scoreOutOfTen = state.correctCount
-        // Formula: 10 XP per correct answer
+        // Formula: 10 XP per correct answer (XP remains correctAnswers × 10 for all modes)
         val finalXpEarned = scoreOutOfTen * 10
-        // Formula: Exactly 10 coins per correct answer
-        val coinsGained = scoreOutOfTen * 10
+
+        // Requirement 3: Daily Challenge 2X coin reward
+        // Normal categories: correctAnswers × 10 coins.
+        // Daily Challenge: correctAnswers × 20 coins.
+        // XP remains correctAnswers × 10. Multiplier applies ONLY to coins.
+        val isDaily = quizRepository.isDailyChallenge(state.categoryId)
+        val coinsGained = if (isDaily) scoreOutOfTen * 20 else scoreOutOfTen * 10
+
         val timestamp = System.currentTimeMillis()
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 
-        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained")
+        // Requirement 1 & 4: Check if category already completed today to prevent duplicate completion/rewards
+        val alreadyCompletedToday = quizRepository.isCategoryCompletedToday(state.categoryId)
+        if (alreadyCompletedToday) {
+            Log.w("QuizViewModel", "Category '${state.categoryId}' was already completed today. Blocking duplicate daily completion and reward crediting.")
+            _uiState.update {
+                it.copy(
+                    isQuizComplete = true,
+                    score = finalXpEarned,
+                    xpEarned = 0,
+                    coinsEarned = 0,
+                    lastQuizDate = dateFormatted,
+                    isDailyChallenge = isDaily
+                )
+            }
+            return
+        }
+
+        // Record category completion atomically. Prevents duplicate daily completion records.
+        val newlyRecorded = quizRepository.recordCategoryCompletion(state.categoryId)
+        if (!newlyRecorded) {
+            Log.w("QuizViewModel", "Category '${state.categoryId}' duplicate record prevented.")
+            _uiState.update {
+                it.copy(
+                    isQuizComplete = true,
+                    score = finalXpEarned,
+                    xpEarned = 0,
+                    coinsEarned = 0,
+                    lastQuizDate = dateFormatted,
+                    isDailyChallenge = isDaily
+                )
+            }
+            return
+        }
+
+        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained, isDailyChallenge=$isDaily")
 
         _uiState.update {
             it.copy(
@@ -462,12 +568,10 @@ class QuizViewModel(
                 score = finalXpEarned,
                 xpEarned = finalXpEarned,
                 coinsEarned = coinsGained,
-                lastQuizDate = dateFormatted
+                lastQuizDate = dateFormatted,
+                isDailyChallenge = isDaily
             )
         }
-
-        // Point 1: Before saveQuizResultData is called
-        Log.d("RUNTIME_TRACE", "[Point 1: Before saveQuizResultData] scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained")
 
         // Save quiz result data storage system
         saveQuizResultData(
@@ -488,8 +592,13 @@ class QuizViewModel(
         dateFormatted: String,
         timestamp: Long
     ) {
-        // Point 2: At the first line of saveQuizResultData
-        Log.d("RUNTIME_TRACE", "[Point 2: First line of saveQuizResultData] categoryName=$categoryName, scoreOutOfTen=$scoreOutOfTen, xpEarned=$xpEarned, coinsGained=$coinsGained")
+        if (hasSavedQuizResultData) {
+            Log.w("QuizViewModel", "saveQuizResultData already executed. Preventing duplicate rewards.")
+            return
+        }
+        hasSavedQuizResultData = true
+
+        Log.d("RUNTIME_TRACE", "[First line of saveQuizResultData] categoryName=$categoryName, scoreOutOfTen=$scoreOutOfTen, xpEarned=$xpEarned, coinsGained=$coinsGained")
 
         viewModelScope.launch {
             try {
@@ -500,8 +609,7 @@ class QuizViewModel(
 
                 val currentProfile = authRepository.getPersistentGuestProfile()
 
-                // Point 3: Immediately after getPersistentGuestProfile / loading profile
-                Log.d("RUNTIME_TRACE", "[Point 3: After loading profile] uid=${currentProfile.uid}, xp=${currentProfile.xp}, coins=${currentProfile.coins}, streak=${currentProfile.streak}, lastActiveDate=${currentProfile.lastActiveDate}, level=${currentProfile.level}, isGuest=$isGuest")
+                Log.d("RUNTIME_TRACE", "[After loading profile] uid=${currentProfile.uid}, xp=${currentProfile.xp}, coins=${currentProfile.coins}, streak=${currentProfile.streak}, lastActiveDate=${currentProfile.lastActiveDate}, level=${currentProfile.level}, isGuest=$isGuest")
 
                 // 1. Calculate XP and Coins
                 val startXp = maxOf(currentProfile.xp, _uiState.value.totalXp)
@@ -540,8 +648,7 @@ class QuizViewModel(
 
                 val finalCoins = newCoins + achResult.extraCoinsEarned
 
-                // Point 4: After calculating new XP, Coins and Streak
-                Log.d("RUNTIME_TRACE", "[Point 4: After calculating new XP, Coins, Streak] uid=$userId, xp=$newTotalXp, coins=$finalCoins, streak=$updatedStreak, lastActiveDate=$newActiveDate, level=$newLevel, isGuest=$isGuest")
+                Log.d("RUNTIME_TRACE", "[After calculating new XP, Coins, Streak] uid=$userId, xp=$newTotalXp, coins=$finalCoins, streak=$updatedStreak, lastActiveDate=$newActiveDate, level=$newLevel, isGuest=$isGuest")
 
                 // 5. Save quiz result to history
                 val quizResult = quizResultRepository.saveQuizResult(
@@ -592,7 +699,7 @@ class QuizViewModel(
                     lastQuizScore = scoreOutOfTen,
                     lastQuizXpEarned = xpEarned,
                     lastQuizDate = dateFormatted,
- totalQuizzesPlayed = newQuizzesPlayed,
+                    totalQuizzesPlayed = newQuizzesPlayed,
                     totalQuestionsAnswered = newQuestionsAnswered,
                     totalCorrectAnswers = newCorrectAnswers,
                     bestScore = newBestScore,
@@ -601,8 +708,7 @@ class QuizViewModel(
                     claimedRewards = newClaimedRewards
                 )
 
-                // Point 5: Immediately before saveProfile / saveUserProfileToFirestore
-                Log.d("RUNTIME_TRACE", "[Point 5: Immediately before saveProfile] uid=${updatedProfile.uid}, xp=${updatedProfile.xp}, coins=${updatedProfile.coins}, streak=${updatedProfile.streak}, lastActiveDate=${updatedProfile.lastActiveDate}, level=${updatedProfile.level}, targetKey=${if (updatedProfile.uid.startsWith("guest_")) "guest_user_profile_json" else "auth_user_profile_json"}, isGuest=$isGuest")
+                Log.d("RUNTIME_TRACE", "[Immediately before saveProfile] uid=${updatedProfile.uid}, xp=${updatedProfile.xp}, coins=${updatedProfile.coins}, streak=${updatedProfile.streak}, lastActiveDate=${updatedProfile.lastActiveDate}, level=${updatedProfile.level}, isGuest=$isGuest")
 
                 authRepository.saveUserProfileToFirestore(updatedProfile)
             } catch (e: Exception) {
@@ -618,7 +724,20 @@ class QuizViewModel(
     private fun Int.ifZero(default: Int): Int = if (this == 0) default else this
 
     fun restartQuiz() {
-        loadQuiz(_uiState.value.categoryId)
+        val catId = _uiState.value.categoryId
+        if (quizRepository.isCategoryCompletedToday(catId)) {
+            val nextDate = quizRepository.getNextAvailableDateString()
+            _uiState.update {
+                it.copy(
+                    isCategoryAlreadyCompletedToday = true,
+                    nextAvailableDate = nextDate
+                )
+            }
+            return
+        }
+        isCompletingQuiz = false
+        hasSavedQuizResultData = false
+        loadQuiz(catId)
     }
 
     override fun onCleared() {
