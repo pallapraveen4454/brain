@@ -15,11 +15,13 @@ object GoogleAuthDiagnostics {
     const val EXPECTED_PACKAGE_NAME = "com.aistudio.brainquizai.app"
     const val EXPECTED_SHA1_PHYSICAL = "0D:2B:E1:91:3D:48:06:7B:B3:DE:87:4D:BA:AB:70:99:72:87:AC:3E"
     const val EXPECTED_SHA1_CLOUD = "2F:6C:2A:71:67:C4:06:2A:DB:5D:7B:C8:AF:DD:62:E4:4B:AF:E4:7A"
-    val REGISTERED_SHA1_LIST = listOf(EXPECTED_SHA1_PHYSICAL, EXPECTED_SHA1_CLOUD)
+    const val EXPECTED_SHA1_RELEASE = "1E:FB:B8:A3:5A:8B:10:CE:3C:87:CA:A0:F8:31:C5:E4:16:B3:9A:52"
+    val REGISTERED_SHA1_LIST = listOf(EXPECTED_SHA1_PHYSICAL, EXPECTED_SHA1_CLOUD, EXPECTED_SHA1_RELEASE)
 
     const val EXPECTED_SERVER_CLIENT_ID = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID_PHYSICAL = "106236832575-dqo1vgdar02ab2e5e1pksea13fpv4q6l.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID_CLOUD = "106236832575-ssbispc69k5d64vm3c5772l6lctgvv7t.apps.googleusercontent.com"
+    const val ANDROID_CLIENT_ID_RELEASE = "106236832575-8doib4ou02n7pesapdcvpe8vidb0kvhm.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID = ANDROID_CLIENT_ID_PHYSICAL
     const val FIREBASE_PROJECT_ID = "brainquiz-ai-app"
     const val FIREBASE_APP_ID = "1:106236832575:android:8bb30cbfcabc48ffdfc18a"
