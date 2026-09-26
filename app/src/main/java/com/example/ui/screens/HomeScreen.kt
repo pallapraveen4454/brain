@@ -558,20 +558,37 @@ private fun MainHomeContent(
 
         // 3. Featured Daily Challenge Card Banner
         item(span = { GridItemSpan(2) }) {
+            val isClaimed = uiState.isDailyChallengeClaimedToday
+            val nextDate = uiState.dailyChallengeNextDate ?: "Tomorrow"
+
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 backgroundColor = DarkCardSurface,
-                borderColor = AccentCoins.copy(alpha = 0.5f),
+                borderColor = if (isClaimed) Color(0xFF2ECC71).copy(alpha = 0.5f) else AccentCoins.copy(alpha = 0.5f),
                 elevation = 6.dp,
-                onClick = { onNavigateToQuiz("daily") }
+                onClick = {
+                    if (isClaimed) {
+                        Toast.makeText(
+                            localContext,
+                            "Daily Challenge reward already completed for today! Available again: $nextDate",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        onNavigateToQuiz("daily")
+                    }
+                }
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             brush = Brush.linearGradient(
-                                colors = listOf(
+                                colors = if (isClaimed) listOf(
+                                    Color(0xFF2ECC71).copy(alpha = 0.15f),
+                                    DarkCardSurface,
+                                    Color(0xFF2ECC71).copy(alpha = 0.08f)
+                                ) else listOf(
                                     AccentCoins.copy(alpha = 0.2f),
                                     DarkCardSurface,
                                     AccentStreak.copy(alpha = 0.15f)
@@ -590,11 +607,11 @@ private fun MainHomeContent(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(AccentCoins)
+                                        .background(if (isClaimed) Color(0xFF2ECC71) else AccentCoins)
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "⚡ 2X REWARDS",
+                                        text = if (isClaimed) "✓ COMPLETED TODAY" else "⚡ 2X REWARDS",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 10.sp
@@ -614,25 +631,35 @@ private fun MainHomeContent(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Earn double XP and Coins today!",
+                                text = if (isClaimed) "Completed today! Next challenge: $nextDate" else "Earn double XP and Coins today!",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = if (isClaimed) Color(0xFF2ECC71) else TextSecondary
                             )
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Button(
-                            onClick = { onNavigateToQuiz("daily") },
+                            onClick = {
+                                if (isClaimed) {
+                                    Toast.makeText(
+                                        localContext,
+                                        "Daily Challenge reward already completed for today! Available again: $nextDate",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    onNavigateToQuiz("daily")
+                                }
+                            },
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentCoins,
-                                contentColor = DarkBackground
+                                containerColor = if (isClaimed) Color(0xFF2ECC71).copy(alpha = 0.25f) else AccentCoins,
+                                contentColor = if (isClaimed) Color(0xFF2ECC71) else DarkBackground
                             ),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = "Start",
+                                text = if (isClaimed) "Done" else "Start",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp

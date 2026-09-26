@@ -54,7 +54,9 @@ data class QuizUiState(
     val hiddenOptionIndices: Set<Int> = emptySet(),
     val isHintAvailableToday: Boolean = true,
     val isShowingAdForHint: Boolean = false,
-    val hintErrorMessage: String? = null
+    val hintErrorMessage: String? = null,
+    val isDailyChallengeAlreadyClaimed: Boolean = false,
+    val dailyChallengeNextDate: String? = null
 )
 
 class QuizViewModel(
@@ -63,7 +65,8 @@ class QuizViewModel(
     private val geminiQuizService: GeminiQuizService = GeminiQuizService(),
     private val quizResultRepository: QuizResultRepository = QuizResultRepository(),
     private val achievementRepository: AchievementRepository = AchievementRepository(),
-    private val hintRepository: HintRepository = HintRepository()
+    private val hintRepository: HintRepository = HintRepository(),
+    private val dailyChallengeRepository: com.example.data.DailyChallengeRepository = com.example.data.DailyChallengeRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuizUiState())
@@ -142,8 +145,25 @@ class QuizViewModel(
         isProcessingHintReward.set(false)
 
         val title = quizRepository.getCategoryTitle(categoryId)
-        val rawQuestions = quizRepository.getQuestionsForCategory(categoryId)
         val normCategoryId = categoryId.lowercase()
+        val isDaily = normCategoryId in listOf("daily", "dailychallenge", "daily challenge")
+
+        // Enforce one claim per calendar day strictly for Daily Challenge
+        if (isDaily && !dailyChallengeRepository.isDailyRewardAvailable()) {
+            val nextDate = dailyChallengeRepository.getNextAvailableDateString()
+            _uiState.update {
+                QuizUiState(
+                    categoryId = categoryId,
+                    categoryTitle = title,
+                    isLoading = false,
+                    isDailyChallengeAlreadyClaimed = true,
+                    dailyChallengeNextDate = nextDate
+                )
+            }
+            return
+        }
+
+        val rawQuestions = quizRepository.getQuestionsForCategory(categoryId)
         val isRandomCategory = normCategoryId in listOf("quick", "daily")
 
         // Automated Category Validation: Ensure every question belongs strictly to the selected category
@@ -485,12 +505,13 @@ class QuizViewModel(
         val finalXpEarned = scoreOutOfTen * 10
 
         val isDaily = state.categoryId.lowercase() in listOf("daily", "dailychallenge", "daily challenge")
-        val coinsGained = if (isDaily) scoreOutOfTen * 20 else scoreOutOfTen * 10
+        val isDailyRewardEligible = isDaily && dailyChallengeRepository.isDailyRewardAvailable()
+        val coinsGained = if (isDailyRewardEligible) scoreOutOfTen * 20 else scoreOutOfTen * 10
 
         val timestamp = System.currentTimeMillis()
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 
-        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained, isDaily=$isDaily")
+        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained, isDaily=$isDaily, isDailyRewardEligible=$isDailyRewardEligible")
 
         _uiState.update {
             it.copy(
@@ -601,8 +622,13 @@ class QuizViewModel(
                 val newHistory = (listOf(quizResult) + currentProfile.quizHistory)
                     .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
                     .sortedByDescending { it.timestamp }
+                val isDailyQuiz = _uiState.value.categoryId.lowercase() in listOf("daily", "dailychallenge", "daily challenge")
+                val dailyRewardKey = if (isDailyQuiz && dailyChallengeRepository.isDailyRewardAvailable()) {
+                    dailyChallengeRepository.markDailyRewardClaimed()
+                } else null
+
                 val newUnlockedAchievements = (currentProfile.unlockedAchievements + achResult.newlyUnlocked.map { it.id }).distinct()
-                val newClaimedRewards = (currentProfile.claimedRewards + achResult.newlyUnlocked.map { it.id }).distinct()
+                val newClaimedRewards = (currentProfile.claimedRewards + achResult.newlyUnlocked.map { it.id } + listOfNotNull(dailyRewardKey)).distinct()
 
                 _uiState.update {
                     it.copy(

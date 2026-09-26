@@ -89,6 +89,8 @@ data class HomeUiState(
     val unlockedAchievementsCount: Int = 0,
     val totalAchievementsCount: Int = 0,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
+    val isDailyChallengeClaimedToday: Boolean = false,
+    val dailyChallengeNextDate: String? = null,
     val categories: List<QuizCategory> = listOf(
         QuizCategory("gk", "General Knowledge", questionsCount = "10 Questions", iconName = "Psychology", accentColor = CategoryGK),
         QuizCategory("science", "Science", questionsCount = "10 Questions", iconName = "Science", accentColor = CategoryScience),
@@ -130,7 +132,8 @@ class HomeViewModel(
     private val quizRepository: QuizRepository = QuizRepository(),
     private val quizResultRepository: QuizResultRepository = QuizResultRepository(),
     private val achievementRepository: AchievementRepository = AchievementRepository(),
-    private val leaderboardRepository: LeaderboardRepository = LeaderboardRepository()
+    private val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(),
+    private val dailyChallengeRepository: com.example.data.DailyChallengeRepository = com.example.data.DailyChallengeRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -142,11 +145,24 @@ class HomeViewModel(
         loadUserProfile()
         loadCategoryQuestionCounts()
         loadLeaderboard()
+        refreshDailyChallengeStatus()
         viewModelScope.launch {
             com.example.data.UserProfileStore.profileFlow.collect {
                 loadUserProfile()
                 loadLeaderboard()
+                refreshDailyChallengeStatus()
             }
+        }
+    }
+
+    fun refreshDailyChallengeStatus() {
+        val isAvailable = dailyChallengeRepository.isDailyRewardAvailable()
+        val nextDate = dailyChallengeRepository.getNextAvailableDateString()
+        _uiState.update {
+            it.copy(
+                isDailyChallengeClaimedToday = !isAvailable,
+                dailyChallengeNextDate = if (!isAvailable) nextDate else null
+            )
         }
     }
 
@@ -305,6 +321,7 @@ class HomeViewModel(
                         newlyUnlockedAchievements = profileComputation.achCheck.newlyUnlocked
                     )
                 }
+                refreshDailyChallengeStatus()
 
                 // 3. Save updated streak and sync on IO
                 val updatedProfile = profileComputation.profile.copy(
@@ -375,6 +392,7 @@ class HomeViewModel(
                         }
                     }
                 }
+                refreshDailyChallengeStatus()
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error loading user profile", e)
             }
@@ -541,6 +559,9 @@ class HomeViewModel(
                             newlyUnlockedAchievements = emptyList()
                         )
                     }
+
+                    dailyChallengeRepository.resetDailyReward()
+                    refreshDailyChallengeStatus()
 
                     // Reload leaderboard to reflect the reset stats
                     loadLeaderboard(_uiState.value.leaderboardPeriod)

@@ -217,6 +217,11 @@ fun QuizScreen(
                         modifier = Modifier.testTag("quiz_loading_indicator")
                     )
                 }
+            } else if (uiState.isDailyChallengeAlreadyClaimed) {
+                DailyChallengeAlreadyClaimedView(
+                    nextAvailableDate = uiState.dailyChallengeNextDate ?: "Tomorrow",
+                    onBackHome = onNavigateBack
+                )
             } else if (uiState.questions.isEmpty()) {
                 EmptyQuestionsView(
                     categoryTitle = uiState.categoryTitle,
@@ -317,6 +322,117 @@ fun EmptyQuestionsView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("empty_questions_back_button")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DailyChallengeAlreadyClaimedView(
+    nextAvailableDate: String,
+    onBackHome: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = DarkCardSurface,
+            borderColor = Color(0xFF2ECC71).copy(alpha = 0.5f),
+            elevation = 12.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF2ECC71).copy(alpha = 0.15f))
+                        .border(2.dp, Color(0xFF2ECC71), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Completed",
+                        tint = Color(0xFF2ECC71),
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF2ECC71))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "✓ COMPLETED TODAY",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp
+                        ),
+                        color = DarkBackground
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Daily Challenge",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
+                    ),
+                    color = TextWhite,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "You have already completed today's Daily Challenge and earned your 2X rewards! Come back tomorrow for a new challenge.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkBackground.copy(alpha = 0.6f))
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Next Challenge: $nextAvailableDate",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        ),
+                        color = AccentCoins
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                GradientButton(
+                    text = "Back to Home",
+                    onClick = onBackHome,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("daily_challenge_claimed_back_button")
                 )
             }
         }
@@ -1803,17 +1919,20 @@ fun QuizCompleteView(
             // ------------------------------------------------
             // 8. ACTION BUTTONS (Play Again & Home)
             // ------------------------------------------------
-            GradientButton(
-                text = "Play Again",
-                icon = Icons.Default.Refresh,
-                onClick = onRestart,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .bounceClick(scaleDown = 0.97f),
-                testTag = "play_again_button"
-            )
+            val isDailyQuiz = uiState.categoryId.lowercase() in listOf("daily", "dailychallenge", "daily challenge")
+            if (!isDailyQuiz) {
+                GradientButton(
+                    text = "Play Again",
+                    icon = Icons.Default.Refresh,
+                    onClick = onRestart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bounceClick(scaleDown = 0.97f),
+                    testTag = "play_again_button"
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             GradientButton(
                 text = "Back to Home",
