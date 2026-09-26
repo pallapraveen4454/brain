@@ -50,6 +50,18 @@ class HintRepository(
         Log.d("HINT_SYSTEM", "markHintUsedForCategory: Marked hint used for categoryId='$categoryId' on date '$today'")
     }
 
+    fun isGlobalHintAvailable(): Boolean {
+        val today = getTodayDateString()
+        val prefs = getPrefs() ?: return true
+        val lastUsedDate = prefs.getString("global_hint_used_date", "") ?: ""
+        return (lastUsedDate != today)
+    }
+
+    fun markGlobalHintUsed() {
+        val today = getTodayDateString()
+        getPrefs()?.edit()?.putString("global_hint_used_date", today)?.apply()
+    }
+
     fun getLastUsedDateForCategory(categoryId: String): String {
         val key = getCanonicalCategoryKey(categoryId)
         return getPrefs()?.getString("hint_used_date_$key", "") ?: ""

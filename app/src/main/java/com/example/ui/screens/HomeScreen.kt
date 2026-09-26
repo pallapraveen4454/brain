@@ -558,33 +558,20 @@ private fun MainHomeContent(
 
         // 3. Featured Daily Challenge Card Banner
         item(span = { GridItemSpan(2) }) {
-            val isDailyCompleted = uiState.isDailyChallengeCompletedToday
-            val dailyNextDate = uiState.dailyChallengeNextDate ?: "Tomorrow"
-
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 backgroundColor = DarkCardSurface,
-                borderColor = if (isDailyCompleted) Color(0xFF2ECC71).copy(alpha = 0.5f) else AccentCoins.copy(alpha = 0.5f),
+                borderColor = AccentCoins.copy(alpha = 0.5f),
                 elevation = 6.dp,
-                onClick = {
-                    if (isDailyCompleted) {
-                        Toast.makeText(localContext, "Daily Challenge completed for today! Available on: $dailyNextDate", Toast.LENGTH_SHORT).show()
-                    } else {
-                        onNavigateToQuiz("daily")
-                    }
-                }
+                onClick = { onNavigateToQuiz("daily") }
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             brush = Brush.linearGradient(
-                                colors = if (isDailyCompleted) listOf(
-                                    Color(0xFF2ECC71).copy(alpha = 0.15f),
-                                    DarkCardSurface,
-                                    Color(0xFF2ECC71).copy(alpha = 0.08f)
-                                ) else listOf(
+                                colors = listOf(
                                     AccentCoins.copy(alpha = 0.2f),
                                     DarkCardSurface,
                                     AccentStreak.copy(alpha = 0.15f)
@@ -603,11 +590,11 @@ private fun MainHomeContent(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isDailyCompleted) Color(0xFF2ECC71) else AccentCoins)
+                                        .background(AccentCoins)
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (isDailyCompleted) "✓ COMPLETED TODAY" else "⚡ 2X REWARDS",
+                                        text = "⚡ 2X REWARDS",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 10.sp
@@ -627,31 +614,25 @@ private fun MainHomeContent(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (isDailyCompleted) "Completed today! Next challenge: $dailyNextDate" else "Earn double Coins (2X Coins) today!",
+                                text = "Earn double XP and Coins today!",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (isDailyCompleted) Color(0xFF2ECC71) else TextSecondary
+                                color = TextSecondary
                             )
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Button(
-                            onClick = {
-                                if (isDailyCompleted) {
-                                    Toast.makeText(localContext, "Daily Challenge completed for today! Available on: $dailyNextDate", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    onNavigateToQuiz("daily")
-                                }
-                            },
+                            onClick = { onNavigateToQuiz("daily") },
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDailyCompleted) Color(0xFF2ECC71).copy(alpha = 0.3f) else AccentCoins,
-                                contentColor = if (isDailyCompleted) Color(0xFF2ECC71) else DarkBackground
+                                containerColor = AccentCoins,
+                                contentColor = DarkBackground
                             ),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = if (isDailyCompleted) "Done" else "Start",
+                                text = "Start",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp
@@ -815,19 +796,7 @@ private fun MainHomeContent(
                 questionsCount = category.questionsCount,
                 icon = icon,
                 accentColor = category.accentColor,
-                isCompleted = category.isCompletedToday,
-                nextAvailableDate = category.nextAvailableDate,
-                onClick = {
-                    if (category.isCompletedToday) {
-                        Toast.makeText(
-                            localContext,
-                            "You have already completed ${category.title} today! Available next on: ${category.nextAvailableDate ?: "Tomorrow"}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        onNavigateToQuiz(category.id)
-                    }
-                },
+                onClick = { onNavigateToQuiz(category.id) },
                 testTag = "category_${category.id}"
             )
         }

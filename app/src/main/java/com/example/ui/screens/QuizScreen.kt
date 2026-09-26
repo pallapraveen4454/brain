@@ -216,6 +216,7 @@ fun QuizScreen(
                         color = PrimaryPurpleLight,
                         modifier = Modifier.testTag("quiz_loading_indicator")
                     )
+                }
             } else if (uiState.questions.isEmpty()) {
                 EmptyQuestionsView(
                     categoryTitle = uiState.categoryTitle,
@@ -1113,31 +1114,31 @@ fun QuizCompleteView(
     val accuracyPercentage = ((uiState.correctCount.toFloat() / totalQuestions) * 100).roundToInt()
 
     val (titleText, subtitleText, performanceTier, heroGradient) = when {
-        accuracyPercentage == 100 -> Quadruple(
+        accuracyPercentage == 100 -> PerformanceTierInfo(
             "PERFECT SCORE!",
             "Flawless execution! You answered every question correctly in ${uiState.categoryTitle}! 🎯",
             "S+ TIER",
             listOf(Color(0xFFFFD700), Color(0xFFFFA500))
         )
-        accuracyPercentage >= 80 -> Quadruple(
+        accuracyPercentage >= 80 -> PerformanceTierInfo(
             "OUTSTANDING!",
             "Incredible brain power! Outstanding masterclass in ${uiState.categoryTitle}! 🌟",
             "S TIER",
             listOf(AccentCoins, AccentCoinsGradientEnd)
         )
-        accuracyPercentage >= 60 -> Quadruple(
+        accuracyPercentage >= 60 -> PerformanceTierInfo(
             "EXCELLENT JOB!",
             "Great effort! You showed strong knowledge in ${uiState.categoryTitle}! 🧠",
             "A TIER",
             listOf(PrimaryPurple, PrimaryPurpleLight)
         )
-        accuracyPercentage >= 40 -> Quadruple(
+        accuracyPercentage >= 40 -> PerformanceTierInfo(
             "NICE EFFORT!",
             "Good attempt! Keep testing your memory to unlock higher ranks! 💪",
             "B TIER",
             listOf(AccentXP, AccentXPGradientEnd)
         )
-        else -> Quadruple(
+        else -> PerformanceTierInfo(
             "QUIZ FINISHED!",
             "Practice makes perfect! Review your answers and try again to boost your score! 🚀",
             "C TIER",
@@ -1831,11 +1832,11 @@ fun QuizCompleteView(
     }
 }
 
-private data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D
+private data class PerformanceTierInfo(
+    val titleText: String,
+    val subtitleText: String,
+    val performanceTier: String,
+    val heroGradient: List<Color>
 )
 
 @Composable
@@ -1882,7 +1883,7 @@ fun ConfettiParticlesCanvas() {
     }
 }
 
-private data class ConfettiParticle(
+data class ConfettiParticle(
     val xPct: Float,
     val yPct: Float,
     val radius: Float,
