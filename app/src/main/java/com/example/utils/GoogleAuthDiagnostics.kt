@@ -21,7 +21,6 @@ object GoogleAuthDiagnostics {
     const val EXPECTED_SERVER_CLIENT_ID = "106236832575-nv10u3crcpl0dh353k88c8hkfidh448e.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID_PHYSICAL = "106236832575-dqo1vgdar02ab2e5e1pksea13fpv4q6l.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID_CLOUD = "106236832575-ssbispc69k5d64vm3c5772l6lctgvv7t.apps.googleusercontent.com"
-    const val ANDROID_CLIENT_ID_RELEASE = "106236832575-8doib4ou02n7pesapdcvpe8vidb0kvhm.apps.googleusercontent.com"
     const val ANDROID_CLIENT_ID = ANDROID_CLIENT_ID_PHYSICAL
     const val FIREBASE_PROJECT_ID = "brainquiz-ai-app"
     const val FIREBASE_APP_ID = "1:106236832575:android:8bb30cbfcabc48ffdfc18a"

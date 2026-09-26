@@ -54,10 +54,7 @@ data class QuizUiState(
     val hiddenOptionIndices: Set<Int> = emptySet(),
     val isHintAvailableToday: Boolean = true,
     val isShowingAdForHint: Boolean = false,
-    val hintErrorMessage: String? = null,
-    val isCategoryAlreadyCompletedToday: Boolean = false,
-    val nextAvailableDate: String = "",
-    val isDailyChallenge: Boolean = false
+    val hintErrorMessage: String? = null
 )
 
 class QuizViewModel(
@@ -92,9 +89,7 @@ class QuizViewModel(
                 categoryId = "ai_custom",
                 categoryTitle = "AI: $topic",
                 isLoading = true,
-                questions = emptyList(),
-                isCategoryAlreadyCompletedToday = false,
-                isDailyChallenge = false
+                questions = emptyList()
             )
         }
 
@@ -122,12 +117,9 @@ class QuizViewModel(
                     isQuizComplete = false,
                     isLoading = false,
                     hiddenOptionIndices = emptySet(),
-                    isHintAvailableToday = hintRepository.isGlobalHintAvailable(),
+                    isHintAvailableToday = hintRepository.isHintAvailableForCategory("ai_custom"),
                     isShowingAdForHint = false,
-                    hintErrorMessage = null,
-                    isCategoryAlreadyCompletedToday = false,
-                    nextAvailableDate = "",
-                    isDailyChallenge = false
+                    hintErrorMessage = null
                 )
             }
 
@@ -150,26 +142,6 @@ class QuizViewModel(
         isProcessingHintReward.set(false)
 
         val title = quizRepository.getCategoryTitle(categoryId)
-        val isDaily = quizRepository.isDailyChallenge(categoryId)
-
-        // 1. One quiz per category per calendar day check
-        val isAlreadyCompleted = quizRepository.isCategoryCompletedToday(categoryId)
-        if (isAlreadyCompleted) {
-            val nextDate = quizRepository.getNextAvailableDateString()
-            Log.d("QuizViewModel", "Category '$categoryId' is already completed today. Next available: $nextDate")
-            _uiState.update {
-                QuizUiState(
-                    categoryId = categoryId,
-                    categoryTitle = title,
-                    isLoading = false,
-                    isCategoryAlreadyCompletedToday = true,
-                    nextAvailableDate = nextDate,
-                    isDailyChallenge = isDaily
-                )
-            }
-            return
-        }
-
         val rawQuestions = quizRepository.getQuestionsForCategory(categoryId)
         val normCategoryId = categoryId.lowercase()
         val isRandomCategory = normCategoryId in listOf("quick", "daily")
@@ -210,12 +182,9 @@ class QuizViewModel(
                 isQuizComplete = false,
                 isLoading = false,
                 hiddenOptionIndices = emptySet(),
-                isHintAvailableToday = hintRepository.isGlobalHintAvailable(),
+                isHintAvailableToday = hintRepository.isHintAvailableForCategory(categoryId),
                 isShowingAdForHint = false,
-                hintErrorMessage = null,
-                isCategoryAlreadyCompletedToday = false,
-                nextAvailableDate = "",
-                isDailyChallenge = isDaily
+                hintErrorMessage = null
             )
         }
 
@@ -460,8 +429,7 @@ class QuizViewModel(
         val keptIncorrectIndex = incorrectIndices.random()
         val hiddenIndices = incorrectIndices.filter { it != keptIncorrectIndex }.toSet()
 
-        // Persist hint consumption globally and for category ONLY after rewarded ad success and actual hint unlock
-        hintRepository.markGlobalHintUsed()
+        // Persist hint consumption for category ONLY after rewarded ad success and actual hint unlock
         hintRepository.markHintUsedForCategory(currentState.categoryId)
 
         _uiState.update {
@@ -516,51 +484,13 @@ class QuizViewModel(
         // Formula: 10 XP per correct answer (XP remains correctAnswers × 10 for all modes)
         val finalXpEarned = scoreOutOfTen * 10
 
-        // Requirement 3: Daily Challenge 2X coin reward
-        // Normal categories: correctAnswers × 10 coins.
-        // Daily Challenge: correctAnswers × 20 coins.
-        // XP remains correctAnswers × 10. Multiplier applies ONLY to coins.
-        val isDaily = quizRepository.isDailyChallenge(state.categoryId)
+        val isDaily = state.categoryId.lowercase() in listOf("daily", "dailychallenge", "daily challenge")
         val coinsGained = if (isDaily) scoreOutOfTen * 20 else scoreOutOfTen * 10
 
         val timestamp = System.currentTimeMillis()
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 
-        // Requirement 1 & 4: Check if category already completed today to prevent duplicate completion/rewards
-        val alreadyCompletedToday = quizRepository.isCategoryCompletedToday(state.categoryId)
-        if (alreadyCompletedToday) {
-            Log.w("QuizViewModel", "Category '${state.categoryId}' was already completed today. Blocking duplicate daily completion and reward crediting.")
-            _uiState.update {
-                it.copy(
-                    isQuizComplete = true,
-                    score = finalXpEarned,
-                    xpEarned = 0,
-                    coinsEarned = 0,
-                    lastQuizDate = dateFormatted,
-                    isDailyChallenge = isDaily
-                )
-            }
-            return
-        }
-
-        // Record category completion atomically. Prevents duplicate daily completion records.
-        val newlyRecorded = quizRepository.recordCategoryCompletion(state.categoryId)
-        if (!newlyRecorded) {
-            Log.w("QuizViewModel", "Category '${state.categoryId}' duplicate record prevented.")
-            _uiState.update {
-                it.copy(
-                    isQuizComplete = true,
-                    score = finalXpEarned,
-                    xpEarned = 0,
-                    coinsEarned = 0,
-                    lastQuizDate = dateFormatted,
-                    isDailyChallenge = isDaily
-                )
-            }
-            return
-        }
-
-        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained, isDailyChallenge=$isDaily")
+        Log.d("XP_TRACE", "[QuizViewModel] completeQuiz: scoreOutOfTen=$scoreOutOfTen, finalXpEarned=$finalXpEarned, coinsGained=$coinsGained, isDaily=$isDaily")
 
         _uiState.update {
             it.copy(
@@ -568,8 +498,7 @@ class QuizViewModel(
                 score = finalXpEarned,
                 xpEarned = finalXpEarned,
                 coinsEarned = coinsGained,
-                lastQuizDate = dateFormatted,
-                isDailyChallenge = isDaily
+                lastQuizDate = dateFormatted
             )
         }
 
@@ -725,16 +654,6 @@ class QuizViewModel(
 
     fun restartQuiz() {
         val catId = _uiState.value.categoryId
-        if (quizRepository.isCategoryCompletedToday(catId)) {
-            val nextDate = quizRepository.getNextAvailableDateString()
-            _uiState.update {
-                it.copy(
-                    isCategoryAlreadyCompletedToday = true,
-                    nextAvailableDate = nextDate
-                )
-            }
-            return
-        }
         isCompletingQuiz = false
         hasSavedQuizResultData = false
         loadQuiz(catId)

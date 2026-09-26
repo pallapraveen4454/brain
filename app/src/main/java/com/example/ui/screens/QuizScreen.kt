@@ -216,13 +216,6 @@ fun QuizScreen(
                         color = PrimaryPurpleLight,
                         modifier = Modifier.testTag("quiz_loading_indicator")
                     )
-                }
-            } else if (uiState.isCategoryAlreadyCompletedToday) {
-                CategoryAlreadyCompletedView(
-                    categoryTitle = uiState.categoryTitle,
-                    nextAvailableDate = uiState.nextAvailableDate,
-                    onNavigateBack = onNavigateBack
-                )
             } else if (uiState.questions.isEmpty()) {
                 EmptyQuestionsView(
                     categoryTitle = uiState.categoryTitle,
@@ -323,124 +316,6 @@ fun EmptyQuestionsView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("empty_questions_back_button")
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CategoryAlreadyCompletedView(
-    categoryTitle: String,
-    nextAvailableDate: String,
-    onNavigateBack: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        GlassCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("category_already_completed_card"),
-            shape = RoundedCornerShape(28.dp),
-            backgroundColor = DarkCardSurface,
-            borderColor = AccentCoins.copy(alpha = 0.5f),
-            elevation = 12.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(AccentCoins.copy(alpha = 0.15f))
-                        .border(2.dp, AccentCoins.copy(alpha = 0.4f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Completed",
-                        tint = AccentCoins,
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AccentCoins)
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "✓ COMPLETED TODAY",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp,
-                            letterSpacing = 1.sp
-                        ),
-                        color = DarkBackground
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = categoryTitle,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
-                    ),
-                    color = TextWhite,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "You have already completed the daily quiz for this category today.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center
-                )
-
-                if (nextAvailableDate.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkBackground.copy(alpha = 0.6f))
-                            .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
-                            .padding(vertical = 10.dp, horizontal = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Next Quiz Available: $nextAvailableDate",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp
-                            ),
-                            color = AccentCoins
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(26.dp))
-
-                GradientButton(
-                    text = "Back to Home",
-                    onClick = onNavigateBack,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("category_completed_back_button")
                 )
             }
         }
@@ -1546,48 +1421,13 @@ fun QuizCompleteView(
                             )
 
                             StatCard(
-                                title = if (uiState.isDailyChallenge) "Coins (2X Coins)" else "Coins Earned",
+                                title = "Coins Earned",
                                 value = "+$animatedCoinsEarned",
                                 icon = Icons.Default.MonetizationOn,
                                 accentColors = listOf(AccentCoins, AccentCoinsGradientEnd),
                                 modifier = Modifier.weight(1f),
                                 testTag = "coins_earned_stat_card"
                             )
-                        }
-
-                        if (uiState.isDailyChallenge) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(AccentCoins.copy(alpha = 0.2f))
-                                    .border(1.dp, AccentCoins.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                                    .testTag("daily_challenge_2x_coins_label"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = AccentCoins,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "⚡ 2X COINS REWARD APPLIED",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 11.sp,
-                                            letterSpacing = 0.5.sp
-                                        ),
-                                        color = AccentCoins
-                                    )
-                                }
-                            }
                         }
                     }
                 }

@@ -25,19 +25,10 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH")
-        ?: (project.findProperty("KEYSTORE_PATH") as? String)
-        ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-        ?: (project.findProperty("STORE_PASSWORD") as? String)
-        ?: "BrainQuizAI_Secure_Release_2026"
-      keyAlias = System.getenv("KEY_ALIAS")
-        ?: (project.findProperty("KEY_ALIAS") as? String)
-        ?: "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
-        ?: (project.findProperty("KEY_PASSWORD") as? String)
-        ?: storePassword
+      storeFile = file("${rootDir}/my-upload-key.jks")
+      storePassword = "BrainQuizAI_Secure_Release_2026"
+      keyAlias = "upload"
+      keyPassword = "BrainQuizAI_Secure_Release_2026"
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")

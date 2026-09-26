@@ -41,9 +41,7 @@ data class QuizCategory(
     val title: String,
     val questionsCount: String? = null,
     val iconName: String,
-    val accentColor: Color,
-    val isCompletedToday: Boolean = false,
-    val nextAvailableDate: String? = null
+    val accentColor: Color
 )
 
 data class QuickPlayOption(
@@ -91,17 +89,15 @@ data class HomeUiState(
     val unlockedAchievementsCount: Int = 0,
     val totalAchievementsCount: Int = 0,
     val newlyUnlockedAchievements: List<Achievement> = emptyList(),
-    val isDailyChallengeCompletedToday: Boolean = false,
-    val dailyChallengeNextDate: String? = null,
     val categories: List<QuizCategory> = listOf(
-        QuizCategory("gk", "General Knowledge", questionsCount = "Daily Quiz\n10 Questions", iconName = "Psychology", accentColor = CategoryGK),
-        QuizCategory("science", "Science", questionsCount = "Daily Quiz\n10 Questions", iconName = "Science", accentColor = CategoryScience),
-        QuizCategory("history", "History", questionsCount = "Daily Quiz\n10 Questions", iconName = "Museum", accentColor = CategoryHistory),
-        QuizCategory("sports", "Sports", questionsCount = "Daily Quiz\n10 Questions", iconName = "SportsSoccer", accentColor = CategorySports),
-        QuizCategory("movies", "Movies", questionsCount = "Daily Quiz\n10 Questions", iconName = "Movie", accentColor = CategoryMovies),
-        QuizCategory("tech", "Technology", questionsCount = "Daily Quiz\n10 Questions", iconName = "Terminal", accentColor = CategoryTech),
-        QuizCategory("geo", "Geography", questionsCount = "Daily Quiz\n10 Questions", iconName = "Public", accentColor = CategoryGeo),
-        QuizCategory("math", "Mathematics", questionsCount = "Daily Quiz\n10 Questions", iconName = "Calculate", accentColor = CategoryMath)
+        QuizCategory("gk", "General Knowledge", questionsCount = "10 Questions", iconName = "Psychology", accentColor = CategoryGK),
+        QuizCategory("science", "Science", questionsCount = "10 Questions", iconName = "Science", accentColor = CategoryScience),
+        QuizCategory("history", "History", questionsCount = "10 Questions", iconName = "Museum", accentColor = CategoryHistory),
+        QuizCategory("sports", "Sports", questionsCount = "10 Questions", iconName = "SportsSoccer", accentColor = CategorySports),
+        QuizCategory("movies", "Movies", questionsCount = "10 Questions", iconName = "Movie", accentColor = CategoryMovies),
+        QuizCategory("tech", "Technology", questionsCount = "10 Questions", iconName = "Terminal", accentColor = CategoryTech),
+        QuizCategory("geo", "Geography", questionsCount = "10 Questions", iconName = "Public", accentColor = CategoryGeo),
+        QuizCategory("math", "Mathematics", questionsCount = "10 Questions", iconName = "Calculate", accentColor = CategoryMath)
     ),
     val quickPlayOptions: List<QuickPlayOption> = listOf(
         QuickPlayOption("quick", "Quick Play", "10 random questions", "POPULAR"),
@@ -187,29 +183,8 @@ class HomeViewModel(
         }
     }
 
-    fun refreshCategoryStatuses() {
-        val today = quizRepository.getTodayDateString()
-        val nextDate = quizRepository.getNextAvailableDateString(today)
-        _uiState.update { state ->
-            val updatedCategories = state.categories.map { category ->
-                val isCompleted = quizRepository.isCategoryCompletedToday(category.id, today)
-                category.copy(
-                    isCompletedToday = isCompleted,
-                    nextAvailableDate = if (isCompleted) nextDate else null,
-                    questionsCount = if (isCompleted) "Completed Today\nNext: $nextDate" else "Daily Quiz\n10 Questions"
-                )
-            }
-            val isDailyCompleted = quizRepository.isCategoryCompletedToday("daily", today)
-            state.copy(
-                categories = updatedCategories,
-                isDailyChallengeCompletedToday = isDailyCompleted,
-                dailyChallengeNextDate = if (isDailyCompleted) nextDate else null
-            )
-        }
-    }
-
     private fun loadCategoryQuestionCounts() {
-        refreshCategoryStatuses()
+        // Categories have standard counts
     }
 
     fun loadUserProfile() {
@@ -330,7 +305,6 @@ class HomeViewModel(
                         newlyUnlockedAchievements = profileComputation.achCheck.newlyUnlocked
                     )
                 }
-                refreshCategoryStatuses()
 
                 // 3. Save updated streak and sync on IO
                 val updatedProfile = profileComputation.profile.copy(
