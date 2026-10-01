@@ -27,6 +27,7 @@ import com.example.ui.theme.CategoryTech
 import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
 import com.example.utils.StreakUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,6 +194,8 @@ class HomeViewModel(
                 leaderboardRepository.fetchRemoteLeaderboard(period)
                 val freshData = leaderboardRepository.getLeaderboard(period)
                 _uiState.update { it.copy(leaderboardData = freshData) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error fetching remote leaderboard data", e)
             }
@@ -387,12 +390,17 @@ class HomeViewModel(
                                     )
                                 }
                             }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Log.e("HomeViewModel", "Error fetching remote profile", e)
                         }
                     }
                 }
                 refreshDailyChallengeStatus()
+            } catch (e: CancellationException) {
+                // Cooperative coroutine cancellation: rethrow so the job is cancelled without logging false errors
+                throw e
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error loading user profile", e)
             }

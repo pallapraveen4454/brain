@@ -6,6 +6,7 @@ import android.util.Log
 import com.google.android.gms.ads.MobileAds
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import java.io.File
 import java.util.concurrent.Executors
 
 class BrainQuizApplication : Application() {
@@ -63,6 +64,14 @@ class BrainQuizApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        try {
+            // Pre-create WebView code cache directories to prevent Chromium simple_file_enumerator opendir errors
+            val webViewCacheDir = File(cacheDir, "WebView/Default/HTTP Cache/Code Cache")
+            File(webViewCacheDir, "js").mkdirs()
+            File(webViewCacheDir, "wasm").mkdirs()
+        } catch (_: Exception) {}
+
         Log.d("BrainQuizApplication", "Application onCreate() - Initializing FirebaseApp...")
         ensureFirebaseInitialized(this)
 

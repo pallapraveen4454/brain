@@ -140,6 +140,8 @@ class AuthViewModel(
                                 )
                             }
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("AuthViewModel", "Error in checkAutoLogin inner launch", e)
                         _uiState.update {
@@ -158,6 +160,8 @@ class AuthViewModel(
                     )
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("AuthViewModel", "Error in checkAutoLogin outer", e)
             _uiState.update {
