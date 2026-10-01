@@ -758,6 +758,7 @@ class AuthRepository(
                 if (ctx != null) {
                     ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
                     ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                    ctx.getSharedPreferences("daily_challenge_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
                 }
 
                 leaderboardRepository.removeUserFromLeaderboard(guestUid)

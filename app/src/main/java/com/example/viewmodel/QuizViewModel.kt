@@ -623,8 +623,8 @@ class QuizViewModel(
                     .distinctBy { if (it.id.isNotBlank()) it.id else "${it.timestamp}_${it.categoryName}" }
                     .sortedByDescending { it.timestamp }
                 val isDailyQuiz = _uiState.value.categoryId.lowercase() in listOf("daily", "dailychallenge", "daily challenge")
-                val dailyRewardKey = if (isDailyQuiz && dailyChallengeRepository.isDailyRewardAvailable()) {
-                    dailyChallengeRepository.markDailyRewardClaimed()
+                val dailyRewardKey = if (isDailyQuiz && dailyChallengeRepository.isDailyRewardAvailable(currentProfile)) {
+                    dailyChallengeRepository.markDailyRewardClaimed(currentProfile)
                 } else null
 
                 val newUnlockedAchievements = (currentProfile.unlockedAchievements + achResult.newlyUnlocked.map { it.id }).distinct()

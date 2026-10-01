@@ -211,4 +211,53 @@ class AuthenticationAndAchievementIsolationTest {
             .getBoolean("ach_unlocked_legend", false)
         assertFalse("Account achievements_prefs should be cleared", ach)
     }
+
+    @Test
+    fun testDailyChallengeIsolationBetweenGoogleAccountAndGuestAccount() {
+        val userProfileStore = UserProfileStore(context)
+        val dailyChallengeRepo = com.example.data.DailyChallengeRepository(context)
+
+        // 1. Setup a Google/authenticated profile
+        val googleProfile = UserProfile(
+            uid = "google_user_998877",
+            name = "Google User",
+            email = "googleuser@gmail.com",
+            avatarId = "student_boy"
+        )
+        userProfileStore.saveProfile(googleProfile)
+        userProfileStore.setGuestActive(false)
+        userProfileStore.setLoggedIn(true)
+
+        // Google user checks daily reward: it should be available
+        assertTrue("Google user should have daily challenge available initially",
+            dailyChallengeRepo.isDailyRewardAvailable(googleProfile))
+
+        // Google user claims daily challenge
+        dailyChallengeRepo.markDailyRewardClaimed(googleProfile)
+        assertFalse("Google user should now have daily challenge claimed today",
+            dailyChallengeRepo.isDailyRewardAvailable(googleProfile))
+
+        // 2. Google user logs out, Guest account signs in
+        userProfileStore.setGuestActive(true)
+        val guestProfile = userProfileStore.createOrGetGuestProfile()
+
+        // Guest user MUST have Daily Challenge available! It must NOT be affected by Google user's claim!
+        assertTrue("Guest user MUST have Daily Challenge available even though Google user claimed today",
+            dailyChallengeRepo.isDailyRewardAvailable(guestProfile))
+
+        // 3. Guest user claims daily challenge
+        dailyChallengeRepo.markDailyRewardClaimed(guestProfile)
+        assertFalse("Guest user should now have daily challenge claimed today",
+            dailyChallengeRepo.isDailyRewardAvailable(guestProfile))
+
+        // 4. Another new user arrives
+        val otherProfile = UserProfile(
+            uid = "other_user_112233",
+            name = "Other User",
+            email = "other@gmail.com",
+            avatarId = "student_girl"
+        )
+        assertTrue("Other user should still have Daily Challenge available today",
+            dailyChallengeRepo.isDailyRewardAvailable(otherProfile))
+    }
 }

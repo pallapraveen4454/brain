@@ -403,6 +403,7 @@ class UserProfileStore(
             if (ctx != null && accountKey != null) {
                 ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
                 ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
+                ctx.getSharedPreferences("daily_challenge_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
             }
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error during clearAuthProfile", e)
