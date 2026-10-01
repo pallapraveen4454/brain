@@ -204,7 +204,7 @@ class HomeViewModel(
     }
 
     fun loadUserProfile() {
-        if (loadProfileJob?.isActive == true) return
+        loadProfileJob?.cancel()
         loadProfileJob = viewModelScope.launch {
             try {
                 // 1. Offload disk I/O, JSON parsing, stats calculation, and achievements to Dispatchers.IO
@@ -487,6 +487,11 @@ class HomeViewModel(
 
     fun signOut() {
         try {
+            loadProfileJob?.cancel()
+            loadProfileJob = null
+            leaderboardListenerRegistration?.remove()
+            leaderboardListenerRegistration = null
+            _uiState.value = HomeUiState()
             authRepository.signOut()
         } catch (e: Exception) {
             Log.e("HomeViewModel", "Error signing out", e)

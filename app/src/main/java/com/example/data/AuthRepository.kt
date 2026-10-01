@@ -852,10 +852,16 @@ class AuthRepository(
 
     fun signOut() {
         try {
+            val auth = getAuth()
+            val currentUid = auth?.currentUser?.uid
+            userProfileStore.clearAuthProfile(currentUid)
+            try {
+                auth?.signOut()
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "Error during FirebaseAuth signOut: ${e.message}")
+            }
             userProfileStore.setGuestActive(false)
             userProfileStore.setLoggedIn(false)
-            userProfileStore.clearAuthProfile()
-            getAuth()?.signOut()
         } catch (e: Exception) {
             Log.e("AuthRepository", "Error signing out", e)
         }

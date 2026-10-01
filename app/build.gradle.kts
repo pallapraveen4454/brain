@@ -17,7 +17,7 @@ android {
     applicationId = "com.aistudio.brainquizai.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
+    versionCode = 2
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -25,7 +25,7 @@ android {
 
   signingConfigs {
     create("release") {
-      storeFile = file("${rootDir}/my-upload-key.jks")
+      storeFile = file("${rootDir}/brainquiz-upload-key.jks")
       storePassword = "BrainQuizAI_Secure_Release_2026"
       keyAlias = "upload"
       keyPassword = "BrainQuizAI_Secure_Release_2026"
