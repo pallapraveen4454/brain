@@ -400,6 +400,27 @@ class HomeViewModel(
                                             )
                                         }
                                     }
+                                    val mergedProfile = profileComputation.profile.copy(
+                                        uid = user.uid,
+                                        name = userName,
+                                        email = userEmail,
+                                        avatarId = remoteProfile.avatarId.let { av -> if (av.isBlank() || av == "brain") "student_boy" else av },
+                                        xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
+                                        level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
+                                        coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
+                                        streak = maxOf(profileComputation.localStreak, remoteProfile.streak),
+                                        rank = userRank,
+                                        unlockedAchievements = (profileComputation.profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                                        claimedRewards = (profileComputation.profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
+                                        unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) ((remoteProfile.unlockedAvatars + profileComputation.profile.unlockedAvatars).filter { it != "brain" }).distinct() else profileComputation.profile.unlockedAvatars,
+                                        totalQuizzesPlayed = maxOf(profileComputation.quizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                        totalQuestionsAnswered = maxOf(profileComputation.questionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                        totalCorrectAnswers = maxOf(profileComputation.correctAnswers, remoteProfile.totalCorrectAnswers),
+                                        bestScore = maxOf(profileComputation.bestScore, remoteProfile.bestScore),
+                                        longestStreak = maxOf(profileComputation.longestStreak, remoteProfile.longestStreak),
+                                        quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profileComputation.history
+                                    )
+                                    authRepository.saveLocalUserProfile(mergedProfile)
                                 }
                             } catch (e: Exception) {
                                 Log.w("HomeViewModel", "Background remote profile sync: ${e.message}")

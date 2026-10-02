@@ -271,6 +271,31 @@ class UserProfileStore(
         )
     }
 
+    fun getProfileForUid(uid: String): UserProfile? {
+        if (uid.isBlank()) return null
+        try {
+            val targetKey = if (uid.startsWith("guest_")) keyGuestProfileJson else "auth_user_profile_$uid"
+            val jsonStr = getPrefs()?.getString(targetKey, "") ?: ""
+            if (jsonStr.isNotBlank()) {
+                val profile = profileFromJson(JSONObject(jsonStr))
+                if (profile.uid == uid || (!uid.startsWith("guest_") && profile.uid.isNotBlank())) {
+                    return profile
+                }
+            }
+            if (!uid.startsWith("guest_")) {
+                val authJson = getPrefs()?.getString(keyAuthProfileJson, "") ?: ""
+                if (authJson.isNotBlank()) {
+                    val p = profileFromJson(JSONObject(authJson))
+                    if (p.uid == uid) return p
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("UserProfileStore", "Error loading profile for uid: $uid", e)
+        }
+        return null
+    }
+
+
     /**
      * Complete, dedicated overwrite-based reset for game progress.
      * Bypasses the auto-restoration merge logic of saveProfile() (which uses maxOf() and list merging).
@@ -487,8 +512,21 @@ class UserProfileStore(
             }
 
             val mergedXp = if (isSameUser) maxOf(profile.xp, current?.xp ?: 0) else profile.xp
-            val mergedCoins = profile.coins
-            val mergedStreak = profile.streak
+            val isInitialOrBlank = profile.coins == 0 && profile.xp == 0 && profile.totalQuizzesPlayed == 0 && profile.quizHistory.isEmpty() && (current?.coins ?: 0) > 0
+            val mergedCoins = if (isSameUser) {
+                if (isInitialOrBlank) {
+                    current?.coins ?: 0
+                } else {
+                    profile.coins
+                }
+            } else profile.coins
+            val mergedStreak = if (isSameUser) {
+                if (profile.streak == 0 && (current?.streak ?: 0) > 0 && profile.totalQuizzesPlayed == 0 && profile.quizHistory.isEmpty()) {
+                    current?.streak ?: 0
+                } else {
+                    maxOf(profile.streak, current?.streak ?: 0)
+                }
+            } else profile.streak
             val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)
             val mergedLevel = LevelUtils.getLevel(mergedXp)
             val mergedRank = RankUtils.getRankForXp(mergedXp)

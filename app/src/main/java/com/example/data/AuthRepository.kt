@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.example.utils.LevelUtils
+import com.example.utils.RankUtils
 import java.util.UUID
 
 data class UserProfile(
@@ -54,9 +56,11 @@ data class UserProfile(
 class AuthRepository(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null },
     private val quizResultRepository: QuizResultRepository = QuizResultRepository(),
-    private val userProfileStore: UserProfileStore = UserProfileStore(context),
+    val userProfileStore: UserProfileStore = UserProfileStore(context),
     private val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(context, userProfileStore)
 ) {
+
+    fun getProfileForUid(uid: String): UserProfile? = userProfileStore.getProfileForUid(uid)
 
     private fun getAuth(): FirebaseAuth? {
         val appCtx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
@@ -367,17 +371,26 @@ class AuthRepository(
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
 
-            // Immediately construct and save local auth profile so UI picks up Google user immediately
+            // Check for existing local profile so we never wipe existing coins, xp, or history
             val googleName = user.displayName?.ifBlank { null }
                 ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                 ?: "Google User"
             val googleEmail = user.email ?: ""
-            val initialProfile = UserProfile(
-                uid = user.uid,
-                name = googleName,
-                email = googleEmail
-            )
-            userProfileStore.saveProfile(initialProfile)
+            val existingLocal = userProfileStore.getProfileForUid(user.uid)
+            val profileToSave = if (existingLocal != null) {
+                existingLocal.copy(
+                    uid = user.uid,
+                    name = googleName.ifBlank { existingLocal.name },
+                    email = googleEmail.ifBlank { existingLocal.email }
+                )
+            } else {
+                UserProfile(
+                    uid = user.uid,
+                    name = googleName,
+                    email = googleEmail
+                )
+            }
+            userProfileStore.saveProfile(profileToSave)
 
             CoroutineScope(Dispatchers.IO).launch {
                 try {
@@ -532,7 +545,7 @@ class AuthRepository(
     suspend fun fetchUserProfile(uid: String): UserProfile? {
         return try {
             val firestore = getFirestore() ?: return null
-            withTimeoutOrNull(2500L) {
+            withTimeoutOrNull(8000L) {
                 val doc = firestore.collection("users").document(uid).get().await()
                 if (doc.exists()) {
                     doc.toObject(UserProfile::class.java)
@@ -590,14 +603,15 @@ class AuthRepository(
         Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] ENTER ensureUserProfileExists: uid=${user.uid}, isGuestSessionActive=$isGuestActive, currentFirebaseUserUid=$currentAuthUserUid")
         try {
             val firestore = getFirestore() ?: return
-            withTimeoutOrNull(2500L) {
+            withTimeoutOrNull(8000L) {
                 val doc = firestore.collection("users").document(user.uid).get().await()
+                val localProfile = userProfileStore.getProfileForUid(user.uid)
 
                 if (!doc.exists()) {
                     val displayName = user.displayName
                         ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                         ?: "Player"
-                    val profile = UserProfile(
+                    val profile = localProfile ?: UserProfile(
                         uid = user.uid,
                         name = displayName,
                         email = user.email ?: "",
@@ -617,15 +631,37 @@ class AuthRepository(
                         bestScore = 0,
                         longestStreak = 0
                     )
-                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc does not exist. Saving default profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, fullProfile=$profile")
-                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(profile)...")
+                    Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc does not exist. Saving profile: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}")
                     saveUserProfileToFirestore(profile)
                 } else {
-                    val existing = doc.toObject(UserProfile::class.java)
-                    if (existing != null) {
-                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Existing profile: uid=${existing.uid}, xp=${existing.xp}, coins=${existing.coins}, streak=${existing.streak}, fullProfile=$existing")
-                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Executing saveUserProfileToFirestore(existing)...")
-                        saveUserProfileToFirestore(existing)
+                    val remote = doc.toObject(UserProfile::class.java)
+                    if (remote != null) {
+                        val merged = if (localProfile != null) {
+                            localProfile.copy(
+                                uid = user.uid,
+                                name = if (remote.name.isNotBlank() && remote.name != "Player") remote.name else localProfile.name,
+                                email = user.email ?: remote.email.ifBlank { localProfile.email },
+                                avatarId = if (remote.avatarId.isNotBlank() && remote.avatarId != "brain") remote.avatarId else localProfile.avatarId,
+                                xp = maxOf(localProfile.xp, remote.xp),
+                                level = LevelUtils.getLevel(maxOf(localProfile.xp, remote.xp)),
+                                coins = maxOf(localProfile.coins, remote.coins),
+                                streak = maxOf(localProfile.streak, remote.streak),
+                                rank = RankUtils.getRankForXp(maxOf(localProfile.xp, remote.xp)),
+                                unlockedAchievements = (localProfile.unlockedAchievements + remote.unlockedAchievements).distinct(),
+                                claimedRewards = (localProfile.claimedRewards + remote.claimedRewards).distinct(),
+                                unlockedAvatars = ((localProfile.unlockedAvatars + remote.unlockedAvatars).filter { it != "brain" }).distinct(),
+                                quizHistory = (localProfile.quizHistory + remote.quizHistory).distinctBy { it.id.ifBlank { "${it.timestamp}_${it.categoryName}" } }.sortedByDescending { it.timestamp },
+                                totalQuizzesPlayed = maxOf(localProfile.totalQuizzesPlayed, remote.totalQuizzesPlayed),
+                                totalQuestionsAnswered = maxOf(localProfile.totalQuestionsAnswered, remote.totalQuestionsAnswered),
+                                totalCorrectAnswers = maxOf(localProfile.totalCorrectAnswers, remote.totalCorrectAnswers),
+                                bestScore = maxOf(localProfile.bestScore, remote.bestScore),
+                                longestStreak = maxOf(localProfile.longestStreak, remote.longestStreak)
+                            )
+                        } else {
+                            remote
+                        }
+                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Merged profile: uid=${merged.uid}, xp=${merged.xp}, coins=${merged.coins}")
+                        saveUserProfileToFirestore(merged)
                     }
                 }
             }
@@ -664,7 +700,7 @@ class AuthRepository(
                 return Result.failure(Exception("Cloud sync is available for signed-in accounts. Please sign in to sync your progress."))
             }
             val user = currentUser ?: return Result.failure(Exception("Not signed in"))
-            val localProfile = userProfileStore.getProfile()
+            val localProfile = userProfileStore.getProfileForUid(user.uid) ?: userProfileStore.getProfile()
             val firestore = getFirestore() ?: return Result.failure(Exception("Database connection unavailable"))
 
             val doc = firestore.collection("users").document(user.uid).get().await()

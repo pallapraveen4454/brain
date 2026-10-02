@@ -17,6 +17,8 @@ import com.example.data.AuthRepository
 import com.example.data.QuizResultRepository
 import com.example.data.UserProfile
 import com.example.utils.GoogleAuthDiagnostics
+import com.example.utils.LevelUtils
+import com.example.utils.RankUtils
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -38,7 +40,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
-import com.example.utils.LevelUtils
 
 data class AuthUiState(
     val emailInput: String = "",
@@ -102,21 +103,57 @@ class AuthViewModel(
                 autoLoginJob = viewModelScope.launch {
                     try {
                         val isGuest = authRepository.isGuestSessionActive()
-                        val savedProfile = authRepository.getPersistentGuestProfile()
                         val user = if (isGuest) null else authRepository.currentUser
                         val profileToUse = if (user != null) {
+                            val cached = authRepository.getProfileForUid(user.uid)
+                            if (cached != null) {
+                                // Immediately use cached profile for instant app opening without lag
+                                _uiState.update {
+                                    it.copy(
+                                        isLoading = false,
+                                        isLoggedIn = true,
+                                        currentUserProfile = cached
+                                    )
+                                }
+                            }
                             val fetched = authRepository.fetchUserProfile(user.uid)
-                            fetched ?: UserProfile(
-                                uid = user.uid,
-                                name = user.displayName ?: user.email?.substringBefore("@") ?: "Player",
-                                email = user.email ?: "",
-                                avatarId = "student_boy",
-                                xp = 0,
-                                level = 1,
-                                coins = 0,
-                                rank = "Beginner"
-                            )
+                            if (fetched != null && cached != null) {
+                                val merged = cached.copy(
+                                    uid = user.uid,
+                                    name = if (fetched.name.isNotBlank() && fetched.name != "Player") fetched.name else cached.name,
+                                    email = user.email ?: fetched.email.ifBlank { cached.email },
+                                    avatarId = if (fetched.avatarId.isNotBlank() && fetched.avatarId != "brain") fetched.avatarId else cached.avatarId,
+                                    xp = maxOf(cached.xp, fetched.xp),
+                                    level = LevelUtils.getLevel(maxOf(cached.xp, fetched.xp)),
+                                    coins = maxOf(cached.coins, fetched.coins),
+                                    streak = maxOf(cached.streak, fetched.streak),
+                                    rank = RankUtils.getRankForXp(maxOf(cached.xp, fetched.xp)),
+                                    unlockedAchievements = (cached.unlockedAchievements + fetched.unlockedAchievements).distinct(),
+                                    claimedRewards = (cached.claimedRewards + fetched.claimedRewards).distinct(),
+                                    unlockedAvatars = ((cached.unlockedAvatars + fetched.unlockedAvatars).filter { it != "brain" }).distinct(),
+                                    quizHistory = (cached.quizHistory + fetched.quizHistory).distinctBy { it.id.ifBlank { "${it.timestamp}_${it.categoryName}" } }.sortedByDescending { it.timestamp },
+                                    totalQuizzesPlayed = maxOf(cached.totalQuizzesPlayed, fetched.totalQuizzesPlayed),
+                                    totalQuestionsAnswered = maxOf(cached.totalQuestionsAnswered, fetched.totalQuestionsAnswered),
+                                    totalCorrectAnswers = maxOf(cached.totalCorrectAnswers, fetched.totalCorrectAnswers),
+                                    bestScore = maxOf(cached.bestScore, fetched.bestScore),
+                                    longestStreak = maxOf(cached.longestStreak, fetched.longestStreak)
+                                )
+                                authRepository.saveUserProfileToFirestore(merged)
+                                merged
+                            } else {
+                                fetched ?: cached ?: UserProfile(
+                                    uid = user.uid,
+                                    name = user.displayName ?: user.email?.substringBefore("@") ?: "Player",
+                                    email = user.email ?: "",
+                                    avatarId = "student_boy",
+                                    xp = 0,
+                                    level = 1,
+                                    coins = 0,
+                                    rank = "Beginner"
+                                )
+                            }
                         } else {
+                            val savedProfile = authRepository.getPersistentGuestProfile()
                             val sanitizedName = if (savedProfile.name.isBlank() || savedProfile.name == "Player" || savedProfile.name == "Guest Player") "Guest" else savedProfile.name
                             savedProfile.copy(
                                 name = sanitizedName,
@@ -661,33 +698,19 @@ class AuthViewModel(
                                 val totalMs = System.currentTimeMillis() - startTime
                                 Log.d("AUTH_PERF", "[AuthViewModel] Login SUCCESS in $totalMs ms for uid=${user.uid}")
                                 
-                                val localProfile = authRepository.getPersistentGuestProfile()
+                                val existingLocal = authRepository.getProfileForUid(user.uid)
                                 val displayName = user.displayName?.ifBlank { null }
                                     ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }
                                 val userEmail = user.email ?: email
 
-                                val profile = if (localProfile.uid == user.uid) {
-                                    localProfile.copy(name = displayName, email = userEmail)
+                                val profile = if (existingLocal != null) {
+                                    existingLocal.copy(name = displayName.ifBlank { existingLocal.name }, email = userEmail.ifBlank { existingLocal.email })
                                 } else {
                                     UserProfile(
                                         uid = user.uid,
                                         name = displayName,
                                         email = userEmail,
-                                        avatarId = localProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it },
-                                        xp = localProfile.xp,
-                                        level = localProfile.level,
-                                        coins = localProfile.coins,
-                                        streak = localProfile.streak,
-                                        rank = localProfile.rank,
-                                        unlockedAchievements = localProfile.unlockedAchievements,
-                                        claimedRewards = localProfile.claimedRewards,
-                                        unlockedAvatars = localProfile.unlockedAvatars,
-                                        quizHistory = localProfile.quizHistory,
-                                        totalQuizzesPlayed = localProfile.totalQuizzesPlayed,
-                                        totalQuestionsAnswered = localProfile.totalQuestionsAnswered,
-                                        totalCorrectAnswers = localProfile.totalCorrectAnswers,
-                                        bestScore = localProfile.bestScore,
-                                        longestStreak = localProfile.longestStreak
+                                        avatarId = "student_boy"
                                     )
                                 }
 
@@ -711,20 +734,20 @@ class AuthViewModel(
                                     try {
                                         val remoteProfile = authRepository.fetchUserProfile(user.uid)
                                         if (remoteProfile != null) {
-                                            val merged = UserProfile(
+                                            val merged = profile.copy(
                                                 uid = user.uid,
-                                                name = displayName,
-                                                email = userEmail,
-                                                avatarId = remoteProfile.avatarId.ifBlank { profile.avatarId },
+                                                name = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player") remoteProfile.name else profile.name,
+                                                email = userEmail.ifBlank { remoteProfile.email },
+                                                avatarId = if (remoteProfile.avatarId.isNotBlank() && remoteProfile.avatarId != "brain") remoteProfile.avatarId else profile.avatarId,
                                                 xp = maxOf(profile.xp, remoteProfile.xp),
                                                 level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
                                                 coins = maxOf(profile.coins, remoteProfile.coins),
                                                 streak = maxOf(profile.streak, remoteProfile.streak),
-                                                rank = remoteProfile.rank.ifBlank { profile.rank },
+                                                rank = RankUtils.getRankForXp(maxOf(profile.xp, remoteProfile.xp)),
                                                 unlockedAchievements = (profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
                                                 claimedRewards = (profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
-                                                unlockedAvatars = (profile.unlockedAvatars + remoteProfile.unlockedAvatars).distinct(),
-                                                quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profile.quizHistory,
+                                                unlockedAvatars = ((profile.unlockedAvatars + remoteProfile.unlockedAvatars).filter { it != "brain" }).distinct(),
+                                                quizHistory = (profile.quizHistory + remoteProfile.quizHistory).distinctBy { it.id.ifBlank { "${it.timestamp}_${it.categoryName}" } }.sortedByDescending { it.timestamp },
                                                 totalQuizzesPlayed = maxOf(profile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
                                                 totalQuestionsAnswered = maxOf(profile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
                                                 totalCorrectAnswers = maxOf(profile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
@@ -732,6 +755,7 @@ class AuthViewModel(
                                                 longestStreak = maxOf(profile.longestStreak, remoteProfile.longestStreak)
                                             )
                                             authRepository.saveUserProfileToFirestore(merged)
+                                            _uiState.update { it.copy(currentUserProfile = merged) }
                                         } else {
                                             authRepository.saveUserProfileToFirestore(profile)
                                         }
@@ -908,21 +932,21 @@ class AuthViewModel(
                             Log.d("GOOGLE_AUTH_FLOW", "STEP 11 Firebase auth success -> uid=${user.uid}")
                         }
 
-                        val localProfile = authRepository.getPersistentGuestProfile()
+                        val existingLocal = authRepository.getProfileForUid(user.uid)
                         val displayName = user.displayName?.ifBlank { null }
                             ?: userName.ifBlank { null }
                             ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                             ?: "Google User"
                         val email = user.email ?: userEmail
 
-                        val profile = if (localProfile.uid == user.uid) {
-                            localProfile.copy(name = displayName, email = email)
+                        val profile = if (existingLocal != null) {
+                            existingLocal.copy(name = displayName.ifBlank { existingLocal.name }, email = email.ifBlank { existingLocal.email })
                         } else {
                             UserProfile(
                                 uid = user.uid,
                                 name = displayName,
                                 email = email,
-                                avatarId = localProfile.avatarId.let { if (it.isBlank() || it == "brain") "student_boy" else it }
+                                avatarId = "student_boy"
                             )
                         }
                         Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
@@ -944,7 +968,33 @@ class AuthViewModel(
 
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                authRepository.saveUserProfileToFirestore(profile)
+                                val remoteProfile = authRepository.fetchUserProfile(user.uid)
+                                if (remoteProfile != null) {
+                                    val merged = profile.copy(
+                                        uid = user.uid,
+                                        name = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player") remoteProfile.name else profile.name,
+                                        email = email.ifBlank { remoteProfile.email },
+                                        avatarId = if (remoteProfile.avatarId.isNotBlank() && remoteProfile.avatarId != "brain") remoteProfile.avatarId else profile.avatarId,
+                                        xp = maxOf(profile.xp, remoteProfile.xp),
+                                        level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
+                                        coins = maxOf(profile.coins, remoteProfile.coins),
+                                        streak = maxOf(profile.streak, remoteProfile.streak),
+                                        rank = RankUtils.getRankForXp(maxOf(profile.xp, remoteProfile.xp)),
+                                        unlockedAchievements = (profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                                        claimedRewards = (profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
+                                        unlockedAvatars = ((profile.unlockedAvatars + remoteProfile.unlockedAvatars).filter { it != "brain" }).distinct(),
+                                        quizHistory = (profile.quizHistory + remoteProfile.quizHistory).distinctBy { it.id.ifBlank { "${it.timestamp}_${it.categoryName}" } }.sortedByDescending { it.timestamp },
+                                        totalQuizzesPlayed = maxOf(profile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                        totalQuestionsAnswered = maxOf(profile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                        totalCorrectAnswers = maxOf(profile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
+                                        bestScore = maxOf(profile.bestScore, remoteProfile.bestScore),
+                                        longestStreak = maxOf(profile.longestStreak, remoteProfile.longestStreak)
+                                    )
+                                    authRepository.saveUserProfileToFirestore(merged)
+                                    _uiState.update { it.copy(currentUserProfile = merged) }
+                                } else {
+                                    authRepository.saveUserProfileToFirestore(profile)
+                                }
                             } catch (e: Exception) {
                                 Log.w("AuthViewModel", "Background profile sync after Google sign in: ${e.message}")
                             }
