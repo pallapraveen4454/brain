@@ -113,8 +113,8 @@ class QuizResultRepository(
         )
     }
 
-    fun getUserStats(): UserStats {
-        val profile = userProfileStore.getProfile()
+    fun getUserStats(targetProfile: UserProfile? = null): UserStats {
+        val profile = targetProfile ?: userProfileStore.getProfile()
         val totalQuizzesPlayed = maxOf(profile.totalQuizzesPlayed, profile.quizHistory.size)
         val totalQuestionsAnswered = maxOf(profile.totalQuestionsAnswered, totalQuizzesPlayed * 10)
         val totalCorrectAnswers = maxOf(profile.totalCorrectAnswers, profile.quizHistory.sumOf { it.scoreOutOfTen })

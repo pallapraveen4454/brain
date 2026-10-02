@@ -30,26 +30,13 @@ class AchievementRepository(
     private val userProfileStore: UserProfileStore = UserProfileStore(context)
 ) {
     fun getAccountKey(targetProfile: UserProfile? = null): String {
-        if (targetProfile != null) {
-            val uid = targetProfile.uid
-            val isTargetGuest = uid.startsWith("guest_") || targetProfile.email == "Guest Account"
-            return if (isTargetGuest) {
-                val guestId = if (uid.isNotBlank() && uid.startsWith("guest_")) uid else {
-                    try { userProfileStore.getGuestId() } catch (e: Exception) { "default_guest" }
-                }
-                if (guestId.startsWith("guest_")) guestId else "guest_$guestId"
-            } else if (uid.isNotBlank()) {
-                "uid_$uid"
-            } else {
-                "guest_default"
-            }
-        }
+        val profile = targetProfile ?: try { userProfileStore.getProfile() } catch (e: Exception) { null }
+        val uid = profile?.uid?.trim() ?: ""
+        val email = profile?.email?.trim() ?: ""
 
-        val isGuest = try { userProfileStore.isGuestActive() } catch (e: Exception) { false }
-        val profile = try { userProfileStore.getProfile() } catch (e: Exception) { null }
-        val uid = profile?.uid ?: ""
+        val isTargetGuest = uid.startsWith("guest_") || email == "Guest Account" || (uid.isBlank() && try { userProfileStore.isGuestActive() } catch (e: Exception) { false })
 
-        return if (isGuest || uid.startsWith("guest_") || profile?.email == "Guest Account") {
+        return if (isTargetGuest) {
             val guestId = if (uid.isNotBlank() && uid.startsWith("guest_")) uid else {
                 try { userProfileStore.getGuestId() } catch (e: Exception) { "default_guest" }
             }

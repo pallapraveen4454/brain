@@ -682,6 +682,7 @@ class AuthRepository(
                     totalQuestionsAnswered = maxOf(localProfile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
                     totalCorrectAnswers = maxOf(localProfile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
                     unlockedAchievements = (localProfile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                    claimedRewards = (localProfile.claimedRewards + remoteProfile.claimedRewards).distinct(),
                     unlockedAvatars = (localProfile.unlockedAvatars + remoteProfile.unlockedAvatars).distinct(),
                     name = if (localProfile.name.isNotBlank() && localProfile.name != "Player") localProfile.name else remoteProfile.name,
                     avatarId = if (localProfile.avatarId.isNotBlank()) localProfile.avatarId else remoteProfile.avatarId
@@ -842,7 +843,7 @@ class AuthRepository(
             user.delete().await()
 
             // 5. Clear all local user-specific data & sign out
-            userProfileStore.clearAuthProfile(uid)
+            userProfileStore.deleteAuthProfile(uid)
             signOut()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -855,7 +856,7 @@ class AuthRepository(
         try {
             val auth = getAuth()
             val currentUid = auth?.currentUser?.uid
-            userProfileStore.clearAuthProfile(currentUid)
+            userProfileStore.clearAuthProfile()
             try {
                 auth?.signOut()
             } catch (e: Exception) {

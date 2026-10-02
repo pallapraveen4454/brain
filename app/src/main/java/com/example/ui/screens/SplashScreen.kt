@@ -46,7 +46,10 @@ import com.example.ui.theme.PrimaryPurple
 import com.example.ui.theme.PrimaryPurpleLight
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextWhite
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SplashScreen(
@@ -70,28 +73,36 @@ fun SplashScreen(
     )
 
     LaunchedEffect(Unit) {
-        // Animate fade & scale
-        scale.animateTo(
-            targetValue = 1.0f,
-            animationSpec = tween(
-                durationMillis = 1000,
-                easing = LinearOutSlowInEasing
+        val animScale = launch {
+            scale.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(
+                    durationMillis = 650,
+                    easing = LinearOutSlowInEasing
+                )
             )
-        )
-        alpha.animateTo(
-            targetValue = 1.0f,
-            animationSpec = tween(
-                durationMillis = 800
-            )
-        )
-
-        // Wait 2 seconds before checking auth state
-        delay(2000)
-        val isLoggedIn = try {
-            authRepository.isUserLoggedIn()
-        } catch (e: Exception) {
-            false
         }
+        val animAlpha = launch {
+            alpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 500)
+            )
+        }
+
+        // Concurrently check login status on background thread
+        val authCheckJob = async(Dispatchers.IO) {
+            try {
+                authRepository.isUserLoggedIn()
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        animScale.join()
+        animAlpha.join()
+        // Small graceful pause (250ms) so the completed splash logo is visible cleanly
+        delay(250)
+        val isLoggedIn = authCheckJob.await()
         if (isLoggedIn) {
             onNavigateToHome()
         } else {

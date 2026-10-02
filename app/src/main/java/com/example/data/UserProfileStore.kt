@@ -147,7 +147,10 @@ class UserProfileStore(
             totalQuizzesPlayed = maxOf(currentJson?.totalQuizzesPlayed ?: 0, guestHistory.size),
             totalQuestionsAnswered = maxOf(currentJson?.totalQuestionsAnswered ?: 0, guestHistory.size * 10),
             totalCorrectAnswers = maxOf(currentJson?.totalCorrectAnswers ?: 0, guestHistory.sumOf { it.scoreOutOfTen }),
-            bestScore = maxOf(currentJson?.bestScore ?: 0, guestHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0)
+            bestScore = maxOf(currentJson?.bestScore ?: 0, guestHistory.maxOfOrNull { it.scoreOutOfTen } ?: 0),
+            unlockedAchievements = currentJson?.unlockedAchievements ?: emptyList(),
+            claimedRewards = currentJson?.claimedRewards ?: emptyList(),
+            unlockedAvatars = currentJson?.unlockedAvatars ?: listOf("student_boy", "student_girl")
         )
         
         getPrefs()?.edit()
@@ -387,13 +390,15 @@ class UserProfileStore(
 
     fun clearAuthProfile(targetUid: String? = null) {
         try {
-            val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
-            val currentUid = targetUid ?: auth?.currentUser?.uid
             val editor = getPrefs()?.edit()
             editor?.remove(keyAuthProfileJson)
             editor?.remove(keyProfileJson)
-            if (!currentUid.isNullOrBlank()) {
-                editor?.remove("auth_user_profile_$currentUid")
+            if (!targetUid.isNullOrBlank()) {
+                editor?.remove("auth_user_profile_$targetUid")
+                val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+                val accountKey = if (targetUid.startsWith("guest_")) targetUid else "uid_$targetUid"
+                ctx?.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
+                ctx?.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
             }
             editor?.apply()
         } catch (e: Exception) {
@@ -401,9 +406,35 @@ class UserProfileStore(
         }
     }
 
+    fun deleteAuthProfile(targetUid: String) {
+        try {
+            val editor = getPrefs()?.edit()
+            editor?.remove(keyAuthProfileJson)
+            editor?.remove(keyProfileJson)
+            if (targetUid.isNotBlank()) {
+                editor?.remove("auth_user_profile_$targetUid")
+            }
+            editor?.apply()
+
+            val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
+            if (ctx != null && targetUid.isNotBlank()) {
+                ctx.getSharedPreferences("achievements_prefs_uid_$targetUid", Context.MODE_PRIVATE).edit().clear().apply()
+                ctx.getSharedPreferences("quiz_results_prefs_uid_$targetUid", Context.MODE_PRIVATE).edit().clear().apply()
+            }
+        } catch (e: Exception) {
+            Log.e("UserProfileStore", "Error during deleteAuthProfile", e)
+        }
+    }
+
     fun saveProfile(profile: UserProfile): UserProfile {
         try {
-            val isGuestTarget = profile.uid.startsWith("guest_") || isGuestActive() || profile.email == "Guest Account"
+            val isGuestTarget = if (profile.uid.startsWith("guest_") || profile.email == "Guest Account") {
+                true
+            } else if (profile.uid.isNotBlank()) {
+                false
+            } else {
+                isGuestActive()
+            }
             val targetKey = if (isGuestTarget) {
                 keyGuestProfileJson
             } else if (profile.uid.isNotBlank() && !profile.uid.startsWith("guest_")) {

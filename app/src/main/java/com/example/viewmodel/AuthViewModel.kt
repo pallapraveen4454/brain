@@ -1084,31 +1084,29 @@ class AuthViewModel(
                         .build()
 
                     val googleSignInClient = GoogleSignIn.getClient(activityContext, gso)
-                    googleSignInClient.signOut().addOnCompleteListener {
-                        try {
-                            val signInIntent = googleSignInClient.signInIntent
-                            GoogleAuthDiagnostics.logEvent(
-                                context = context,
-                                stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCHING",
-                                flowStep = "Launching legacy GoogleSignInClient intent",
-                                serverClientId = webClientId
+                    try {
+                        val signInIntent = googleSignInClient.signInIntent
+                        GoogleAuthDiagnostics.logEvent(
+                            context = context,
+                            stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCHING",
+                            flowStep = "Launching legacy GoogleSignInClient intent",
+                            serverClientId = webClientId
+                        )
+                        onFallbackToGoogleSignInClient.invoke(signInIntent)
+                    } catch (e: Exception) {
+                        GoogleAuthDiagnostics.logEvent(
+                            context = context,
+                            stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCH_FAILED",
+                            flowStep = "Failed to launch legacy GoogleSignInClient intent",
+                            exception = e,
+                            serverClientId = webClientId
+                        )
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isGoogleSignInLoading = false,
+                                errorMessage = "Google Sign-In launch failed: ${e.message}"
                             )
-                            onFallbackToGoogleSignInClient.invoke(signInIntent)
-                        } catch (e: Exception) {
-                            GoogleAuthDiagnostics.logEvent(
-                                context = context,
-                                stage = "STAGE_4_LEGACY_SIGN_IN_INTENT_LAUNCH_FAILED",
-                                flowStep = "Failed to launch legacy GoogleSignInClient intent",
-                                exception = e,
-                                serverClientId = webClientId
-                            )
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    isGoogleSignInLoading = false,
-                                    errorMessage = "Google Sign-In launch failed: ${e.message}"
-                                )
-                            }
                         }
                     }
                 } else {

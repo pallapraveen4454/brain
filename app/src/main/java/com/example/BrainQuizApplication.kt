@@ -87,17 +87,11 @@ class BrainQuizApplication : Application() {
             }
 
             try {
-                com.example.utils.GoogleAuthDiagnostics.logRuntimeCertCheck(this)
+                com.example.utils.NotificationHelper.createChannels(this)
+                com.example.utils.NotificationHelper.syncReminders(this)
             } catch (e: Exception) {
-                Log.e("BrainQuizApplication", "Failed to run GoogleAuthDiagnostics cert check", e)
+                Log.e("BrainQuizApplication", "Failed to initialize notifications", e)
             }
-        }
-
-        try {
-            com.example.utils.NotificationHelper.createChannels(this)
-            com.example.utils.NotificationHelper.syncReminders(this)
-        } catch (e: Exception) {
-            Log.e("BrainQuizApplication", "Failed to initialize notifications", e)
         }
     }
 }

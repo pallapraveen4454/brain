@@ -219,7 +219,7 @@ class HomeViewModel(
                     val targetKey = if (isGuest) "guest_user_profile_json" else "auth_user_profile_json"
                     Log.d("RUNTIME_TRACE", "[Point 8: Inside HomeViewModel.loadUserProfile] profile loaded: uid=${profile.uid}, xp=${profile.xp}, coins=${profile.coins}, streak=${profile.streak}, lastActiveDate=${profile.lastActiveDate}, level=${profile.level}, isGuestActive=$isGuest, targetKey=$targetKey")
 
-                    val stats = quizResultRepository.getUserStats()
+                    val stats = quizResultRepository.getUserStats(profile)
 
                     val (calculatedStreak, localActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
                         StreakUtils.calculateStreak(
@@ -339,64 +339,75 @@ class HomeViewModel(
                     longestStreak = profileComputation.longestStreak,
                     quizHistory = profileComputation.history
                 )
-                authRepository.saveUserProfileToFirestore(updatedProfile)
-
-                // Load recent quiz results from persistent history if authenticated
-                val currentUserId = if (profileComputation.isGuest) profileComputation.profile.uid else (authRepository.currentUser?.uid ?: profileComputation.profile.uid)
-                val recentResults = withContext(Dispatchers.IO) {
-                    quizResultRepository.getRecentQuizResults(currentUserId)
-                }
-                if (recentResults.isNotEmpty()) {
-                    val latest = recentResults.first()
-                    _uiState.update {
-                        it.copy(
-                            quizHistory = recentResults,
-                            lastQuizCategory = latest.categoryName,
-                            lastQuizScore = latest.scoreOutOfTen,
-                            lastQuizXpEarned = latest.xpEarned,
-                            lastQuizDate = latest.dateFormatted,
-                            hasQuizHistory = true
-                        )
-                    }
-                }
-
-                // Sync remote profile ONLY if authenticated and NOT in guest mode
+                // 3. Asynchronously sync updated profile and recent results in background without blocking Home UI
                 if (!profileComputation.isGuest) {
-                    val user = authRepository.currentUser
-                    if (user != null) {
+                    viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            val remoteProfile = authRepository.fetchUserProfile(user.uid)
-                            if (remoteProfile != null) {
-                                val userRank = RankUtils.getRankForXp(remoteProfile.xp)
-                                val userName = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player" && remoteProfile.name != "Guest Player") remoteProfile.name else (user.displayName ?: user.email?.substringBefore("@") ?: "Player")
-                                val userEmail = user.email ?: remoteProfile.email
+                            authRepository.saveUserProfileToFirestore(updatedProfile)
+                        } catch (e: Exception) {
+                            Log.w("HomeViewModel", "Background profile save: ${e.message}")
+                        }
 
-                                _uiState.update {
-                                    it.copy(
-                                        playerName = userName,
-                                        playerEmail = userEmail,
-                                        avatarId = remoteProfile.avatarId.let { av -> if (av.isBlank() || av == "brain") "student_boy" else av },
-                                        xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
-                                        level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
-                                        coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
-                                        streakDays = maxOf(profileComputation.localStreak, remoteProfile.streak),
-                                        rank = userRank,
-                                        unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) (remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
-                                        totalQuizzesPlayed = maxOf(profileComputation.quizzesPlayed, remoteProfile.totalQuizzesPlayed),
-                                        totalQuestionsAnswered = maxOf(profileComputation.questionsAnswered, remoteProfile.totalQuestionsAnswered),
-                                        totalCorrectAnswers = maxOf(profileComputation.correctAnswers, remoteProfile.totalCorrectAnswers),
-                                        bestScore = maxOf(profileComputation.bestScore, remoteProfile.bestScore),
-                                        longestStreak = maxOf(profileComputation.longestStreak, remoteProfile.longestStreak),
-                                        quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profileComputation.history
-                                    )
+                        val currentUserId = authRepository.currentUser?.uid ?: profileComputation.profile.uid
+                        try {
+                            val recentResults = quizResultRepository.getRecentQuizResults(currentUserId)
+                            if (recentResults.isNotEmpty()) {
+                                val latest = recentResults.first()
+                                withContext(Dispatchers.Main) {
+                                    _uiState.update {
+                                        it.copy(
+                                            quizHistory = recentResults,
+                                            lastQuizCategory = latest.categoryName,
+                                            lastQuizScore = latest.scoreOutOfTen,
+                                            lastQuizXpEarned = latest.xpEarned,
+                                            lastQuizDate = latest.dateFormatted,
+                                            hasQuizHistory = true
+                                        )
+                                    }
                                 }
                             }
-                        } catch (e: CancellationException) {
-                            throw e
                         } catch (e: Exception) {
-                            Log.e("HomeViewModel", "Error fetching remote profile", e)
+                            Log.w("HomeViewModel", "Background recent results fetch: ${e.message}")
+                        }
+
+                        val user = authRepository.currentUser
+                        if (user != null) {
+                            try {
+                                val remoteProfile = authRepository.fetchUserProfile(user.uid)
+                                if (remoteProfile != null) {
+                                    val userRank = RankUtils.getRankForXp(remoteProfile.xp)
+                                    val userName = if (remoteProfile.name.isNotBlank() && remoteProfile.name != "Player" && remoteProfile.name != "Guest Player") remoteProfile.name else (user.displayName ?: user.email?.substringBefore("@") ?: "Player")
+                                    val userEmail = user.email ?: remoteProfile.email
+
+                                    withContext(Dispatchers.Main) {
+                                        _uiState.update {
+                                            it.copy(
+                                                playerName = userName,
+                                                playerEmail = userEmail,
+                                                avatarId = remoteProfile.avatarId.let { av -> if (av.isBlank() || av == "brain") "student_boy" else av },
+                                                xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
+                                                level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
+                                                coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
+                                                streakDays = maxOf(profileComputation.localStreak, remoteProfile.streak),
+                                                rank = userRank,
+                                                unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) (remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
+                                                totalQuizzesPlayed = maxOf(profileComputation.quizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                                                totalQuestionsAnswered = maxOf(profileComputation.questionsAnswered, remoteProfile.totalQuestionsAnswered),
+                                                totalCorrectAnswers = maxOf(profileComputation.correctAnswers, remoteProfile.totalCorrectAnswers),
+                                                bestScore = maxOf(profileComputation.bestScore, remoteProfile.bestScore),
+                                                longestStreak = maxOf(profileComputation.longestStreak, remoteProfile.longestStreak),
+                                                quizHistory = if (remoteProfile.quizHistory.isNotEmpty()) remoteProfile.quizHistory else profileComputation.history
+                                            )
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w("HomeViewModel", "Background remote profile sync: ${e.message}")
+                            }
                         }
                     }
+                } else {
+                    authRepository.saveLocalUserProfile(updatedProfile)
                 }
                 refreshDailyChallengeStatus()
             } catch (e: CancellationException) {
