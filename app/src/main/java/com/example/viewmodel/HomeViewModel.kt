@@ -236,10 +236,11 @@ class HomeViewModel(
                     val achCheck = achievementRepository.checkAndUnlockAchievements(
                         totalXp = profile.xp,
                         totalCoins = profile.coins,
-                        currentStreak = localStreak
+                        currentStreak = localStreak,
+                        targetProfile = profile
                     )
                     val updatedCoins = profile.coins + achCheck.extraCoinsEarned
-                    val achievementsList = achievementRepository.getAllAchievements(profile.xp, updatedCoins, localStreak)
+                    val achievementsList = achievementRepository.getAllAchievements(profile.xp, updatedCoins, localStreak, targetProfile = profile)
 
                     val quizzesPlayed = maxOf(profile.totalQuizzesPlayed, stats.totalQuizzesPlayed)
                     val questionsAnswered = maxOf(profile.totalQuestionsAnswered, stats.totalQuestionsAnswered)
@@ -321,7 +322,7 @@ class HomeViewModel(
                         achievements = profileComputation.achievementsList,
                         unlockedAchievementsCount = profileComputation.achievementsList.count { a -> a.isUnlocked },
                         totalAchievementsCount = profileComputation.achievementsList.size,
-                        newlyUnlockedAchievements = profileComputation.achCheck.newlyUnlocked
+                        newlyUnlockedAchievements = emptyList()
                     )
                 }
                 refreshDailyChallengeStatus()

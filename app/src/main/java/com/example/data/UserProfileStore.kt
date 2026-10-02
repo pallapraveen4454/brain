@@ -396,15 +396,6 @@ class UserProfileStore(
                 editor?.remove("auth_user_profile_$currentUid")
             }
             editor?.apply()
-
-            // Also clean up user-specific SharedPreferences files for this account
-            val accountKey = if (!currentUid.isNullOrBlank()) "uid_$currentUid" else null
-            val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
-            if (ctx != null && accountKey != null) {
-                ctx.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
-                ctx.getSharedPreferences("achievements_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
-                ctx.getSharedPreferences("daily_challenge_prefs_$accountKey", Context.MODE_PRIVATE).edit().clear().apply()
-            }
         } catch (e: Exception) {
             Log.e("UserProfileStore", "Error during clearAuthProfile", e)
         }
@@ -577,7 +568,11 @@ class UserProfileStore(
     private fun syncLegacyPrefs(profile: UserProfile) {
         try {
             val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null } ?: return
-            val accountKey = if (isGuestActive() || profile.uid.startsWith("guest_")) "guest_${profile.uid}" else "uid_${profile.uid}"
+            val accountKey = if (isGuestActive() || profile.uid.startsWith("guest_")) {
+                if (profile.uid.startsWith("guest_")) profile.uid else "guest_${profile.uid}"
+            } else {
+                "uid_${profile.uid}"
+            }
             
             // Sync auth_prefs
             ctx.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE).edit().apply {

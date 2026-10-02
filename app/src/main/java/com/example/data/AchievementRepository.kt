@@ -29,25 +29,44 @@ class AchievementRepository(
     private val context: Context? = try { BrainQuizApplication.instance } catch (e: Exception) { null },
     private val userProfileStore: UserProfileStore = UserProfileStore(context)
 ) {
-    private fun getAccountKey(): String {
-        val isGuest = userProfileStore.isGuestActive()
-        if (isGuest) {
-            return "guest_${userProfileStore.getGuestId()}"
+    fun getAccountKey(targetProfile: UserProfile? = null): String {
+        if (targetProfile != null) {
+            val uid = targetProfile.uid
+            val isTargetGuest = uid.startsWith("guest_") || targetProfile.email == "Guest Account"
+            return if (isTargetGuest) {
+                val guestId = if (uid.isNotBlank() && uid.startsWith("guest_")) uid else {
+                    try { userProfileStore.getGuestId() } catch (e: Exception) { "default_guest" }
+                }
+                if (guestId.startsWith("guest_")) guestId else "guest_$guestId"
+            } else if (uid.isNotBlank()) {
+                "uid_$uid"
+            } else {
+                "guest_default"
+            }
         }
-        val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Exception) { null }
-        val user = auth?.currentUser
-        val profile = userProfileStore.getProfile()
-        return when {
-            user != null && user.uid.isNotBlank() -> "uid_${user.uid}"
-            profile.uid.isNotBlank() && !profile.uid.startsWith("guest_") -> "uid_${profile.uid}"
-            else -> "guest_${userProfileStore.getGuestId()}"
+
+        val isGuest = try { userProfileStore.isGuestActive() } catch (e: Exception) { false }
+        val profile = try { userProfileStore.getProfile() } catch (e: Exception) { null }
+        val uid = profile?.uid ?: ""
+
+        return if (isGuest || uid.startsWith("guest_") || profile?.email == "Guest Account") {
+            val guestId = if (uid.isNotBlank() && uid.startsWith("guest_")) uid else {
+                try { userProfileStore.getGuestId() } catch (e: Exception) { "default_guest" }
+            }
+            if (guestId.startsWith("guest_")) guestId else "guest_$guestId"
+        } else if (uid.isNotBlank()) {
+            "uid_$uid"
+        } else {
+            val fbUid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid } catch (e: Exception) { null }
+            if (!fbUid.isNullOrBlank()) "uid_$fbUid" else "guest_default"
         }
     }
 
-    private fun getSharedPreferences() = context?.getSharedPreferences("achievements_prefs_${getAccountKey()}", Context.MODE_PRIVATE)
+    private fun getSharedPreferences(targetProfile: UserProfile? = null) = 
+        context?.getSharedPreferences("achievements_prefs_${getAccountKey(targetProfile)}", Context.MODE_PRIVATE)
 
-    fun getStats(): AchievementStats {
-        val prefs = getSharedPreferences() ?: return AchievementStats()
+    fun getStats(targetProfile: UserProfile? = null): AchievementStats {
+        val prefs = getSharedPreferences(targetProfile) ?: return AchievementStats()
         val allPrefs = prefs.all
         val catMap = mutableMapOf<String, Int>()
         for ((key, value) in allPrefs) {
@@ -75,9 +94,10 @@ class AchievementRepository(
         questionCount: Int,
         isAiCustom: Boolean,
         categoryId: String = "",
-        correctCount: Int = scoreOutOfTen
+        correctCount: Int = scoreOutOfTen,
+        targetProfile: UserProfile? = null
     ) {
-        val prefs = getSharedPreferences() ?: return
+        val prefs = getSharedPreferences(targetProfile) ?: return
         val currentQuizzes = prefs.getInt("stat_total_quizzes", 0)
         val currentQuestions = prefs.getInt("stat_total_questions", 0)
         val currentCorrect = prefs.getInt("stat_total_correct", 0)
@@ -115,12 +135,13 @@ class AchievementRepository(
     fun getAllAchievements(
         totalXp: Int,
         totalCoins: Int,
-        currentStreak: Int
+        currentStreak: Int,
+        targetProfile: UserProfile? = null
     ): List<Achievement> {
         val initialList = getInitialAchievementsList()
-        val stats = getStats()
-        val prefs = getSharedPreferences()
-        val profile = userProfileStore.getProfile()
+        val stats = getStats(targetProfile)
+        val prefs = getSharedPreferences(targetProfile)
+        val profile = targetProfile ?: userProfileStore.getProfile()
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         // Merge accumulated stats from profile for existing users
@@ -169,15 +190,16 @@ class AchievementRepository(
     fun checkAndUnlockAchievements(
         totalXp: Int,
         totalCoins: Int,
-        currentStreak: Int
+        currentStreak: Int,
+        targetProfile: UserProfile? = null
     ): AchievementCheckResult {
-        val prefs = getSharedPreferences()
-        val achievements = getAllAchievements(totalXp, totalCoins, currentStreak)
+        val prefs = getSharedPreferences(targetProfile)
+        val achievements = getAllAchievements(totalXp, totalCoins, currentStreak, targetProfile)
         val newlyUnlockedList = mutableListOf<Achievement>()
         var extraCoins = 0
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-        val profile = userProfileStore.getProfile()
+        val profile = targetProfile ?: userProfileStore.getProfile()
         val unlockedSet = profile.unlockedAchievements.toMutableSet()
         val claimedSet = profile.claimedRewards.toMutableSet()
 
@@ -486,7 +508,7 @@ class AchievementRepository(
     fun resetAccountAchievements(targetUid: String? = null) {
         try {
             val key = if (!targetUid.isNullOrBlank()) {
-                if (targetUid.startsWith("guest_")) "guest_$targetUid" else "uid_$targetUid"
+                if (targetUid.startsWith("guest_")) targetUid else "uid_$targetUid"
             } else {
                 getAccountKey()
             }

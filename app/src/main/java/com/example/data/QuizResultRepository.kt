@@ -182,7 +182,11 @@ class QuizResultRepository(
         // 2. Update user stats
         val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
         val isGuest = userProfileStore.isGuestActive()
-        val accountKey = if (isGuest || userId.startsWith("guest_")) "guest_$userId" else "uid_$userId"
+        val accountKey = if (isGuest || userId.startsWith("guest_")) {
+            if (userId.startsWith("guest_")) userId else "guest_$userId"
+        } else {
+            "uid_$userId"
+        }
         ctx?.let {
             val prefs = it.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)
             val currentStats = getUserStats()
@@ -320,7 +324,11 @@ class QuizResultRepository(
     fun clearAccountResults(userId: String) {
         try {
             val isGuest = userProfileStore.isGuestActive()
-            val accountKey = if (isGuest || userId.startsWith("guest_")) "guest_$userId" else "uid_$userId"
+            val accountKey = if (isGuest || userId.startsWith("guest_")) {
+                if (userId.startsWith("guest_")) userId else "guest_$userId"
+            } else {
+                "uid_$userId"
+            }
             val ctx = context ?: try { BrainQuizApplication.instance } catch (e: Exception) { null }
             ctx?.getSharedPreferences("quiz_results_prefs_$accountKey", Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
             Log.d("QuizResultRepository", "Successfully cleared quiz_results_prefs_$accountKey")

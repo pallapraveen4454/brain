@@ -586,14 +586,16 @@ class QuizViewModel(
                     questionCount = questionsCount,
                     isAiCustom = isAiCustom,
                     categoryId = if (isAiCustom) "ai_custom" else categoryName,
-                    correctCount = scoreOutOfTen
+                    correctCount = scoreOutOfTen,
+                    targetProfile = currentProfile
                 )
 
                 // 4. Check and unlock achievements
                 val achResult = achievementRepository.checkAndUnlockAchievements(
                     totalXp = newTotalXp,
                     totalCoins = newCoins,
-                    currentStreak = updatedStreak
+                    currentStreak = updatedStreak,
+                    targetProfile = currentProfile
                 )
 
                 val finalCoins = newCoins + achResult.extraCoinsEarned
