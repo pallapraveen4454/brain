@@ -521,10 +521,10 @@ class UserProfileStore(
                 }
             } else profile.coins
             val mergedStreak = if (isSameUser) {
-                if (profile.streak == 0 && (current?.streak ?: 0) > 0 && profile.totalQuizzesPlayed == 0 && profile.quizHistory.isEmpty()) {
+                if (isInitialOrBlank && profile.streak == 0 && (current?.streak ?: 0) > 0) {
                     current?.streak ?: 0
                 } else {
-                    maxOf(profile.streak, current?.streak ?: 0)
+                    profile.streak
                 }
             } else profile.streak
             val mergedLongestStreak = if (isSameUser) maxOf(profile.longestStreak, current?.longestStreak ?: 0, mergedStreak) else maxOf(profile.longestStreak, mergedStreak)

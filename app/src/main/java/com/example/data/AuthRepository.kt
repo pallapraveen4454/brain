@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
+import com.example.utils.StreakUtils
 import java.util.UUID
 
 data class UserProfile(
@@ -260,12 +261,10 @@ class AuthRepository(
             Log.d("AuthRepository", "FirebaseAuth.signInWithEmailAndPassword SUCCESS -> user.uid=${user.uid}, email=${user.email}")
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    ensureUserProfileExists(user)
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Async ensureUserProfileExists failed: ${e.message}")
-                }
+            try {
+                ensureUserProfileExists(user)
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "ensureUserProfileExists failed: ${e.message}")
             }
             Result.success(user)
         } catch (e: Exception) {
@@ -371,32 +370,34 @@ class AuthRepository(
             setGuestSessionActive(false)
             userProfileStore.setLoggedIn(true)
 
-            // Check for existing local profile so we never wipe existing coins, xp, or history
+            // Check for existing local profile and restore from cloud data
             val googleName = user.displayName?.ifBlank { null }
                 ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                 ?: "Google User"
             val googleEmail = user.email ?: ""
             val existingLocal = userProfileStore.getProfileForUid(user.uid)
-            val profileToSave = if (existingLocal != null) {
-                existingLocal.copy(
-                    uid = user.uid,
-                    name = googleName.ifBlank { existingLocal.name },
-                    email = googleEmail.ifBlank { existingLocal.email }
-                )
-            } else {
-                UserProfile(
-                    uid = user.uid,
-                    name = googleName,
-                    email = googleEmail
+            if (existingLocal != null) {
+                userProfileStore.saveProfile(
+                    existingLocal.copy(
+                        uid = user.uid,
+                        name = googleName.ifBlank { existingLocal.name },
+                        email = googleEmail.ifBlank { existingLocal.email }
+                    )
                 )
             }
-            userProfileStore.saveProfile(profileToSave)
 
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    ensureUserProfileExists(user)
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Async ensureUserProfileExists failed: ${e.message}")
+            try {
+                ensureUserProfileExists(user)
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "ensureUserProfileExists failed: ${e.message}")
+                if (userProfileStore.getProfileForUid(user.uid) == null) {
+                    userProfileStore.saveProfile(
+                        UserProfile(
+                            uid = user.uid,
+                            name = googleName,
+                            email = googleEmail
+                        )
+                    )
                 }
             }
             Result.success(user)
@@ -644,8 +645,9 @@ class AuthRepository(
                                 avatarId = if (remote.avatarId.isNotBlank() && remote.avatarId != "brain") remote.avatarId else localProfile.avatarId,
                                 xp = maxOf(localProfile.xp, remote.xp),
                                 level = LevelUtils.getLevel(maxOf(localProfile.xp, remote.xp)),
-                                coins = maxOf(localProfile.coins, remote.coins),
-                                streak = maxOf(localProfile.streak, remote.streak),
+                                coins = remote.coins,
+                                streak = StreakUtils.resolveStreak(localProfile.lastActiveDate, localProfile.streak, remote.lastActiveDate, remote.streak).first,
+                                lastActiveDate = StreakUtils.resolveStreak(localProfile.lastActiveDate, localProfile.streak, remote.lastActiveDate, remote.streak).second,
                                 rank = RankUtils.getRankForXp(maxOf(localProfile.xp, remote.xp)),
                                 unlockedAchievements = (localProfile.unlockedAchievements + remote.unlockedAchievements).distinct(),
                                 claimedRewards = (localProfile.claimedRewards + remote.claimedRewards).distinct(),
@@ -660,8 +662,11 @@ class AuthRepository(
                         } else {
                             remote
                         }
-                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Merged profile: uid=${merged.uid}, xp=${merged.xp}, coins=${merged.coins}")
-                        saveUserProfileToFirestore(merged)
+                        Log.d("RUNTIME_TRACE", "[ENSURE_PROFILE] Doc exists. Restoring remote profile: uid=${merged.uid}, coins=${merged.coins}")
+                        userProfileStore.saveProfile(merged)
+                        if (localProfile != null) {
+                            saveUserProfileToFirestore(merged)
+                        }
                     }
                 }
             }
@@ -711,8 +716,9 @@ class AuthRepository(
                     uid = user.uid,
                     email = user.email ?: "",
                     xp = maxOf(localProfile.xp, remoteProfile.xp),
-                    coins = maxOf(localProfile.coins, remoteProfile.coins),
-                    streak = maxOf(localProfile.streak, remoteProfile.streak),
+                    coins = remoteProfile.coins,
+                    streak = StreakUtils.resolveStreak(localProfile.lastActiveDate, localProfile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
+                    lastActiveDate = StreakUtils.resolveStreak(localProfile.lastActiveDate, localProfile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).second,
                     bestScore = maxOf(localProfile.bestScore, remoteProfile.bestScore),
                     totalQuizzesPlayed = maxOf(localProfile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
                     totalQuestionsAnswered = maxOf(localProfile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),

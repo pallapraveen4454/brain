@@ -221,15 +221,11 @@ class HomeViewModel(
 
                     val stats = quizResultRepository.getUserStats(profile)
 
-                    val (calculatedStreak, localActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
-                        StreakUtils.calculateStreak(
-                            profile.lastActiveDate,
-                            profile.streak
-                        )
-                    } else {
-                        Pair(profile.streak, profile.lastActiveDate)
-                    }
-                    val localStreak = calculatedStreak
+                    val localStreak = StreakUtils.getDisplayStreak(
+                        profile.lastActiveDate,
+                        profile.streak
+                    )
+                    val localActiveDate = profile.lastActiveDate
                     val computedRank = RankUtils.getRankForXp(profile.xp)
 
                     // Check and unlock achievements
@@ -239,7 +235,7 @@ class HomeViewModel(
                         currentStreak = localStreak,
                         targetProfile = profile
                     )
-                    val updatedCoins = profile.coins + achCheck.extraCoinsEarned
+                    val updatedCoins = if (!isGuest && profile.coins > 0) profile.coins else (profile.coins + achCheck.extraCoinsEarned)
                     val achievementsList = achievementRepository.getAllAchievements(profile.xp, updatedCoins, localStreak, targetProfile = profile)
 
                     val quizzesPlayed = maxOf(profile.totalQuizzesPlayed, stats.totalQuizzesPlayed)
@@ -388,7 +384,7 @@ class HomeViewModel(
                                                 xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
                                                 level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
                                                 coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
-                                                streakDays = maxOf(profileComputation.localStreak, remoteProfile.streak),
+                                                streakDays = StreakUtils.resolveStreak(profileComputation.localActiveDate, profileComputation.localStreak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
                                                 rank = userRank,
                                                 unlockedAvatars = if (remoteProfile.unlockedAvatars.isNotEmpty()) (remoteProfile.unlockedAvatars.toSet() + setOf("student_boy", "student_girl")) - "brain" else setOf("student_boy", "student_girl"),
                                                 totalQuizzesPlayed = maxOf(profileComputation.quizzesPlayed, remoteProfile.totalQuizzesPlayed),
@@ -408,7 +404,8 @@ class HomeViewModel(
                                         xp = maxOf(profileComputation.profile.xp, remoteProfile.xp),
                                         level = LevelUtils.getLevel(maxOf(profileComputation.profile.xp, remoteProfile.xp)),
                                         coins = maxOf(profileComputation.updatedCoins, remoteProfile.coins),
-                                        streak = maxOf(profileComputation.localStreak, remoteProfile.streak),
+                                        streak = StreakUtils.resolveStreak(profileComputation.localActiveDate, profileComputation.localStreak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
+                                        lastActiveDate = StreakUtils.resolveStreak(profileComputation.localActiveDate, profileComputation.localStreak, remoteProfile.lastActiveDate, remoteProfile.streak).second,
                                         rank = userRank,
                                         unlockedAchievements = (profileComputation.profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
                                         claimedRewards = (profileComputation.profile.claimedRewards + remoteProfile.claimedRewards).distinct(),

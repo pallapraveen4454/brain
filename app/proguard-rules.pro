@@ -15,9 +15,13 @@
     @com.squareup.moshi.Json(name = *) <fields>;
 }
 
-# Keep Data Models
+# Keep Data Models & Firestore Serializable Classes
+-keep class com.example.data.** { *; }
+-keepclassmembers class com.example.data.** { *; }
 -keep class com.example.data.model.** { *; }
 -keepclassmembers class com.example.data.model.** { *; }
+-keep class com.example.utils.** { *; }
+-keepclassmembers class com.example.utils.** { *; }
 
 # Keep Firebase Auth, Firestore & Common
 -keep class com.google.firebase.** { *; }

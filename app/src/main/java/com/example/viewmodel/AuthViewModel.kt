@@ -19,6 +19,7 @@ import com.example.data.UserProfile
 import com.example.utils.GoogleAuthDiagnostics
 import com.example.utils.LevelUtils
 import com.example.utils.RankUtils
+import com.example.utils.StreakUtils
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -125,8 +126,9 @@ class AuthViewModel(
                                     avatarId = if (fetched.avatarId.isNotBlank() && fetched.avatarId != "brain") fetched.avatarId else cached.avatarId,
                                     xp = maxOf(cached.xp, fetched.xp),
                                     level = LevelUtils.getLevel(maxOf(cached.xp, fetched.xp)),
-                                    coins = maxOf(cached.coins, fetched.coins),
-                                    streak = maxOf(cached.streak, fetched.streak),
+                                    coins = fetched.coins,
+                                    streak = StreakUtils.resolveStreak(cached.lastActiveDate, cached.streak, fetched.lastActiveDate, fetched.streak).first,
+                                    lastActiveDate = StreakUtils.resolveStreak(cached.lastActiveDate, cached.streak, fetched.lastActiveDate, fetched.streak).second,
                                     rank = RankUtils.getRankForXp(maxOf(cached.xp, fetched.xp)),
                                     unlockedAchievements = (cached.unlockedAchievements + fetched.unlockedAchievements).distinct(),
                                     claimedRewards = (cached.claimedRewards + fetched.claimedRewards).distinct(),
@@ -704,13 +706,18 @@ class AuthViewModel(
                                 val userEmail = user.email ?: email
 
                                 val profile = if (existingLocal != null) {
-                                    existingLocal.copy(name = displayName.ifBlank { existingLocal.name }, email = userEmail.ifBlank { existingLocal.email })
+                                    existingLocal.copy(
+                                        name = displayName.ifBlank { existingLocal.name },
+                                        email = userEmail.ifBlank { existingLocal.email },
+                                        coins = existingLocal.coins
+                                    )
                                 } else {
                                     UserProfile(
                                         uid = user.uid,
                                         name = displayName,
                                         email = userEmail,
-                                        avatarId = "student_boy"
+                                        avatarId = "student_boy",
+                                        coins = 0
                                     )
                                 }
 
@@ -741,8 +748,9 @@ class AuthViewModel(
                                                 avatarId = if (remoteProfile.avatarId.isNotBlank() && remoteProfile.avatarId != "brain") remoteProfile.avatarId else profile.avatarId,
                                                 xp = maxOf(profile.xp, remoteProfile.xp),
                                                 level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
-                                                coins = maxOf(profile.coins, remoteProfile.coins),
-                                                streak = maxOf(profile.streak, remoteProfile.streak),
+                                                coins = remoteProfile.coins,
+                                                streak = StreakUtils.resolveStreak(profile.lastActiveDate, profile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
+                                                lastActiveDate = StreakUtils.resolveStreak(profile.lastActiveDate, profile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).second,
                                                 rank = RankUtils.getRankForXp(maxOf(profile.xp, remoteProfile.xp)),
                                                 unlockedAchievements = (profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
                                                 claimedRewards = (profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
@@ -754,10 +762,8 @@ class AuthViewModel(
                                                 bestScore = maxOf(profile.bestScore, remoteProfile.bestScore),
                                                 longestStreak = maxOf(profile.longestStreak, remoteProfile.longestStreak)
                                             )
-                                            authRepository.saveUserProfileToFirestore(merged)
+                                            authRepository.saveLocalUserProfile(merged, state.rememberMe)
                                             _uiState.update { it.copy(currentUserProfile = merged) }
-                                        } else {
-                                            authRepository.saveUserProfileToFirestore(profile)
                                         }
                                     } catch (e: Exception) {
                                         Log.w("AuthViewModel", "Background profile sync after email sign in failed: ${e.message}")
@@ -940,13 +946,18 @@ class AuthViewModel(
                         val email = user.email ?: userEmail
 
                         val profile = if (existingLocal != null) {
-                            existingLocal.copy(name = displayName.ifBlank { existingLocal.name }, email = email.ifBlank { existingLocal.email })
+                            existingLocal.copy(
+                                name = displayName.ifBlank { existingLocal.name },
+                                email = email.ifBlank { existingLocal.email },
+                                coins = existingLocal.coins
+                            )
                         } else {
                             UserProfile(
                                 uid = user.uid,
                                 name = displayName,
                                 email = email,
-                                avatarId = "student_boy"
+                                avatarId = "student_boy",
+                                coins = 0
                             )
                         }
                         Log.d("GOOGLE_AUTH_FLOW", "STEP 13 authenticated profile loaded/created: uid=${profile.uid}")
@@ -977,8 +988,9 @@ class AuthViewModel(
                                         avatarId = if (remoteProfile.avatarId.isNotBlank() && remoteProfile.avatarId != "brain") remoteProfile.avatarId else profile.avatarId,
                                         xp = maxOf(profile.xp, remoteProfile.xp),
                                         level = LevelUtils.getLevel(maxOf(profile.xp, remoteProfile.xp)),
-                                        coins = maxOf(profile.coins, remoteProfile.coins),
-                                        streak = maxOf(profile.streak, remoteProfile.streak),
+                                        coins = remoteProfile.coins,
+                                        streak = StreakUtils.resolveStreak(profile.lastActiveDate, profile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
+                                        lastActiveDate = StreakUtils.resolveStreak(profile.lastActiveDate, profile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).second,
                                         rank = RankUtils.getRankForXp(maxOf(profile.xp, remoteProfile.xp)),
                                         unlockedAchievements = (profile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
                                         claimedRewards = (profile.claimedRewards + remoteProfile.claimedRewards).distinct(),
@@ -990,10 +1002,8 @@ class AuthViewModel(
                                         bestScore = maxOf(profile.bestScore, remoteProfile.bestScore),
                                         longestStreak = maxOf(profile.longestStreak, remoteProfile.longestStreak)
                                     )
-                                    authRepository.saveUserProfileToFirestore(merged)
+                                    authRepository.saveLocalUserProfile(merged, isLoggedIn = true)
                                     _uiState.update { it.copy(currentUserProfile = merged) }
-                                } else {
-                                    authRepository.saveUserProfileToFirestore(profile)
                                 }
                             } catch (e: Exception) {
                                 Log.w("AuthViewModel", "Background profile sync after Google sign in: ${e.message}")
@@ -1051,7 +1061,31 @@ class AuthViewModel(
         }
         viewModelScope.launch {
             Log.d("AUTH_AUDIT", "[LOCAL_GOOGLE_FALLBACK] Logging in with Google Account Email: $email")
-            val profile = authRepository.createOrGetLocalEmailProfile(email, name.ifBlank { "Google User" })
+            val baseProfile = authRepository.createOrGetLocalEmailProfile(email, name.ifBlank { "Google User" })
+            val remoteProfile = withContext(Dispatchers.IO) { authRepository.fetchUserProfile(baseProfile.uid) }
+            val profile = if (remoteProfile != null) {
+                val merged = baseProfile.copy(
+                    xp = maxOf(baseProfile.xp, remoteProfile.xp),
+                    level = LevelUtils.getLevel(maxOf(baseProfile.xp, remoteProfile.xp)),
+                    coins = remoteProfile.coins,
+                    streak = StreakUtils.resolveStreak(baseProfile.lastActiveDate, baseProfile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).first,
+                    lastActiveDate = StreakUtils.resolveStreak(baseProfile.lastActiveDate, baseProfile.streak, remoteProfile.lastActiveDate, remoteProfile.streak).second,
+                    rank = RankUtils.getRankForXp(maxOf(baseProfile.xp, remoteProfile.xp)),
+                    unlockedAchievements = (baseProfile.unlockedAchievements + remoteProfile.unlockedAchievements).distinct(),
+                    claimedRewards = (baseProfile.claimedRewards + remoteProfile.claimedRewards).distinct(),
+                    unlockedAvatars = ((baseProfile.unlockedAvatars + remoteProfile.unlockedAvatars).filter { it != "brain" }).distinct(),
+                    quizHistory = (baseProfile.quizHistory + remoteProfile.quizHistory).distinctBy { it.id.ifBlank { "${it.timestamp}_${it.categoryName}" } }.sortedByDescending { it.timestamp },
+                    totalQuizzesPlayed = maxOf(baseProfile.totalQuizzesPlayed, remoteProfile.totalQuizzesPlayed),
+                    totalQuestionsAnswered = maxOf(baseProfile.totalQuestionsAnswered, remoteProfile.totalQuestionsAnswered),
+                    totalCorrectAnswers = maxOf(baseProfile.totalCorrectAnswers, remoteProfile.totalCorrectAnswers),
+                    bestScore = maxOf(baseProfile.bestScore, remoteProfile.bestScore),
+                    longestStreak = maxOf(baseProfile.longestStreak, remoteProfile.longestStreak)
+                )
+                authRepository.saveLocalUserProfile(merged, isLoggedIn = true)
+                merged
+            } else {
+                baseProfile
+            }
             authRepository.setGuestSessionActive(false)
             _uiState.update {
                 it.copy(

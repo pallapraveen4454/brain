@@ -91,18 +91,14 @@ class QuizResultRepository(
 
     fun getLocalProgress(): LocalProgress {
         val profile = userProfileStore.getProfile()
-        val (calculatedStreak, updatedActiveDate) = if (profile.lastActiveDate.isNotBlank()) {
-            StreakUtils.calculateStreak(profile.lastActiveDate, profile.streak)
-        } else {
-            Pair(profile.streak, profile.lastActiveDate)
-        }
+        val displayStreak = StreakUtils.getDisplayStreak(profile.lastActiveDate, profile.streak)
 
         return LocalProgress(
             totalXp = profile.xp,
             level = maxOf(1, profile.level),
             coins = profile.coins,
-            streak = calculatedStreak,
-            lastActiveDate = updatedActiveDate.ifBlank { profile.lastActiveDate },
+            streak = displayStreak,
+            lastActiveDate = profile.lastActiveDate,
             rank = RankUtils.getRankForXp(profile.xp),
             lastCategoryName = profile.lastQuizCategory,
             lastScoreOutOfTen = profile.lastQuizScore,
