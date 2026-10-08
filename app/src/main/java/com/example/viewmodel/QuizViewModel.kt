@@ -586,7 +586,7 @@ class QuizViewModel(
                 val updatedLongestStreak = maxOf(currentProfile.longestStreak, updatedStreak)
 
                 // 3. Record stats for achievement tracking
-                val questionsCount = _uiState.value.questions.size.ifZero(10)
+                val questionsCount = if (_uiState.value.questions.isEmpty()) 10 else _uiState.value.questions.size
                 val isAiCustom = _uiState.value.categoryId == "ai_custom"
                 achievementRepository.recordQuizCompletion(
                     scoreOutOfTen = scoreOutOfTen,
@@ -684,6 +684,7 @@ class QuizViewModel(
     fun dismissAchievementDialog() {
         _uiState.update { it.copy(newlyUnlockedAchievements = emptyList()) }
     }
+
 
     /**
      * Randomizes and balances the answer option positions for the Daily Challenge questions.
