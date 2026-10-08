@@ -179,13 +179,20 @@ class QuizViewModel(
             }
         }
 
+        // Randomize option order for Daily Challenge so correct answers are naturally distributed across A/B/C/D
+        val finalQuestions = if (isDaily) {
+            randomizeDailyChallengeOptionPositions(validatedQuestions)
+        } else {
+            validatedQuestions
+        }
+
         val currentLocalXp = quizResultRepository.getLocalProgress().totalXp
 
         _uiState.update {
             QuizUiState(
                 categoryId = categoryId,
                 categoryTitle = title,
-                questions = validatedQuestions,
+                questions = finalQuestions,
                 currentQuestionIndex = 0,
                 selectedOptionIndex = null,
                 isAnswerSubmitted = false,
@@ -208,7 +215,7 @@ class QuizViewModel(
             )
         }
 
-        if (validatedQuestions.isNotEmpty()) {
+        if (finalQuestions.isNotEmpty()) {
             startTimer()
         }
     }
@@ -678,7 +685,80 @@ class QuizViewModel(
         _uiState.update { it.copy(newlyUnlockedAchievements = emptyList()) }
     }
 
-    private fun Int.ifZero(default: Int): Int = if (this == 0) default else this
+    /**
+     * Randomizes and balances the answer option positions for the Daily Challenge questions.
+     * Ensures correct answers are naturally distributed across options A (0), B (1), C (2), and D (3)
+     * without predictable repeating patterns, while keeping the original question content,
+     * options text, and correct answer verification completely intact.
+     */
+    private fun randomizeDailyChallengeOptionPositions(questions: List<QuizQuestion>): List<QuizQuestion> {
+        if (questions.isEmpty()) return questions
+
+        val totalQuestions = questions.size
+        // 1. Build a balanced distribution of target positions (0=A, 1=B, 2=C, 3=D)
+        val baseCount = totalQuestions / 4
+        val remainder = totalQuestions % 4
+        val targetPositions = mutableListOf<Int>()
+        for (pos in 0..3) {
+            repeat(baseCount) { targetPositions.add(pos) }
+        }
+        val extraPositions = (0..3).shuffled().take(remainder)
+        targetPositions.addAll(extraPositions)
+
+        // 2. Shuffle target positions to avoid predictable sequences (e.g., A-B-C-D repeating)
+        // Also ensure no more than 2 consecutive identical positions
+        var shuffledPositions = targetPositions.shuffled()
+        var attempts = 0
+        while (attempts < 15 && (hasThreeConsecutiveIdentical(shuffledPositions) || isRepeatingSequence(shuffledPositions))) {
+            shuffledPositions = targetPositions.shuffled()
+            attempts++
+        }
+
+        // 3. For each question, place the correct answer at its target position and shuffle distractors into the remaining slots
+        return questions.mapIndexed { index, question ->
+            if (question.options.size != 4) {
+                return@mapIndexed question
+            }
+
+            val targetPos = shuffledPositions.getOrElse(index) { index % 4 }
+            val originalCorrectOption = question.options.getOrElse(question.correctOptionIndex) { "" }
+            val distractors = question.options.filterIndexed { optIdx, _ ->
+                optIdx != question.correctOptionIndex
+            }.shuffled()
+
+            val newOptions = ArrayList<String>(4)
+            var distractorIdx = 0
+            for (slot in 0 until 4) {
+                if (slot == targetPos) {
+                    newOptions.add(originalCorrectOption)
+                } else {
+                    newOptions.add(distractors.getOrElse(distractorIdx) { "" })
+                    distractorIdx++
+                }
+            }
+
+            question.copy(
+                options = newOptions,
+                correctOptionIndex = targetPos
+            )
+        }
+    }
+
+    private fun hasThreeConsecutiveIdentical(list: List<Int>): Boolean {
+        for (i in 0 until list.size - 2) {
+            if (list[i] == list[i + 1] && list[i + 1] == list[i + 2]) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun isRepeatingSequence(list: List<Int>): Boolean {
+        if (list.size < 4) return false
+        val isAscendingCycle = list.indices.all { i -> list[i] == (list[0] + i) % 4 }
+        val isDescendingCycle = list.indices.all { i -> list[i] == (list[0] - i + 400) % 4 }
+        return isAscendingCycle || isDescendingCycle
+    }
 
     fun restartQuiz() {
         val catId = _uiState.value.categoryId
